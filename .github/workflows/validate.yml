@@ -1,0 +1,56 @@
+name: Validate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate Integration
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: |
+          python -c "
+          import json
+          with open('custom_components/smart_assist/manifest.json') as f:
+              manifest = json.load(f)
+          required = ['domain', 'name', 'version', 'documentation', 'requirements', 'codeowners']
+          for key in required:
+              assert key in manifest, f'Missing required key: {key}'
+          print('Manifest validation passed')
+          "
+
+      - name: Check translations
+        run: |
+          python -c "
+          import json
+          import os
+          
+          translations_dir = 'custom_components/smart_assist/translations'
+          required_langs = ['en.json', 'de.json']
+          
+          for lang in required_langs:
+              path = os.path.join(translations_dir, lang)
+              assert os.path.exists(path), f'Missing translation: {lang}'
+              with open(path) as f:
+                  data = json.load(f)
+              assert 'config' in data, f'{lang}: Missing config section'
+              assert 'options' in data, f'{lang}: Missing options section'
+          print('Translation validation passed')
+          "
+
+  hassfest:
+    runs-on: ubuntu-latest
+    name: Hassfest Validation
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run hassfest
+        uses: home-assistant/actions/hassfest@master

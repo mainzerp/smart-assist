@@ -1,0 +1,97 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "OpenRouter API Konfiguration",
+        "description": "Gib deinen OpenRouter API Key ein. Du kannst einen Key bei {docs_url} erstellen.",
+        "data": {
+          "api_key": "API Key"
+        }
+      },
+      "model": {
+        "title": "Modell Konfiguration",
+        "description": "Waehle ein beliebiges OpenRouter-Modell. Du kannst eine eigene Modell-ID eingeben oder aus Vorschlaegen waehlen.\n\n**Prompt Caching:** Falls aktiviert, waehle einen spezifischen Provider (nicht 'auto'). Nicht alle Modelle unterstuetzen Caching - siehe [OpenRouter Docs]({caching_docs_url}).",
+        "data": {
+          "model": "Modell (z.B. anthropic/claude-3-haiku)",
+          "provider": "Provider",
+          "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
+          "max_tokens": "Maximale Antwort-Tokens"
+        },
+        "data_description": {
+          "provider": "Fuer Prompt Caching einen spezifischen Provider waehlen. 'Auto' kann zu Providern ohne Caching-Unterstuetzung routen."
+        }
+      },
+      "behavior": {
+        "title": "Verhaltenseinstellungen",
+        "description": "Konfiguriere das Verhalten von Smart Assist",
+        "data": {
+          "language": "Antwortsprache",
+          "exposed_only": "Nur freigegebene Entities verwenden",
+          "confirm_critical": "Kritische Aktionen bestaetigen (Schloesser, Alarme)",
+          "max_history": "Maximale Konversationshistorie",
+          "enable_web_search": "Websuche aktivieren (DuckDuckGo)",
+          "enable_quick_actions": "Schnellaktionen aktivieren (LLM fuer einfache Befehle umgehen)",
+          "enable_prompt_caching": "Prompt Caching aktivieren (reduziert Latenz und Kosten)",
+          "cache_ttl_extended": "Erweiterte Cache-Dauer (1 Stunde fuer Anthropic)",
+          "enable_cache_warming": "Automatisches Cache-Warming aktivieren (verursacht Kosten)",
+          "cache_refresh_interval": "Cache-Aktualisierungsintervall",
+          "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
+          "ask_followup": "Rueckfragen stellen"
+        },
+        "data_description": {
+          "cache_ttl_extended": "Aktiviert 1-Stunden-Cache statt 5 Minuten. Reduziert Kosten fuer haeufig genutzte Prompts. Gilt nur fuer Anthropic-Modelle.",
+          "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Garantiert sofortige Antworten, verursacht aber geringe zusaetzliche API-Kosten (~1 Anfrage pro Intervall).",
+          "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen (5 min Standard, 60 min erweitert). Niedriger = zuverlaessigerer Cache, hoehere Kosten.",
+          "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs. Konvertiert Symbole in Woerter (z.B. 25°C zu '25 Grad Celsius'). Original-Antworten bleiben im Gespraechsverlauf erhalten.",
+          "ask_followup": "Wenn aktiviert, bietet der Assistent nach Aktionen weitere Hilfe an. Fuer Sprachassistenten deaktivieren, um schleifenartige Interaktionen zu vermeiden."
+        }
+      },
+      "prompt": {
+        "title": "Prompt Konfiguration",
+        "description": "Passe die Persoenlichkeit und das Verhalten des Assistenten an",
+        "data": {
+          "user_system_prompt": "Benutzerdefinierter System Prompt"
+        }
+      }
+    },
+    "error": {
+      "invalid_api_key": "Ungueltiger API Key. Bitte ueberpruefen und erneut versuchen.",
+      "cannot_connect": "Verbindung zur OpenRouter API nicht moeglich.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten."
+    },
+    "abort": {
+      "already_configured": "Smart Assist ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Smart Assist Einstellungen",
+        "description": "Passe deine Smart Assist Konfiguration an.\n\n**Prompt Caching:** Erfordert einen spezifischen Provider (nicht 'auto') und ein unterstuetztes Modell.",
+        "data": {
+          "model": "Modell",
+          "provider": "Provider",
+          "temperature": "Temperatur",
+          "max_tokens": "Maximale Antwort-Tokens",
+          "language": "Antwortsprache",
+          "exposed_only": "Nur freigegebene Entities verwenden",
+          "confirm_critical": "Kritische Aktionen bestaetigen",
+          "max_history": "Maximale Konversationshistorie",
+          "enable_web_search": "Websuche aktivieren",
+          "enable_quick_actions": "Schnellaktionen aktivieren",
+          "enable_prompt_caching": "Prompt Caching aktivieren",
+          "cache_ttl_extended": "Erweiterte Cache-Dauer (1h fuer Anthropic)",
+          "enable_cache_warming": "Cache-Warming aktivieren (verursacht Kosten)",
+          "cache_refresh_interval": "Cache-Aktualisierungsintervall (min)",
+          "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
+          "ask_followup": "Rueckfragen stellen",
+          "user_system_prompt": "Benutzerdefinierter System Prompt"
+        },
+        "data_description": {
+          "provider": "Fuer Prompt Caching einen spezifischen Provider waehlen. Nicht alle Modelle unterstuetzen Caching.",
+          "enable_prompt_caching": "Reduziert Latenz und Kosten. Erfordert unterstuetztes Modell + spezifischen Provider."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "domain": "smart_assist",
+  "name": "Smart Assist",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["conversation"],
+  "documentation": "https://github.com/your-repo/smart-assist",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "requirements": ["aiohttp>=3.8.0", "ddgs>=9.0.0"],
+  "version": "0.1.0"
+}

@@ -1,0 +1,292 @@
+"""Entity manager for Smart Assist."""
+
+from __future__ import annotations
+
+import hashlib
+import logging
+from dataclasses import dataclass
+from typing import Any
+
+from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import area_registry, entity_registry
+from homeassistant.components.homeassistant.exposed_entities import async_get_exposed_entities
+
+from ..const import SUPPORTED_DOMAINS
+
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class EntityInfo:
+    """Compact entity information for index."""
+
+    entity_id: str
+    domain: str
+    friendly_name: str
+    area_name: str | None
+
+
+@dataclass
+class EntityState:
+    """Entity state with key attributes."""
+
+    entity_id: str
+    state: str
+    attributes: dict[str, Any]
+
+    def to_compact_string(self) -> str:
+        """Convert to compact string representation."""
+        parts = [f"{self.entity_id}: {self.state}"]
+
+        # Add domain-specific key attributes
+        domain = self.entity_id.split(".")[0]
+
+        if domain == "light":
+            if brightness := self.attributes.get("brightness"):
+                parts.append(f"{int(brightness / 255 * 100)}%")
+            if color_temp := self.attributes.get("color_temp_kelvin"):
+                parts.append(f"{color_temp}K")
+
+        elif domain == "climate":
+            if current_temp := self.attributes.get("current_temperature"):
+                parts.append(f"current={current_temp}C")
+            if target_temp := self.attributes.get("temperature"):
+                parts.append(f"target={target_temp}C")
+            if hvac_mode := self.attributes.get("hvac_mode"):
+                parts.append(hvac_mode)
+
+        elif domain == "cover":
+            if position := self.attributes.get("current_position"):
+                parts.append(f"{position}%")
+
+        elif domain == "media_player":
+            if source := self.attributes.get("source"):
+                parts.append(source)
+            if volume := self.attributes.get("volume_level"):
+                parts.append(f"vol={int(volume * 100)}%")
+
+        elif domain == "sensor":
+            if unit := self.attributes.get("unit_of_measurement"):
+                parts[0] = f"{self.entity_id}: {self.state}{unit}"
+
+        return ", ".join(parts)
+
+
+class EntityManager:
+    """Manages entity context for LLM interactions."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        exposed_only: bool = True,
+    ) -> None:
+        """Initialize the entity manager."""
+        self._hass = hass
+        self._exposed_only = exposed_only
+        self._entity_index_cache: list[EntityInfo] | None = None
+        self._entity_index_hash: str | None = None
+
+    def _get_area_name(self, entity_id: str) -> str | None:
+        """Get area name for an entity."""
+        ent_reg = entity_registry.async_get(self._hass)
+        area_reg = area_registry.async_get(self._hass)
+
+        if entity_entry := ent_reg.async_get(entity_id):
+            if entity_entry.area_id:
+                if area := area_reg.async_get_area(entity_entry.area_id):
+                    return area.name
+            # Check device area
+            if entity_entry.device_id:
+                from homeassistant.helpers import device_registry
+                dev_reg = device_registry.async_get(self._hass)
+                if device := dev_reg.async_get(entity_entry.device_id):
+                    if device.area_id:
+                        if area := area_reg.async_get_area(device.area_id):
+                            return area.name
+        return None
+
+    def _get_exposed_entity_ids(self) -> set[str]:
+        """Get set of exposed entity IDs."""
+        if not self._exposed_only:
+            return set()
+
+        try:
+            exposed = async_get_exposed_entities(self._hass)
+            return {
+                entity_id
+                for entity_id, info in exposed.items()
+                if info.get("should_expose", False)
+            }
+        except Exception:
+            _LOGGER.warning("Could not get exposed entities, using all entities")
+            return set()
+
+    def get_all_entities(self) -> list[EntityInfo]:
+        """Get all available entities as compact info."""
+        exposed_ids = self._get_exposed_entity_ids()
+        entities: list[EntityInfo] = []
+
+        for state in self._hass.states.async_all():
+            domain = state.entity_id.split(".")[0]
+
+            # Filter by supported domains
+            if domain not in SUPPORTED_DOMAINS:
+                continue
+
+            # Filter by exposed entities if enabled
+            if self._exposed_only and exposed_ids and state.entity_id not in exposed_ids:
+                continue
+
+            entities.append(
+                EntityInfo(
+                    entity_id=state.entity_id,
+                    domain=domain,
+                    friendly_name=state.attributes.get("friendly_name", state.entity_id),
+                    area_name=self._get_area_name(state.entity_id),
+                )
+            )
+
+        return entities
+
+    def get_entity_index(self, force_refresh: bool = False) -> tuple[str, str]:
+        """Get entity index for caching and its hash.
+
+        Returns:
+            Tuple of (index_text, hash)
+        """
+        current_entities = self.get_all_entities()
+        current_hash = self._compute_index_hash(current_entities)
+
+        # Return cached if hash matches
+        if (
+            not force_refresh
+            and self._entity_index_cache is not None
+            and self._entity_index_hash == current_hash
+        ):
+            return self._format_entity_index(self._entity_index_cache), current_hash
+
+        # Update cache
+        self._entity_index_cache = current_entities
+        self._entity_index_hash = current_hash
+
+        return self._format_entity_index(current_entities), current_hash
+
+    def _compute_index_hash(self, entities: list[EntityInfo]) -> str:
+        """Compute hash of entity index for cache invalidation."""
+        entity_ids = sorted(e.entity_id for e in entities)
+        return hashlib.md5("|".join(entity_ids).encode()).hexdigest()[:16]
+
+    def _format_entity_index(self, entities: list[EntityInfo]) -> str:
+        """Format entity index for LLM context."""
+        # Group by area
+        by_area: dict[str, list[EntityInfo]] = {}
+        no_area: list[EntityInfo] = []
+
+        for entity in entities:
+            if entity.area_name:
+                by_area.setdefault(entity.area_name, []).append(entity)
+            else:
+                no_area.append(entity)
+
+        lines = ["Available entities:"]
+
+        for area_name in sorted(by_area.keys()):
+            lines.append(f"\n{area_name}:")
+            for entity in sorted(by_area[area_name], key=lambda e: e.entity_id):
+                lines.append(f"  {entity.entity_id} ({entity.friendly_name})")
+
+        if no_area:
+            lines.append("\nOther:")
+            for entity in sorted(no_area, key=lambda e: e.entity_id):
+                lines.append(f"  {entity.entity_id} ({entity.friendly_name})")
+
+        return "\n".join(lines)
+
+    def get_entity_state(self, entity_id: str) -> EntityState | None:
+        """Get current state of an entity."""
+        if state := self._hass.states.get(entity_id):
+            return EntityState(
+                entity_id=entity_id,
+                state=state.state,
+                attributes=dict(state.attributes),
+            )
+        return None
+
+    def get_entity_states(self, entity_ids: list[str]) -> list[EntityState]:
+        """Get current states of multiple entities."""
+        states = []
+        for entity_id in entity_ids:
+            if entity_state := self.get_entity_state(entity_id):
+                states.append(entity_state)
+        return states
+
+    def get_relevant_entity_states(
+        self,
+        query: str,
+        max_entities: int = 10,
+    ) -> str:
+        """Get entity states relevant to a query.
+
+        Simple keyword-based matching for now.
+        Returns formatted string for LLM context.
+        """
+        query_lower = query.lower()
+        entities = self.get_all_entities()
+        scored: list[tuple[int, EntityInfo]] = []
+
+        for entity in entities:
+            score = 0
+
+            # Score by name match
+            if entity.friendly_name.lower() in query_lower:
+                score += 10
+            elif any(word in entity.friendly_name.lower() for word in query_lower.split()):
+                score += 5
+
+            # Score by area match
+            if entity.area_name and entity.area_name.lower() in query_lower:
+                score += 8
+
+            # Score by domain match
+            domain_keywords = {
+                "light": ["light", "lamp", "brightness", "dim"],
+                "climate": ["temperature", "thermostat", "heating", "cooling", "hvac"],
+                "cover": ["blind", "shutter", "curtain", "cover", "garage"],
+                "media_player": ["tv", "speaker", "music", "media", "play"],
+                "switch": ["switch", "plug", "outlet"],
+                "lock": ["lock", "door"],
+            }
+
+            if keywords := domain_keywords.get(entity.domain):
+                if any(kw in query_lower for kw in keywords):
+                    score += 3
+
+            if score > 0:
+                scored.append((score, entity))
+
+        # Sort by score and take top entities
+        scored.sort(key=lambda x: x[0], reverse=True)
+        relevant = [e for _, e in scored[:max_entities]]
+
+        # Get their current states
+        states = self.get_entity_states([e.entity_id for e in relevant])
+
+        if not states:
+            return "No relevant entities found for this query."
+
+        lines = ["Current states:"]
+        for state in states:
+            lines.append(f"  {state.to_compact_string()}")
+
+        return "\n".join(lines)
+
+    def get_all_current_states(self) -> str:
+        """Get all entity states (for simple queries)."""
+        entities = self.get_all_entities()
+        states = self.get_entity_states([e.entity_id for e in entities])
+
+        lines = ["All entity states:"]
+        for state in states:
+            lines.append(f"  {state.to_compact_string()}")
+
+        return "\n".join(lines)

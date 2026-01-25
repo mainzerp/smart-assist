@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Prepare Release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate version consistency
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          MANIFEST_VERSION=$(python -c "import json; print(json.load(open('custom_components/smart_assist/manifest.json'))['version'])")
+          
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "Version mismatch: Tag=$TAG_VERSION, Manifest=$MANIFEST_VERSION"
+            exit 1
+          fi
+          echo "Version validated: $TAG_VERSION"
+
+      - name: Create release artifact
+        run: |
+          cd custom_components
+          zip -r ../smart_assist.zip smart_assist
+
+      - name: Upload release artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./smart_assist.zip
+          asset_name: smart_assist.zip
+          asset_content_type: application/zip
