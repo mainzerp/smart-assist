@@ -58,28 +58,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register update listener for options
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
+    # Helper to get config values (options override data)
+    def get_config(key: str, default: Any = None) -> Any:
+        """Get config value from options first, then data, then default."""
+        if key in entry.options:
+            return entry.options[key]
+        return entry.data.get(key, default)
+
     # Schedule cache warming and periodic refresh if enabled
-    if (
-        entry.data.get(CONF_ENABLE_PROMPT_CACHING, True)
-        and entry.data.get(CONF_ENABLE_CACHE_WARMING, DEFAULT_ENABLE_CACHE_WARMING)
-    ):
+    caching_enabled = get_config(CONF_ENABLE_PROMPT_CACHING, True)
+    warming_enabled = get_config(CONF_ENABLE_CACHE_WARMING, DEFAULT_ENABLE_CACHE_WARMING)
+    
+    _LOGGER.debug(
+        "Cache settings: caching=%s, warming=%s",
+        caching_enabled, warming_enabled
+    )
+    
+    if caching_enabled and warming_enabled:
         async def _cache_warming_callback(event: Event) -> None:
             """Perform cache warming after Home Assistant starts."""
+            _LOGGER.info("Starting initial cache warming...")
             await _perform_cache_warming(hass, entry)
             # Start periodic cache refresh
             _start_cache_refresh_timer(hass, entry)
 
         # If HA is already running, warm cache immediately
         if hass.is_running:
+            _LOGGER.info("HA running, starting cache warming immediately...")
             hass.async_create_task(_perform_cache_warming(hass, entry))
             _start_cache_refresh_timer(hass, entry)
         else:
+            _LOGGER.info("Waiting for HA to start before cache warming...")
             # Otherwise wait for HA to start
             entry.async_on_unload(
                 hass.bus.async_listen_once(
                     EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
                 )
             )
+    else:
+        _LOGGER.debug("Cache warming disabled (caching=%s, warming=%s)", caching_enabled, warming_enabled)
 
     _LOGGER.info("Smart Assist integration setup complete")
     return True
@@ -89,15 +106,19 @@ def _start_cache_refresh_timer(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Start periodic cache refresh timer."""
     from datetime import timedelta
     
+    # Helper to get config values (options override data)
+    def get_config(key: str, default: Any = None) -> Any:
+        if key in entry.options:
+            return entry.options[key]
+        return entry.data.get(key, default)
+    
     # Get user-configured refresh interval (in minutes)
-    interval_minutes = entry.data.get(
-        CONF_CACHE_REFRESH_INTERVAL, DEFAULT_CACHE_REFRESH_INTERVAL
-    )
+    interval_minutes = get_config(CONF_CACHE_REFRESH_INTERVAL, DEFAULT_CACHE_REFRESH_INTERVAL)
     interval_seconds = interval_minutes * 60
     
     async def _refresh_cache(now: Any) -> None:
         """Periodically refresh the cache."""
-        _LOGGER.debug("Refreshing prompt cache (periodic)")
+        _LOGGER.info("Refreshing prompt cache (periodic, every %d min)", interval_minutes)
         await _perform_cache_warming(hass, entry, initial=False)
     
     # Register the periodic task
