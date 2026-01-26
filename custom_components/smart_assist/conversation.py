@@ -674,20 +674,30 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         if chat_log is not None:
             try:
                 max_history = self._get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
-                history_entries = list(chat_log.content)
                 
-                # Limit history to max_history entries (most recent)
-                if len(history_entries) > max_history:
-                    history_entries = history_entries[-max_history:]
-                
-                for entry in history_entries:
-                    if hasattr(entry, 'content') and entry.content:
-                        # Check type by class name (safer than isinstance with potentially None types)
-                        entry_type = type(entry).__name__
-                        if entry_type == "UserContent":
-                            messages.append(ChatMessage(role=MessageRole.USER, content=entry.content))
-                        elif entry_type == "AssistantContent":
-                            messages.append(ChatMessage(role=MessageRole.ASSISTANT, content=entry.content))
+                # Safely get content from chat_log
+                content = getattr(chat_log, 'content', None)
+                if content is None:
+                    _LOGGER.debug("ChatLog has no content attribute")
+                else:
+                    try:
+                        history_entries = list(content)
+                    except (TypeError, AttributeError) as e:
+                        _LOGGER.debug("Could not iterate chat_log.content: %s", e)
+                        history_entries = []
+                    
+                    # Limit history to max_history entries (most recent)
+                    if len(history_entries) > max_history:
+                        history_entries = history_entries[-max_history:]
+                    
+                    for entry in history_entries:
+                        if hasattr(entry, 'content') and entry.content:
+                            # Check type by class name (safer than isinstance with potentially None types)
+                            entry_type = type(entry).__name__
+                            if entry_type == "UserContent":
+                                messages.append(ChatMessage(role=MessageRole.USER, content=entry.content))
+                            elif entry_type == "AssistantContent":
+                                messages.append(ChatMessage(role=MessageRole.ASSISTANT, content=entry.content))
             except Exception as err:
                 _LOGGER.warning("Failed to process chat history: %s", err)
                 # Continue without history - don't fail the request
