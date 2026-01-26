@@ -118,6 +118,9 @@
             "user_system_prompt": "System Prompt"
           }
         }
+      },
+      "abort": {
+        "reconfigure_successful": "Einstellungen erfolgreich aktualisiert."
       }
     },
     "ai_task": {
@@ -180,6 +183,9 @@
             "task_enable_cache_warming": "Cache-Warming aktivieren"
           }
         }
+      },
+      "abort": {
+        "reconfigure_successful": "Einstellungen erfolgreich aktualisiert."
       }
     }
   }
