@@ -809,7 +809,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         # Signal sensors to update their state
         async_dispatcher_send(
             self.hass,
-            f"smart_assist_metrics_updated_{self._entry.entry_id}",
+            f"{DOMAIN}_metrics_updated_{self._entry.entry_id}",
         )
         
         return ConversationResult(
