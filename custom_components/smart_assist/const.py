@@ -27,8 +27,8 @@ CONF_USER_SYSTEM_PROMPT: Final = "user_system_prompt"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 
 # Default values
-DEFAULT_MODEL: Final = "anthropic/claude-3-haiku"
-DEFAULT_PROVIDER: Final = "auto"
+DEFAULT_MODEL: Final = "openai/gpt-oss-120b"
+DEFAULT_PROVIDER: Final = "groq"
 DEFAULT_TEMPERATURE: Final = 0.3
 DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_LANGUAGE: Final = "auto"
