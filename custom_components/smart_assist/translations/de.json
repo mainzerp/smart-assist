@@ -89,10 +89,16 @@
           }
         },
         "reconfigure": {
-          "title": "Agent rekonfigurieren",
-          "description": "Einstellungen fuer diesen Agenten aktualisieren.",
+          "title": "Agent rekonfigurieren - Modell",
+          "description": "Waehle ein neues Modell fuer diesen Agenten.\n\nNach der Bestaetigung kannst du Provider und andere Einstellungen aktualisieren.",
           "data": {
-            "model": "Modell",
+            "model": "Modell"
+          }
+        },
+        "reconfigure_settings": {
+          "title": "Agent rekonfigurieren - Einstellungen",
+          "description": "Provider und Verhaltenseinstellungen fuer diesen Konversations-Agenten aktualisieren.",
+          "data": {
             "provider": "Provider",
             "temperature": "Temperatur",
             "max_tokens": "Maximale Antwort-Tokens",
