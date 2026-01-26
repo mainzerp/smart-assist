@@ -82,21 +82,14 @@ def create_tool_registry(
     return registry
 
 
-# Legacy exports for backwards compatibility
-from .entity_tools import (
-    GetEntitiesTool,
-    GetEntityStateTool,
-    ControlEntityTool,
-    ControlLightTool,
-    ControlClimateTool,
-    ControlMediaTool,
-    ControlCoverTool,
-)
+# Exports - only actively used tools
+from .entity_tools import GetEntitiesTool, GetEntityStateTool
 from .unified_control import UnifiedControlTool
-from .scene_tools import RunSceneTool, RunScriptTool, TriggerAutomationTool
+from .scene_tools import RunSceneTool, TriggerAutomationTool
 from .search_tools import WebSearchTool, GetWeatherTool
 
 __all__ = [
+    # Base classes
     "BaseTool",
     "ToolRegistry",
     "ToolResult",
@@ -105,15 +98,8 @@ __all__ = [
     "GetEntitiesTool",
     "GetEntityStateTool",
     "UnifiedControlTool",
-    # Legacy (deprecated, use UnifiedControlTool)
-    "ControlEntityTool",
-    "ControlLightTool",
-    "ControlClimateTool",
-    "ControlMediaTool",
-    "ControlCoverTool",
-    # Scene/Script
+    # Scene/Automation
     "RunSceneTool",
-    "RunScriptTool",
     "TriggerAutomationTool",
     # Utility
     "WebSearchTool",

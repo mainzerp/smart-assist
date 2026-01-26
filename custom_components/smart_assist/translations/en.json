@@ -30,7 +30,6 @@
           "confirm_critical": "Confirm critical actions (locks, alarms)",
           "max_history": "Maximum conversation history",
           "enable_web_search": "Enable web search (DuckDuckGo)",
-          "enable_quick_actions": "Enable quick actions (bypass LLM for simple commands)",
           "enable_prompt_caching": "Enable prompt caching (reduces latency and cost)",
           "cache_ttl_extended": "Extended cache TTL (1 hour for Anthropic)",
           "enable_cache_warming": "Enable automatic cache warming (incurs additional cost)",
@@ -95,8 +94,7 @@
           "exposed_only": "Use only exposed entities",
           "confirm_critical": "Confirm critical actions",
           "max_history": "Maximum conversation history",
-          "enable_web_search": "Enable web search (DuckDuckGo)",
-          "enable_quick_actions": "Enable quick actions (bypass LLM)"
+          "enable_web_search": "Enable web search (DuckDuckGo)"
         }
       },
       "caching": {

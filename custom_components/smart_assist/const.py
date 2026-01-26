@@ -29,7 +29,7 @@ CONF_DEBUG_LOGGING: Final = "debug_logging"
 # Default values
 DEFAULT_MODEL: Final = "openai/gpt-oss-120b"
 DEFAULT_PROVIDER: Final = "groq"
-DEFAULT_TEMPERATURE: Final = 0.3
+DEFAULT_TEMPERATURE: Final = 0.5
 DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_LANGUAGE: Final = "auto"
 DEFAULT_MAX_HISTORY: Final = 10

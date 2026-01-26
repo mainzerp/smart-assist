@@ -75,7 +75,7 @@ class OpenRouterClient:
         api_key: str,
         model: str,
         provider: str = "auto",
-        temperature: float = 0.3,
+        temperature: float = 0.5,
         max_tokens: int = 500,
         enable_caching: bool = True,
         cache_ttl_extended: bool = False,
@@ -91,6 +91,7 @@ class OpenRouterClient:
         # Determine if caching is available based on model and provider
         self._enable_caching = self._check_caching_support(model, provider, enable_caching)
         self._session: aiohttp.ClientSession | None = None
+        self._session_lock = asyncio.Lock()  # Lock for thread-safe session creation
         
         # Initialize metrics tracking
         self._metrics = LLMMetrics()
@@ -120,17 +121,18 @@ class OpenRouterClient:
         return False
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session."""
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://github.com/smart-assist",
-                    "X-Title": "Smart Assist for Home Assistant",
-                },
-                timeout=aiohttp.ClientTimeout(total=60),
-            )
+        """Get or create aiohttp session (thread-safe)."""
+        async with self._session_lock:
+            if self._session is None or self._session.closed:
+                self._session = aiohttp.ClientSession(
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com/smart-assist",
+                        "X-Title": "Smart Assist for Home Assistant",
+                    },
+                    timeout=aiohttp.ClientTimeout(total=60),
+                )
         return self._session
 
     async def close(self) -> None:

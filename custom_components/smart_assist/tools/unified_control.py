@@ -110,6 +110,30 @@ class UnifiedControlTool(BaseTool):
         ),
     ]
 
+    def _validate_range(
+        self, value: int | float | None, min_val: int | float, max_val: int | float, name: str
+    ) -> tuple[int | None, str | None]:
+        """Validate a numeric value is within range. Returns (clamped_value, error_message)."""
+        if value is None:
+            return None, None
+        int_val = int(value)
+        if int_val < min_val:
+            return int(min_val), f"{name} clamped from {value} to {int(min_val)} (minimum)"
+        if int_val > max_val:
+            return int(max_val), f"{name} clamped from {value} to {int(max_val)} (maximum)"
+        return int_val, None
+
+    def _validate_rgb(self, rgb: list[int] | None) -> tuple[list[int] | None, str | None]:
+        """Validate RGB color values. Returns (clamped_rgb, error_message)."""
+        if rgb is None:
+            return None, None
+        if len(rgb) != 3:
+            return None, f"RGB must have 3 values, got {len(rgb)}"
+        clamped = [max(0, min(255, v)) for v in rgb]
+        if clamped != rgb:
+            return clamped, f"RGB values clamped to 0-255 range"
+        return rgb, None
+
     async def execute(
         self,
         entity_id: str,
@@ -126,6 +150,32 @@ class UnifiedControlTool(BaseTool):
     ) -> ToolResult:
         """Execute unified control based on entity domain."""
         domain = entity_id.split(".")[0]
+        
+        # Validate and clamp numeric parameters
+        warnings: list[str] = []
+        
+        brightness, warn = self._validate_range(brightness, 0, 100, "brightness")
+        if warn:
+            warnings.append(warn)
+        
+        color_temp, warn = self._validate_range(color_temp, 2000, 6500, "color_temp")
+        if warn:
+            warnings.append(warn)
+        
+        volume, warn = self._validate_range(volume, 0, 100, "volume")
+        if warn:
+            warnings.append(warn)
+        
+        position, warn = self._validate_range(position, 0, 100, "position")
+        if warn:
+            warnings.append(warn)
+        
+        rgb_color, warn = self._validate_rgb(rgb_color)
+        if warn:
+            warnings.append(warn)
+        
+        if warnings:
+            _LOGGER.debug("Parameter validation warnings: %s", warnings)
         
         _LOGGER.debug(
             "UnifiedControl: entity=%s, action=%s, domain=%s, extras=%s",

@@ -30,7 +30,6 @@
           "confirm_critical": "Kritische Aktionen bestaetigen (Schloesser, Alarme)",
           "max_history": "Maximale Konversationshistorie",
           "enable_web_search": "Websuche aktivieren (DuckDuckGo)",
-          "enable_quick_actions": "Schnellaktionen aktivieren (LLM fuer einfache Befehle umgehen)",
           "enable_prompt_caching": "Prompt Caching aktivieren (reduziert Latenz und Kosten)",
           "cache_ttl_extended": "Erweiterte Cache-Dauer (1 Stunde fuer Anthropic)",
           "enable_cache_warming": "Automatisches Cache-Warming aktivieren (verursacht Kosten)",
@@ -95,8 +94,7 @@
           "exposed_only": "Nur freigegebene Entities",
           "confirm_critical": "Kritische Aktionen bestaetigen",
           "max_history": "Maximale Konversationshistorie",
-          "enable_web_search": "Websuche aktivieren (DuckDuckGo)",
-          "enable_quick_actions": "Schnellaktionen (LLM umgehen)"
+          "enable_web_search": "Websuche aktivieren (DuckDuckGo)"
         }
       },
       "caching": {

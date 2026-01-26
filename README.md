@@ -4,20 +4,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Release](https://img.shields.io/github/release/mainzerp/smart-assist.svg)](https://github.com/mainzerp/smart-assist/releases)
 
-**LLM-powered smart home assistant for Home Assistant using OpenRouter.**
+**Fast, LLM-powered smart home assistant for Home Assistant with Prompt Caching.**
 
-Control your smart home with natural language. Access 200+ AI models via OpenRouter including Claude, GPT-4, Gemini, Llama, and more.
+Control your smart home with natural language. Access 200+ AI models via OpenRouter including Claude, GPT-4, Gemini, Llama, and more. **Prompt Caching reduces response times by up to 85%.**
 
 ## Features
 
+- **Prompt Caching**: Up to 85% faster responses and reduced costs (Anthropic, OpenAI, Groq, Google)
 - **Natural Language Control**: Talk to your smart home naturally
 - **OpenRouter Integration**: Access to 200+ AI models via single API
-- **Provider Selection**: Choose specific providers for prompt caching support
+- **Provider Selection**: Choose specific providers for optimal caching support
 - **Unified Control Tool**: Single efficient tool for all entity types
 - **Full Streaming**: Real-time token streaming even during tool execution
-- **Token Optimization**: Entity index caching, prompt caching, minimal context
-- **Metrics/Telemetry**: Track token usage, response times, cache hit rates
 - **Cache Warming**: Optional periodic cache refresh for instant responses
+- **Metrics/Telemetry**: Track token usage, response times, cache hit rates
 - **Debug Logging**: UI toggle for verbose logging in Home Assistant logs
 - **Multi-Language**: English and German UI support
 
@@ -53,27 +53,26 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 ### Model Settings
 
 | Option | Description | Default |
-|--------|-------------|---------|
+| ------ | ----------- | ------- |
 | Model | Any OpenRouter model ID | GPT-OSS 120B |
 | Provider | Specific provider for routing | Groq |
-| Temperature | Response creativity (0-1) | 0.3 |
+| Temperature | Response creativity (0-1) | 0.5 |
 | Max Tokens | Maximum response length | 500 |
 
 ### Behavior Settings
 
 | Option | Description | Default |
-|--------|-------------|---------|
+| ------ | ----------- | ------- |
 | Language | Response language | Auto |
 | Exposed Only | Use only exposed entities | true |
 | Confirm Critical | Confirm locks/alarms before action | true |
 | Max History | Conversation history length | 10 |
 | Web Search | Enable DuckDuckGo search | true |
-| Quick Actions | Bypass LLM for simple commands | true |
 
 ### Caching Settings
 
 | Option | Description | Default |
-|--------|-------------|---------|
+| ------ | ----------- | ------- |
 | Prompt Caching | Enable prompt caching | true |
 | Extended TTL | 1 hour cache (provider-dependent) | false |
 | Cache Warming | Periodic cache refresh | false |
@@ -82,7 +81,7 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 ### Advanced Settings
 
 | Option | Description | Default |
-|--------|-------------|---------|
+| ------ | ----------- | ------- |
 | Clean Responses | Remove markdown for TTS | false |
 | Ask Follow-up | Assistant asks clarifying questions | true |
 | Debug Logging | Enable verbose logging | false |
@@ -94,9 +93,10 @@ Smart Assist supports OpenRouter's prompt caching to reduce latency and costs. T
 
 ### Provider Selection for Caching
 
-**Important**: To use prompt caching, you must select a specific provider (not "Automatic"). 
+**Important**: To use prompt caching, you must select a specific provider (not "Automatic").
 
 See the [OpenRouter Prompt Caching documentation](https://openrouter.ai/docs/guides/best-practices/prompt-caching) for:
+
 - List of providers that support prompt caching
 - Cache TTL information per provider
 - Cost savings details
@@ -112,7 +112,7 @@ Enable cache warming to periodically refresh the cache with a minimal request. T
 Smart Assist provides these tools to the LLM:
 
 | Tool | Description |
-|------|-------------|
+| ---- | ----------- |
 | `get_entities` | Query available entities by domain, area, or name |
 | `get_entity_state` | Get detailed entity state with attributes |
 | `control` | Unified control for all entity types |
@@ -130,6 +130,7 @@ Smart Assist provides these tools to the LLM:
 ## Troubleshooting
 
 Enable debug logging in the Advanced settings to see detailed logs in Home Assistant. This logs:
+
 - Message processing details
 - LLM request/response information
 - Tool execution and results

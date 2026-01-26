@@ -50,7 +50,7 @@ class WebSearchTool(BaseTool):
 
         try:
             # Run in executor to avoid blocking
-            def search():
+            def search() -> list[dict[str, Any]]:
                 # New ddgs API: DDGS().text() returns list directly
                 return DDGS().text(query, max_results=max_results)
 

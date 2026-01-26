@@ -272,23 +272,6 @@ Step 4: Prompt Configuration
 
 ---
 
-## Supported Models
-
-| Model ID | Display Name | Caching |
-|----------|--------------|---------|
-| anthropic/claude-3-haiku | Claude 3 Haiku (Fast, Cheap) | Yes |
-| anthropic/claude-3.5-haiku | Claude 3.5 Haiku (Faster) | Yes |
-| anthropic/claude-3.5-sonnet | Claude 3.5 Sonnet (Balanced) | Yes |
-| anthropic/claude-3-opus | Claude 3 Opus (Most Capable) | Yes |
-| openai/gpt-4o-mini | GPT-4o Mini (Fast, Cheap) | Yes |
-| openai/gpt-4o | GPT-4o (Balanced) | Yes |
-| openai/gpt-4-turbo | GPT-4 Turbo (Capable) | Yes |
-| google/gemini-2.0-flash | Gemini 2.0 Flash (Fast) | Yes |
-| google/gemini-2.5-pro | Gemini 2.5 Pro (Capable) | Yes |
-| meta-llama/llama-3.3-70b-instruct | Llama 3.3 70B | No |
-
----
-
 ## Security Considerations
 
 ### Entity Access Control
@@ -335,7 +318,7 @@ ruff format custom_components/smart_assist --check
 ### CI/CD Workflows
 
 | Workflow | Trigger | Actions |
-|----------|---------|---------|
+| -------- | ------- | ------- |
 | validate.yml | Push/PR | Manifest validation, translation check, ruff lint, hassfest |
 | release.yml | Release published | Version validation, create zip artifact |
 
@@ -343,14 +326,21 @@ ruff format custom_components/smart_assist --check
 
 ## Future Enhancements
 
-### Phase 2
+### Phase 2 - Reliability & Quality
+
+- [ ] **Response Validator**: Validate LLM responses before output
+  - Entity-ID validation (check if referenced entities exist)
+  - Hallucination detection (compare claimed actions with tool results)
+  - State consistency check (verify claimed states match actual states)
+  - Safety filter (block problematic content, code injection attempts)
 - [ ] Additional LLM providers (direct API access)
 - [ ] Proactive suggestions
 - [ ] Scheduled actions
-- [ ] Multi-user support
 - [ ] Rate limiting
 
-### Phase 3
+### Phase 3 - Advanced Features
+
+- [ ] Multi-user support with per-user preferences
 - [ ] Learning from user preferences
 - [ ] Automation suggestions
 - [ ] Energy optimization

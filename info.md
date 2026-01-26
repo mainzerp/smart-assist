@@ -25,4 +25,4 @@ Control your smart home with natural language. Supports Claude, GPT-4, Gemini, L
 ## Requirements
 
 - Home Assistant 2024.1.0 or newer
-- OpenRouter API key (https://openrouter.ai)
+- OpenRouter API key - [Get one here](https://openrouter.ai)

@@ -80,6 +80,7 @@ try:
         DEFAULT_LANGUAGE,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
+        DEFAULT_MODEL,
         DEFAULT_PROVIDER,
         DEFAULT_TEMPERATURE,
         DEFAULT_USER_SYSTEM_PROMPT,
@@ -153,7 +154,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Initialize LLM client
         self._llm_client = OpenRouterClient(
             api_key=entry.data[CONF_API_KEY],  # API key only in data
-            model=get_config(CONF_MODEL, "anthropic/claude-3-haiku"),
+            model=get_config(CONF_MODEL, DEFAULT_MODEL),
             provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
             temperature=get_config(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
             max_tokens=get_config(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
@@ -240,8 +241,8 @@ class SmartAssistConversationEntity(ConversationEntity):
             user_input.language,
         )
         
-        # Quick action bypass (if enabled)
-        if self._get_config(CONF_ENABLE_QUICK_ACTIONS, True):
+        # Quick action bypass (if enabled - disabled by default)
+        if self._get_config(CONF_ENABLE_QUICK_ACTIONS, False):
             quick_result = await self._try_quick_action(user_input.text)
             if quick_result:
                 _LOGGER.debug("Quick action matched: %s", quick_result[:50])

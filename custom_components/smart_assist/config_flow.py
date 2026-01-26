@@ -430,9 +430,6 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required(CONF_ENABLE_WEB_SEARCH, default=True): BooleanSelector(),
                     vol.Required(
-                        CONF_ENABLE_QUICK_ACTIONS, default=True
-                    ): BooleanSelector(),
-                    vol.Required(
                         CONF_ENABLE_PROMPT_CACHING, default=True
                     ): BooleanSelector(),
                     vol.Required(
@@ -654,10 +651,6 @@ class SmartAssistOptionsFlow(OptionsFlow):
                     vol.Required(
                         CONF_ENABLE_WEB_SEARCH,
                         default=current.get(CONF_ENABLE_WEB_SEARCH, True),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_ENABLE_QUICK_ACTIONS,
-                        default=current.get(CONF_ENABLE_QUICK_ACTIONS, True),
                     ): BooleanSelector(),
                 }
             ),
