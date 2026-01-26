@@ -89,10 +89,16 @@
           }
         },
         "reconfigure": {
-          "title": "Reconfigure Agent",
-          "description": "Update settings for this conversation agent.",
+          "title": "Reconfigure Agent - Model",
+          "description": "Select a new model for this agent.\n\nAfter confirming, you can update provider and other settings.",
           "data": {
-            "model": "Model",
+            "model": "Model"
+          }
+        },
+        "reconfigure_settings": {
+          "title": "Reconfigure Agent - Settings",
+          "description": "Update provider and behavior settings for this conversation agent.",
+          "data": {
             "provider": "Provider",
             "temperature": "Temperature",
             "max_tokens": "Maximum response tokens",
@@ -150,10 +156,16 @@
           }
         },
         "reconfigure": {
-          "title": "Reconfigure Task",
-          "description": "Update settings for this AI task.",
+          "title": "Reconfigure Task - Model",
+          "description": "Select a new model for this AI task.\n\nAfter confirming, you can update provider and other settings.",
           "data": {
-            "model": "Model",
+            "model": "Model"
+          }
+        },
+        "reconfigure_settings": {
+          "title": "Reconfigure Task - Settings",
+          "description": "Update provider and behavior settings for this AI task.",
+          "data": {
             "provider": "Provider",
             "temperature": "Temperature",
             "max_tokens": "Maximum response tokens",

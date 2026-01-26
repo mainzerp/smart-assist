@@ -541,38 +541,27 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle reconfiguration of an existing conversation agent."""
-        if user_input is not None:
-            return self.async_update_and_abort(
-                self._get_entry(),
-                self._get_reconfigure_subentry(),
-                data=user_input,
-            )
+        """Handle reconfiguration step 1 - model selection."""
+        # Pre-fill with existing values on first call
+        if not self._data:
+            self._data = dict(self._get_reconfigure_subentry().data)
         
-        # Pre-fill with existing values
-        current = self._get_reconfigure_subentry().data.copy()
+        if user_input is not None:
+            self._data[CONF_MODEL] = user_input[CONF_MODEL]
+            # Reset providers so they get refetched for new model
+            self._available_providers = None
+            return await self.async_step_reconfigure_settings()
         
         # Fetch models for dropdown
         if self._available_models is None:
             self._available_models = await self._fetch_models()
         
-        # Fetch providers for the current model
-        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(current_model)
-        
         # Ensure current model is in the list
         model_options = list(self._available_models)
+        current_model = self._data.get(CONF_MODEL, DEFAULT_MODEL)
         model_ids = [m["value"] for m in model_options]
         if current_model not in model_ids:
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
-        
-        # Ensure current provider is in the list
-        provider_options = list(self._available_providers)
-        current_provider = current.get(CONF_PROVIDER, DEFAULT_PROVIDER)
-        provider_values = [p["value"] for p in provider_options]
-        if current_provider not in provider_values:
-            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
         
         return self.async_show_form(
             step_id="reconfigure",
@@ -586,6 +575,41 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                                 custom_value=True,
                             )
                         ),
+                    }
+                ),
+                self._data,
+            ),
+        )
+
+    async def async_step_reconfigure_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration step 2 - provider and all settings."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=self._data,
+            )
+        
+        # Fetch providers for the selected model
+        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(model_id)
+        
+        # Ensure current provider is in the list
+        provider_options = list(self._available_providers)
+        current_provider = self._data.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+        provider_values = [p["value"] for p in provider_options]
+        if current_provider not in provider_values:
+            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
+        
+        return self.async_show_form(
+            step_id="reconfigure_settings",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
                         vol.Required(CONF_PROVIDER): SelectSelector(
                             SelectSelectorConfig(
                                 options=provider_options,
@@ -631,7 +655,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                         ),
                     }
                 ),
-                current,
+                self._data,
             ),
         )
 
@@ -765,38 +789,27 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle reconfiguration of an existing AI task."""
-        if user_input is not None:
-            return self.async_update_and_abort(
-                self._get_entry(),
-                self._get_reconfigure_subentry(),
-                data=user_input,
-            )
+        """Handle reconfiguration step 1 - model selection."""
+        # Pre-fill with existing values on first call
+        if not self._data:
+            self._data = dict(self._get_reconfigure_subentry().data)
         
-        # Pre-fill with existing values
-        current = self._get_reconfigure_subentry().data.copy()
+        if user_input is not None:
+            self._data[CONF_MODEL] = user_input[CONF_MODEL]
+            # Reset providers so they get refetched for new model
+            self._available_providers = None
+            return await self.async_step_reconfigure_settings()
         
         # Fetch models for dropdown
         if self._available_models is None:
             self._available_models = await self._fetch_models()
         
-        # Fetch providers for the current model
-        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(current_model)
-        
         # Ensure current model is in the list
         model_options = list(self._available_models)
+        current_model = self._data.get(CONF_MODEL, DEFAULT_MODEL)
         model_ids = [m["value"] for m in model_options]
         if current_model not in model_ids:
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
-        
-        # Ensure current provider is in the list
-        provider_options = list(self._available_providers)
-        current_provider = current.get(CONF_PROVIDER, DEFAULT_PROVIDER)
-        provider_values = [p["value"] for p in provider_options]
-        if current_provider not in provider_values:
-            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
         
         return self.async_show_form(
             step_id="reconfigure",
@@ -810,6 +823,41 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                                 custom_value=True,
                             )
                         ),
+                    }
+                ),
+                self._data,
+            ),
+        )
+
+    async def async_step_reconfigure_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration step 2 - provider and all settings."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=self._data,
+            )
+        
+        # Fetch providers for the selected model
+        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(model_id)
+        
+        # Ensure current provider is in the list
+        provider_options = list(self._available_providers)
+        current_provider = self._data.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+        provider_values = [p["value"] for p in provider_options]
+        if current_provider not in provider_values:
+            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
+        
+        return self.async_show_form(
+            step_id="reconfigure_settings",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
                         vol.Required(CONF_PROVIDER): SelectSelector(
                             SelectSelectorConfig(
                                 options=provider_options,
@@ -844,7 +892,7 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                         vol.Required(CONF_TASK_ENABLE_CACHE_WARMING): BooleanSelector(),
                     }
                 ),
-                current,
+                self._data,
             ),
         )
 

@@ -150,10 +150,16 @@
           }
         },
         "reconfigure": {
-          "title": "Task rekonfigurieren",
-          "description": "Einstellungen fuer diesen AI Task aktualisieren.",
+          "title": "Task rekonfigurieren - Modell",
+          "description": "Waehle ein neues Modell fuer diesen AI Task.\n\nNach der Bestaetigung kannst du Provider und andere Einstellungen aktualisieren.",
           "data": {
-            "model": "Modell",
+            "model": "Modell"
+          }
+        },
+        "reconfigure_settings": {
+          "title": "Task rekonfigurieren - Einstellungen",
+          "description": "Provider und Verhaltenseinstellungen fuer diesen AI Task aktualisieren.",
+          "data": {
             "provider": "Provider",
             "temperature": "Temperatur",
             "max_tokens": "Maximale Antwort-Tokens",
