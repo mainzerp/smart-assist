@@ -76,14 +76,55 @@ class SmartAssistSensorBase(SensorEntity):
         self.async_write_ha_state()
 
     def _get_metrics(self) -> dict[str, Any] | None:
-        """Get metrics from the conversation entity."""
+        """Get aggregated metrics from all conversation agents.
+        
+        With the subentry architecture, each agent has its own LLM client.
+        This method aggregates metrics from all agents.
+        """
         domain_data = self.hass.data.get(DOMAIN, {})
         entry_data = domain_data.get(self._entry.entry_id, {})
-        llm_client = entry_data.get("llm_client")
+        agents = entry_data.get("agents", {})
         
-        if llm_client:
-            return llm_client.metrics.to_dict()
-        return None
+        if not agents:
+            return None
+        
+        # Aggregate metrics from all agents
+        aggregated = {
+            "total_requests": 0,
+            "successful_requests": 0,
+            "failed_requests": 0,
+            "total_retries": 0,
+            "total_prompt_tokens": 0,
+            "total_completion_tokens": 0,
+            "total_response_time_ms": 0.0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+        }
+        
+        for agent_info in agents.values():
+            llm_client = agent_info.get("llm_client")
+            if llm_client and hasattr(llm_client, "metrics"):
+                metrics = llm_client.metrics.to_dict()
+                for key in aggregated:
+                    if key in metrics:
+                        aggregated[key] += metrics[key]
+        
+        # Calculate derived metrics
+        if aggregated["successful_requests"] > 0:
+            aggregated["average_response_time_ms"] = (
+                aggregated["total_response_time_ms"] / aggregated["successful_requests"]
+            )
+        else:
+            aggregated["average_response_time_ms"] = 0.0
+        
+        if aggregated["total_requests"] > 0:
+            aggregated["success_rate"] = (
+                aggregated["successful_requests"] / aggregated["total_requests"]
+            ) * 100
+        else:
+            aggregated["success_rate"] = 100.0
+        
+        return aggregated
 
 
 class SmartAssistResponseTimeSensor(SmartAssistSensorBase):
