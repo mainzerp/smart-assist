@@ -8,14 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import traceback
 from typing import Any
 
 # Set up logging FIRST
 _LOGGER = logging.getLogger(__name__)
 
 try:
-    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.config_entries import ConfigEntry, ConfigSubentry
     from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
     from homeassistant.core import HomeAssistant, Event
     from homeassistant.helpers import config_validation as cv
@@ -37,37 +36,18 @@ try:
         DEFAULT_ENABLE_CACHE_WARMING,
         DOMAIN,
     )
+    from .utils import apply_debug_logging
 except ImportError as e:
     _LOGGER.error("Smart Assist __init__.py: Failed to import const: %s", e)
     raise
 
-_LOGGER.warning("Smart Assist: __init__.py module loaded successfully")
+_LOGGER.debug("Smart Assist: __init__.py module loaded successfully")
 
 # Schema indicating this integration is only configurable via config entries
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # Platforms are set up from subentries (conversation and ai_task)
 PLATFORMS: list[Platform] = [Platform.AI_TASK, Platform.CONVERSATION, Platform.SENSOR]
-
-
-def _apply_debug_logging(enabled: bool) -> None:
-    """Apply debug logging setting to all Smart Assist loggers."""
-    level = logging.DEBUG if enabled else logging.INFO
-    
-    # Set level for all Smart Assist loggers
-    loggers = [
-        "custom_components.smart_assist",
-        "custom_components.smart_assist.conversation",
-        "custom_components.smart_assist.config_flow",
-        "custom_components.smart_assist.llm",
-        "custom_components.smart_assist.llm.client",
-        "custom_components.smart_assist.llm.tools",
-        "custom_components.smart_assist.sensor",
-    ]
-    for logger_name in loggers:
-        logging.getLogger(logger_name).setLevel(level)
-    
-    _LOGGER.info("Smart Assist debug logging %s", "enabled" if enabled else "disabled")
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -99,7 +79,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Apply debug logging setting
     debug_enabled = get_config(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
-    _apply_debug_logging(debug_enabled)
+    apply_debug_logging(debug_enabled)
 
     # Set up platforms (they will read from subentries)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -138,11 +118,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 def _start_cache_refresh_timer(
-    hass: HomeAssistant, entry: ConfigEntry, subentry: Any
+    hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry
 ) -> None:
     """Start periodic cache refresh timer for a specific conversation agent."""
     from datetime import timedelta
-    from homeassistant.config_entries import ConfigSubentry
     
     # Get user-configured refresh interval (in minutes) from subentry
     interval_minutes = subentry.data.get(

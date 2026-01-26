@@ -36,6 +36,8 @@ DEFAULT_TEMPERATURE: Final = 0.5
 DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_LANGUAGE: Final = "auto"
 DEFAULT_MAX_HISTORY: Final = 10
+DEFAULT_EXPOSED_ONLY: Final = True
+DEFAULT_CONFIRM_CRITICAL: Final = True
 DEFAULT_CACHE_TTL_EXTENDED: Final = False
 DEFAULT_ENABLE_CACHE_WARMING: Final = False  # Disabled by default (costs extra)
 DEFAULT_CACHE_REFRESH_INTERVAL: Final = 4  # Minutes
@@ -46,6 +48,13 @@ DEFAULT_TASK_SYSTEM_PROMPT: Final = "You are a smart home task executor. Complet
 DEFAULT_TASK_ENABLE_PROMPT_CACHING: Final = False  # Tasks are not time-critical
 DEFAULT_TASK_ENABLE_CACHE_WARMING: Final = False   # Tasks are not time-critical
 DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
+
+# Supported languages for UI selectors
+SUPPORTED_LANGUAGES: Final = [
+    {"value": "auto", "label": "Auto-detect"},
+    {"value": "en", "label": "English"},
+    {"value": "de", "label": "Deutsch"},
+]
 
 # OpenRouter API
 OPENROUTER_API_URL: Final = "https://openrouter.ai/api/v1/chat/completions"

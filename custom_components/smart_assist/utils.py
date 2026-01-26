@@ -1,7 +1,35 @@
 """Utility functions for Smart Assist integration."""
 
+import logging
 import re
 from typing import Final
+
+_LOGGER = logging.getLogger(__name__)
+
+# Logger names for Smart Assist modules
+SMART_ASSIST_LOGGERS: Final = (
+    "custom_components.smart_assist",
+    "custom_components.smart_assist.conversation",
+    "custom_components.smart_assist.config_flow",
+    "custom_components.smart_assist.llm",
+    "custom_components.smart_assist.llm.client",
+    "custom_components.smart_assist.llm.tools",
+    "custom_components.smart_assist.sensor",
+)
+
+
+def apply_debug_logging(enabled: bool) -> None:
+    """Apply debug logging setting to all Smart Assist loggers.
+    
+    Args:
+        enabled: True to enable DEBUG level, False for INFO level
+    """
+    level = logging.DEBUG if enabled else logging.INFO
+    
+    for logger_name in SMART_ASSIST_LOGGERS:
+        logging.getLogger(logger_name).setLevel(level)
+    
+    _LOGGER.info("Smart Assist debug logging %s", "enabled" if enabled else "disabled")
 
 # Emoji pattern - covers most common emoji ranges
 EMOJI_PATTERN: Final = re.compile(

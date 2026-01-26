@@ -8,12 +8,12 @@ from typing import Any
 
 # Set up logging FIRST, before any other operations
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.warning("Smart Assist config_flow.py: Module loading started")
+_LOGGER.debug("Smart Assist config_flow.py: Module loading started")
 
 try:
     import aiohttp
     import voluptuous as vol
-    _LOGGER.warning("Smart Assist config_flow.py: aiohttp and voluptuous imported")
+    _LOGGER.debug("Smart Assist config_flow.py: aiohttp and voluptuous imported")
 except ImportError as e:
     _LOGGER.error("Smart Assist config_flow.py: Failed to import aiohttp/voluptuous: %s", e)
     raise
@@ -40,7 +40,7 @@ try:
         TextSelectorConfig,
         TextSelectorType,
     )
-    _LOGGER.warning("Smart Assist config_flow.py: HA imports done")
+    _LOGGER.debug("Smart Assist config_flow.py: HA imports done")
 except ImportError as e:
     _LOGGER.error("Smart Assist config_flow.py: Failed to import HA modules: %s", e)
     _LOGGER.error("Traceback: %s", traceback.format_exc())
@@ -74,8 +74,10 @@ try:
         DEFAULT_CACHE_REFRESH_INTERVAL,
         DEFAULT_CACHE_TTL_EXTENDED,
         DEFAULT_CLEAN_RESPONSES,
+        DEFAULT_CONFIRM_CRITICAL,
         DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
+        DEFAULT_EXPOSED_ONLY,
         DEFAULT_LANGUAGE,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
@@ -89,8 +91,10 @@ try:
         DOMAIN,
         OPENROUTER_API_URL,
         PROVIDERS,
+        SUPPORTED_LANGUAGES,
         supports_prompt_caching,
     )
+    from .utils import apply_debug_logging
 except ImportError as e:
     _LOGGER.error("Smart Assist: Failed to import const module: %s", e)
     _LOGGER.error("Traceback: %s", traceback.format_exc())
@@ -454,16 +458,12 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                     ),
                     vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): SelectSelector(
                         SelectSelectorConfig(
-                            options=[
-                                {"value": "auto", "label": "Auto-detect"},
-                                {"value": "en", "label": "English"},
-                                {"value": "de", "label": "Deutsch"},
-                            ],
+                            options=SUPPORTED_LANGUAGES,
                             mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
-                    vol.Required(CONF_EXPOSED_ONLY, default=True): BooleanSelector(),
-                    vol.Required(CONF_CONFIRM_CRITICAL, default=True): BooleanSelector(),
+                    vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
+                    vol.Required(CONF_CONFIRM_CRITICAL, default=DEFAULT_CONFIRM_CRITICAL): BooleanSelector(),
                     vol.Required(
                         CONF_MAX_HISTORY, default=DEFAULT_MAX_HISTORY
                     ): NumberSelector(
@@ -628,11 +628,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                         ),
                         vol.Required(CONF_LANGUAGE): SelectSelector(
                             SelectSelectorConfig(
-                                options=[
-                                    {"value": "auto", "label": "Auto-detect"},
-                                    {"value": "en", "label": "English"},
-                                    {"value": "de", "label": "Deutsch"},
-                                ],
+                                options=SUPPORTED_LANGUAGES,
                                 mode=SelectSelectorMode.DROPDOWN,
                             )
                         ),
@@ -759,15 +755,11 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                     ),
                     vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): SelectSelector(
                         SelectSelectorConfig(
-                            options=[
-                                {"value": "auto", "label": "Auto-detect"},
-                                {"value": "en", "label": "English"},
-                                {"value": "de", "label": "Deutsch"},
-                            ],
+                            options=SUPPORTED_LANGUAGES,
                             mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
-                    vol.Required(CONF_EXPOSED_ONLY, default=True): BooleanSelector(),
+                    vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
                     vol.Required(
                         CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT
                     ): TextSelector(
@@ -876,11 +868,7 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                         ),
                         vol.Required(CONF_LANGUAGE): SelectSelector(
                             SelectSelectorConfig(
-                                options=[
-                                    {"value": "auto", "label": "Auto-detect"},
-                                    {"value": "en", "label": "English"},
-                                    {"value": "de", "label": "Deutsch"},
-                                ],
+                                options=SUPPORTED_LANGUAGES,
                                 mode=SelectSelectorMode.DROPDOWN,
                             )
                         ),
@@ -916,7 +904,7 @@ class SmartAssistOptionsFlow(OptionsFlow):
         if user_input is not None:
             # Apply debug logging setting immediately
             debug_enabled = user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
-            self._apply_debug_logging(debug_enabled)
+            apply_debug_logging(debug_enabled)
             
             return self.async_create_entry(title="", data=user_input)
         
@@ -933,22 +921,3 @@ class SmartAssistOptionsFlow(OptionsFlow):
                 }
             ),
         )
-
-    def _apply_debug_logging(self, enabled: bool) -> None:
-        """Apply debug logging setting to all Smart Assist loggers."""
-        import logging
-        level = logging.DEBUG if enabled else logging.INFO
-        
-        # Set level for all Smart Assist loggers
-        loggers = [
-            "custom_components.smart_assist",
-            "custom_components.smart_assist.conversation",
-            "custom_components.smart_assist.config_flow",
-            "custom_components.smart_assist.llm.client",
-            "custom_components.smart_assist.llm.tools",
-            "custom_components.smart_assist.sensor",
-        ]
-        for logger_name in loggers:
-            logging.getLogger(logger_name).setLevel(level)
-        
-        _LOGGER.info("Smart Assist debug logging %s", "enabled" if enabled else "disabled")
