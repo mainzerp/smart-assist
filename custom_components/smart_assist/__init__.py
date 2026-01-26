@@ -18,6 +18,7 @@ try:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
     from homeassistant.core import HomeAssistant, Event
+    from homeassistant.helpers import config_validation as cv
     from homeassistant.helpers.event import async_track_time_interval
 except ImportError as e:
     _LOGGER.error("Smart Assist __init__.py: Failed to import HA core: %s", e)
@@ -41,6 +42,9 @@ except ImportError as e:
     raise
 
 _LOGGER.warning("Smart Assist: __init__.py module loaded successfully")
+
+# Schema indicating this integration is only configurable via config entries
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # Platforms are set up from subentries (conversation and ai_task)
 PLATFORMS: list[Platform] = [Platform.AI_TASK, Platform.CONVERSATION, Platform.SENSOR]

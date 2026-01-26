@@ -34,8 +34,10 @@
   },
   "config_subentries": {
     "conversation": {
+      "entry_type": "Konversations-Agent",
       "initiate_flow": {
-        "user": "Konversations-Agent hinzufuegen"
+        "user": "Konversations-Agent hinzufuegen",
+        "reconfigure": "Konversations-Agent rekonfigurieren"
       },
       "step": {
         "user": {
@@ -119,8 +121,10 @@
       }
     },
     "ai_task": {
+      "entry_type": "AI Task",
       "initiate_flow": {
-        "user": "AI Task hinzufuegen"
+        "user": "AI Task hinzufuegen",
+        "reconfigure": "AI Task rekonfigurieren"
       },
       "step": {
         "user": {

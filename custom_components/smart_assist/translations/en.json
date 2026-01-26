@@ -34,8 +34,10 @@
   },
   "config_subentries": {
     "conversation": {
+      "entry_type": "Conversation agent",
       "initiate_flow": {
-        "user": "Add Conversation Agent"
+        "user": "Add Conversation Agent",
+        "reconfigure": "Reconfigure Conversation Agent"
       },
       "step": {
         "user": {
@@ -119,8 +121,10 @@
       }
     },
     "ai_task": {
+      "entry_type": "AI Task",
       "initiate_flow": {
-        "user": "Add AI Task"
+        "user": "Add AI Task",
+        "reconfigure": "Reconfigure AI Task"
       },
       "step": {
         "user": {
