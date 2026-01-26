@@ -3,69 +3,107 @@
 from __future__ import annotations
 
 import logging
+import traceback
 from collections.abc import AsyncGenerator
-from typing import Any, Literal
-
-from homeassistant.components import conversation
-from homeassistant.components.conversation import (
-    AssistantContent,
-    AssistantContentDeltaDict,
-    ChatLog,
-    ConversationEntity,
-    ConversationEntityFeature,
-    ConversationInput,
-    ConversationResult,
-    ToolResultContent,
-    UserContent,
-)
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import MATCH_ALL
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import intent
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-
-from .const import (
-    CONF_API_KEY,
-    CONF_ASK_FOLLOWUP,
-    CONF_CACHE_TTL_EXTENDED,
-    CONF_CLEAN_RESPONSES,
-    CONF_CONFIRM_CRITICAL,
-    CONF_ENABLE_PROMPT_CACHING,
-    CONF_ENABLE_QUICK_ACTIONS,
-    CONF_EXPOSED_ONLY,
-    CONF_LANGUAGE,
-    CONF_MAX_HISTORY,
-    CONF_MAX_TOKENS,
-    CONF_MODEL,
-    CONF_PROVIDER,
-    CONF_TEMPERATURE,
-    CONF_USER_SYSTEM_PROMPT,
-    DEFAULT_ASK_FOLLOWUP,
-    DEFAULT_CACHE_TTL_EXTENDED,
-    DEFAULT_CLEAN_RESPONSES,
-    DEFAULT_LANGUAGE,
-    DEFAULT_MAX_HISTORY,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_PROVIDER,
-    DEFAULT_TEMPERATURE,
-    DEFAULT_USER_SYSTEM_PROMPT,
-    DOMAIN,
-)
-from .context import EntityManager
-from .llm import ChatMessage, OpenRouterClient
-from .llm.models import MessageRole, ToolCall
-from .tools import create_tool_registry
-from .utils import clean_for_tts
+from typing import Any, Literal, TYPE_CHECKING
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.debug("Smart Assist: Loading conversation.py module")
+
+try:
+    from homeassistant.components import conversation
+    from homeassistant.components.conversation import (
+        ConversationEntity,
+        ConversationEntityFeature,
+        ConversationInput,
+        ConversationResult,
+    )
+    _LOGGER.debug("Smart Assist: Successfully imported conversation components")
+except ImportError as e:
+    _LOGGER.error("Smart Assist: Failed to import conversation components: %s", e)
+    _LOGGER.error("Traceback: %s", traceback.format_exc())
+    raise
+
+# These imports may not exist in older HA versions
+try:
+    from homeassistant.components.conversation import (
+        AssistantContent,
+        AssistantContentDeltaDict,
+        ChatLog,
+        ToolResultContent,
+        UserContent,
+    )
+    HAS_CHAT_LOG = True
+    _LOGGER.debug("Smart Assist: ChatLog API available")
+except ImportError:
+    HAS_CHAT_LOG = False
+    AssistantContent = None
+    AssistantContentDeltaDict = dict
+    ChatLog = None
+    ToolResultContent = None
+    UserContent = None
+    _LOGGER.debug("Smart Assist: ChatLog API not available, using fallback")
+
+try:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.const import MATCH_ALL
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers import intent
+except ImportError as e:
+    _LOGGER.error("Smart Assist: Failed to import HA core modules: %s", e)
+    raise
+
+# AddEntitiesCallback is the standard platform callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+try:
+    from .const import (
+        CONF_API_KEY,
+        CONF_ASK_FOLLOWUP,
+        CONF_CACHE_TTL_EXTENDED,
+        CONF_CLEAN_RESPONSES,
+        CONF_CONFIRM_CRITICAL,
+        CONF_ENABLE_PROMPT_CACHING,
+        CONF_ENABLE_QUICK_ACTIONS,
+        CONF_EXPOSED_ONLY,
+        CONF_LANGUAGE,
+        CONF_MAX_HISTORY,
+        CONF_MAX_TOKENS,
+        CONF_MODEL,
+        CONF_PROVIDER,
+        CONF_TEMPERATURE,
+        CONF_USER_SYSTEM_PROMPT,
+        DEFAULT_ASK_FOLLOWUP,
+        DEFAULT_CACHE_TTL_EXTENDED,
+        DEFAULT_CLEAN_RESPONSES,
+        DEFAULT_LANGUAGE,
+        DEFAULT_MAX_HISTORY,
+        DEFAULT_MAX_TOKENS,
+        DEFAULT_PROVIDER,
+        DEFAULT_TEMPERATURE,
+        DEFAULT_USER_SYSTEM_PROMPT,
+        DOMAIN,
+    )
+    from .context import EntityManager
+    from .llm import ChatMessage, OpenRouterClient
+    from .llm.models import MessageRole, ToolCall
+    from .tools import create_tool_registry
+    from .utils import clean_for_tts
+except ImportError as e:
+    _LOGGER.error("Smart Assist: Failed to import local modules: %s", e)
+    _LOGGER.error("Traceback: %s", traceback.format_exc())
+    raise
+
+_LOGGER.info("Smart Assist: conversation.py module loaded successfully")
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddConfigEntryEntitiesCallback,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Smart Assist conversation entity from config entry."""
+    _LOGGER.debug("Smart Assist: Setting up conversation entity")
     entity = SmartAssistConversationEntity(hass, entry)
     async_add_entities([entity])
     
@@ -95,21 +133,28 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Unique ID based on config entry
         self._attr_unique_id = f"{entry.entry_id}_conversation"
 
+        # Helper to get config values (options override data)
+        def get_config(key: str, default: Any = None) -> Any:
+            """Get config value from options first, then data, then default."""
+            if key in entry.options:
+                return entry.options[key]
+            return entry.data.get(key, default)
+
         # Initialize LLM client
         self._llm_client = OpenRouterClient(
-            api_key=entry.data[CONF_API_KEY],
-            model=entry.data.get(CONF_MODEL, "anthropic/claude-3-haiku"),
-            provider=entry.data.get(CONF_PROVIDER, DEFAULT_PROVIDER),
-            temperature=entry.data.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
-            max_tokens=entry.data.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
-            enable_caching=entry.data.get(CONF_ENABLE_PROMPT_CACHING, True),
-            cache_ttl_extended=entry.data.get(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED),
+            api_key=entry.data[CONF_API_KEY],  # API key only in data
+            model=get_config(CONF_MODEL, "anthropic/claude-3-haiku"),
+            provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
+            temperature=get_config(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
+            max_tokens=get_config(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+            enable_caching=get_config(CONF_ENABLE_PROMPT_CACHING, True),
+            cache_ttl_extended=get_config(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED),
         )
 
         # Entity manager for entity discovery
         self._entity_manager = EntityManager(
             hass=hass,
-            exposed_only=entry.data.get(CONF_EXPOSED_ONLY, True),
+            exposed_only=get_config(CONF_EXPOSED_ONLY, True),
         )
 
         # Dynamic tool loading based on available domains
@@ -121,6 +166,16 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Cache for system prompt (built once, reused for all requests)
         self._cached_system_prompt: str | None = None
+
+    def _get_config(self, key: str, default: Any = None) -> Any:
+        """Get config value from options first, then data, then default.
+        
+        This is needed because OptionsFlow saves to entry.options,
+        while initial config goes to entry.data.
+        """
+        if key in self._entry.options:
+            return self._entry.options[key]
+        return self._entry.data.get(key, default)
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -164,7 +219,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         The assistant pipeline can start TTS synthesis before the full response is ready.
         """
         # Quick action bypass (if enabled)
-        if self._entry.data.get(CONF_ENABLE_QUICK_ACTIONS, True):
+        if self._get_config(CONF_ENABLE_QUICK_ACTIONS, True):
             quick_result = await self._try_quick_action(user_input.text)
             if quick_result:
                 # Add response to chat log
@@ -179,7 +234,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Build messages for LLM (using our own message format with history)
         messages = self._build_messages_for_llm(user_input.text, chat_log)
         tools = self._tool_registry.get_schemas()
-        cached_prefix_length = 3 if self._entry.data.get(CONF_ENABLE_PROMPT_CACHING, True) else 0
+        cached_prefix_length = 3 if self._get_config(CONF_ENABLE_PROMPT_CACHING, True) else 0
 
         try:
             # Use streaming with tool loop
@@ -194,14 +249,14 @@ class SmartAssistConversationEntity(ConversationEntity):
             cleaned_content, continue_conversation = self._parse_response_marker(final_content)
             
             # Override: If ask_followup is disabled, never continue
-            ask_followup = self._entry.data.get(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
+            ask_followup = self._get_config(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
             if not ask_followup:
                 continue_conversation = False
 
             # Clean response for TTS if enabled
             final_response = cleaned_content
-            if self._entry.data.get(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES):
-                language = self._entry.data.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+            if self._get_config(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES):
+                language = self._get_config(CONF_LANGUAGE, DEFAULT_LANGUAGE)
                 final_response = clean_for_tts(final_response, language)
 
             _LOGGER.debug("Streaming response complete. continue=%s", continue_conversation)
@@ -253,20 +308,23 @@ class SmartAssistConversationEntity(ConversationEntity):
                 if "content" in delta and delta["content"]:
                     content_chunk = delta["content"]
                     final_content += content_chunk
-                    # Stream content to ChatLog for real-time TTS
-                    chat_log.async_add_assistant_content_without_tools(
-                        conversation.AssistantContent(
-                            agent_id=self.entity_id or "",
-                            content=content_chunk,
-                        )
-                    )
+                    # Note: We collect content here but add to ChatLog once at the end
+                    # Adding chunks individually causes issues with HA's ChatLog API
                 
                 if "tool_calls" in delta and delta["tool_calls"]:
                     tool_calls = delta["tool_calls"]
             
-            # If no tool calls, we're done
+            # If no tool calls, we're done - add final content to ChatLog
             if not tool_calls:
                 _LOGGER.debug("No tool calls, streaming complete")
+                # Add the complete response to ChatLog once
+                if final_content:
+                    chat_log.async_add_assistant_content_without_tools(
+                        conversation.AssistantContent(
+                            agent_id=self.entity_id or "",
+                            content=final_content,
+                        )
+                    )
                 return final_content
             
             # Execute tool calls and add results to messages
@@ -425,11 +483,21 @@ class SmartAssistConversationEntity(ConversationEntity):
         if self._cached_system_prompt is not None:
             return self._cached_system_prompt
         
-        language = self._entry.data.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
-        confirm_critical = self._entry.data.get(CONF_CONFIRM_CRITICAL, True)
-        exposed_only = self._entry.data.get(CONF_EXPOSED_ONLY, True)
-        caching_enabled = self._entry.data.get(CONF_ENABLE_PROMPT_CACHING, True)
-        ask_followup = self._entry.data.get(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
+        language = self._get_config(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+        
+        # Auto-detect: use Home Assistant's configured language
+        if language == "auto":
+            ha_language = self.hass.config.language
+            # Map HA language codes to our supported languages
+            if ha_language.startswith("de"):
+                language = "de"
+            else:
+                language = "en"  # Default to English for unsupported languages
+        
+        confirm_critical = self._get_config(CONF_CONFIRM_CRITICAL, True)
+        exposed_only = self._get_config(CONF_EXPOSED_ONLY, True)
+        caching_enabled = self._get_config(CONF_ENABLE_PROMPT_CACHING, True)
+        ask_followup = self._get_config(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
         
         parts = []
         
@@ -547,7 +615,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         )
 
         # 2. User system prompt (cached)
-        user_prompt = self._entry.data.get(
+        user_prompt = self._get_config(
             CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT
         )
         if user_prompt:
@@ -556,7 +624,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
             )
 
         # 3. Entity index (only if caching is enabled)
-        caching_enabled = self._entry.data.get(CONF_ENABLE_PROMPT_CACHING, True)
+        caching_enabled = self._get_config(CONF_ENABLE_PROMPT_CACHING, True)
         
         if caching_enabled:
             entity_index, index_hash = self._entity_manager.get_entity_index()
@@ -589,7 +657,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
 
         # 5. Conversation history from ChatLog (if available)
         if chat_log is not None:
-            max_history = self._entry.data.get(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
+            max_history = self._get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
             history_entries = list(chat_log.content)
             
             # Limit history to max_history entries (most recent)

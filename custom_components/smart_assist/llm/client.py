@@ -268,8 +268,7 @@ class OpenRouterClient:
         # Add provider routing if a specific provider is selected
         if self._provider and self._provider != "auto":
             payload["provider"] = {
-                "order": [self._provider],
-                "allow_fallbacks": True,  # Allow fallback to other providers if selected fails
+                "only": [self._provider],  # Strictly use only this provider
             }
 
         _LOGGER.debug("Sending request to OpenRouter: %s (provider: %s)", self._model, self._provider)
@@ -331,7 +330,13 @@ class OpenRouterClient:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
-        _LOGGER.debug("Sending streaming request to OpenRouter: %s", self._model)
+        # Add provider routing if a specific provider is selected
+        if self._provider and self._provider != "auto":
+            payload["provider"] = {
+                "only": [self._provider],  # Strictly use only this provider
+            }
+
+        _LOGGER.debug("Sending streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
         
         self._metrics.total_requests += 1
         start_time = time.monotonic()
@@ -402,11 +407,10 @@ class OpenRouterClient:
 
         if self._provider and self._provider != "auto":
             payload["provider"] = {
-                "order": [self._provider],
-                "allow_fallbacks": True,
+                "only": [self._provider],  # Strictly use only this provider
             }
 
-        _LOGGER.debug("Sending full streaming request to OpenRouter: %s", self._model)
+        _LOGGER.debug("Sending full streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
 
         # Track tool calls being built
         pending_tool_calls: dict[int, dict[str, Any]] = {}

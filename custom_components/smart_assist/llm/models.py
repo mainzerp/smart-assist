@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -49,7 +50,8 @@ class ChatMessage:
                     "type": "function",
                     "function": {
                         "name": tc.name,
-                        "arguments": tc.arguments,
+                        # Arguments must be a JSON string, not a dict
+                        "arguments": json.dumps(tc.arguments) if isinstance(tc.arguments, dict) else tc.arguments,
                     },
                 }
                 for tc in self.tool_calls

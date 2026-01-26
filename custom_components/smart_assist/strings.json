@@ -10,15 +10,21 @@
       },
       "model": {
         "title": "Model Configuration",
-        "description": "Select any OpenRouter model. You can enter a custom model ID or choose from suggestions.\n\n**Prompt Caching:** If enabled, select a specific provider (not 'auto'). Not all models support caching - see [OpenRouter docs]({caching_docs_url}).",
+        "description": "Select any OpenRouter model. You can enter a custom model ID or choose from suggestions.\n\nProvider selection will be shown in the next step based on available endpoints for your chosen model.",
         "data": {
           "model": "Model (e.g. anthropic/claude-3-haiku)",
-          "provider": "Provider",
           "temperature": "Temperature (0 = precise, 1 = creative)",
           "max_tokens": "Maximum response tokens"
+        }
+      },
+      "provider": {
+        "title": "Provider Selection",
+        "description": "Select a provider for **{model}**.\n\nFound **{provider_count}** providers offering this model. Providers are sorted by price (cheapest first).\n\n**Prompt Caching:** For caching, select a specific provider (not 'auto'). See [OpenRouter docs]({caching_docs_url}).",
+        "data": {
+          "provider": "Provider"
         },
         "data_description": {
-          "provider": "For prompt caching, select a specific provider. 'Auto' may route to providers without caching support."
+          "provider": "Choose 'Automatic' for best price, or select a specific provider for guaranteed routing."
         }
       },
       "behavior": {
@@ -55,7 +61,7 @@
     "step": {
       "init": {
         "title": "Smart Assist Settings",
-        "description": "Adjust your Smart Assist configuration.\n\n**Prompt Caching:** Requires a specific provider (not 'auto') and a supported model.",
+        "description": "Adjust your Smart Assist configuration.\n\n**Provider:** Shows providers available for your current model. If you change the model, reconfigure the integration to see updated providers.\n\n**Prompt Caching:** Requires a specific provider (not 'auto') and a supported model.",
         "data": {
           "model": "Model",
           "provider": "Provider",
@@ -71,7 +77,7 @@
           "user_system_prompt": "Custom System Prompt"
         },
         "data_description": {
-          "provider": "For prompt caching, select a specific provider. Not all models support caching.",
+          "provider": "Providers available for your current model. For prompt caching, select a specific provider.",
           "enable_prompt_caching": "Reduces latency and cost. Requires supported model + specific provider."
         }
       }

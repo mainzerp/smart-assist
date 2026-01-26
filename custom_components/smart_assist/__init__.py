@@ -4,25 +4,37 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import traceback
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import HomeAssistant, Event
-from homeassistant.helpers.event import async_track_time_interval
-
-from .const import (
-    CONF_CACHE_REFRESH_INTERVAL,
-    CONF_CACHE_TTL_EXTENDED,
-    CONF_ENABLE_CACHE_WARMING,
-    CONF_ENABLE_PROMPT_CACHING,
-    DEFAULT_CACHE_REFRESH_INTERVAL,
-    DEFAULT_CACHE_TTL_EXTENDED,
-    DEFAULT_ENABLE_CACHE_WARMING,
-    DOMAIN,
-)
-
+# Set up logging FIRST
 _LOGGER = logging.getLogger(__name__)
+
+try:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
+    from homeassistant.core import HomeAssistant, Event
+    from homeassistant.helpers.event import async_track_time_interval
+except ImportError as e:
+    _LOGGER.error("Smart Assist __init__.py: Failed to import HA core: %s", e)
+    raise
+
+try:
+    from .const import (
+        CONF_CACHE_REFRESH_INTERVAL,
+        CONF_CACHE_TTL_EXTENDED,
+        CONF_ENABLE_CACHE_WARMING,
+        CONF_ENABLE_PROMPT_CACHING,
+        DEFAULT_CACHE_REFRESH_INTERVAL,
+        DEFAULT_CACHE_TTL_EXTENDED,
+        DEFAULT_ENABLE_CACHE_WARMING,
+        DOMAIN,
+    )
+except ImportError as e:
+    _LOGGER.error("Smart Assist __init__.py: Failed to import const: %s", e)
+    raise
+
+_LOGGER.warning("Smart Assist: __init__.py module loaded successfully")
 
 PLATFORMS: list[Platform] = [Platform.CONVERSATION]
 

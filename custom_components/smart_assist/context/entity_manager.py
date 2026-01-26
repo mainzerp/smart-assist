@@ -9,12 +9,18 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import area_registry, entity_registry
-from homeassistant.components.homeassistant.exposed_entities import async_get_exposed_entities
+
+# Try the newer async_should_expose API first (HA 2024+)
+try:
+    from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+    HAS_EXPOSED_ENTITIES = True
+except ImportError:
+    HAS_EXPOSED_ENTITIES = False
+    async_should_expose = None
 
 from ..const import SUPPORTED_DOMAINS
 
 _LOGGER = logging.getLogger(__name__)
-
 
 @dataclass
 class EntityInfo:
@@ -105,25 +111,28 @@ class EntityManager:
                             return area.name
         return None
 
-    def _get_exposed_entity_ids(self) -> set[str]:
-        """Get set of exposed entity IDs."""
+    def _is_entity_exposed(self, entity_id: str) -> bool:
+        """Check if an entity is exposed to the conversation assistant.
+        
+        Uses HA's async_should_expose API which checks if entity is exposed
+        to the 'conversation' assistant.
+        """
         if not self._exposed_only:
-            return set()
+            return True
+
+        if not HAS_EXPOSED_ENTITIES or async_should_expose is None:
+            _LOGGER.debug("Exposed entities API not available, entity %s will be included", entity_id)
+            return True
 
         try:
-            exposed = async_get_exposed_entities(self._hass)
-            return {
-                entity_id
-                for entity_id, info in exposed.items()
-                if info.get("should_expose", False)
-            }
-        except Exception:
-            _LOGGER.warning("Could not get exposed entities, using all entities")
-            return set()
+            # Check if entity is exposed to the 'conversation' assistant
+            return async_should_expose(self._hass, "conversation", entity_id)
+        except Exception as err:
+            _LOGGER.debug("Could not check if %s is exposed: %s", entity_id, err)
+            return True
 
     def get_all_entities(self) -> list[EntityInfo]:
         """Get all available entities as compact info."""
-        exposed_ids = self._get_exposed_entity_ids()
         entities: list[EntityInfo] = []
 
         for state in self._hass.states.async_all():
@@ -134,7 +143,7 @@ class EntityManager:
                 continue
 
             # Filter by exposed entities if enabled
-            if self._exposed_only and exposed_ids and state.entity_id not in exposed_ids:
+            if self._exposed_only and not self._is_entity_exposed(state.entity_id):
                 continue
 
             entities.append(
