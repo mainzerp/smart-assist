@@ -268,7 +268,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Get the options flow for this handler."""
-        return SmartAssistOptionsFlow()
+        return SmartAssistOptionsFlow(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -493,42 +493,36 @@ class SmartAssistOptionsFlow(OptionsFlow):
 
     _available_models: list[dict[str, str]] | None = None
     _available_providers: list[dict[str, str]] | None = None
+    _options_data: dict[str, Any]
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        super().__init__()
+        # Merge data and options - options take precedence
+        self._options_data = {**config_entry.data, **config_entry.options}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
+        """Step 1: Model selection."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            self._options_data.update(user_input)
+            # Reset providers cache when model changes
+            self._available_providers = None
+            return await self.async_step_provider()
 
         # Merge data and options - options take precedence
-        current = {**self.config_entry.data, **self.config_entry.options}
-
-        # Fetch models from OpenRouter (with fallback to static list)
+        current = self._options_data
         api_key = current.get(CONF_API_KEY, "")
         
         if self._available_models is None:
             self._available_models = await fetch_openrouter_models(api_key)
         
-        model_options = list(self._available_models)  # Make a copy
-
-        # Add current model at top if not in fetched list
+        model_options = list(self._available_models)
         current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
         model_ids = [m["value"] for m in model_options]
         if current_model not in model_ids:
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
-
-        # Fetch dynamic provider options for the current model
-        if self._available_providers is None:
-            self._available_providers = await fetch_model_providers(api_key, current_model)
-        
-        provider_options = list(self._available_providers)  # Make a copy
-        
-        # Add current provider at top if not in fetched list
-        current_provider = current.get(CONF_PROVIDER, DEFAULT_PROVIDER)
-        provider_ids = [p["value"] for p in provider_options]
-        if current_provider not in provider_ids:
-            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
 
         return self.async_show_form(
             step_id="init",
@@ -540,15 +534,7 @@ class SmartAssistOptionsFlow(OptionsFlow):
                         SelectSelectorConfig(
                             options=model_options,
                             mode=SelectSelectorMode.DROPDOWN,
-                            custom_value=True,  # Allow free text entry
-                        )
-                    ),
-                    vol.Required(
-                        CONF_PROVIDER, default=current_provider
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=provider_options,
-                            mode=SelectSelectorMode.DROPDOWN,
+                            custom_value=True,
                         )
                     ),
                     vol.Required(
@@ -573,6 +559,65 @@ class SmartAssistOptionsFlow(OptionsFlow):
                             mode=NumberSelectorMode.SLIDER,
                         )
                     ),
+                }
+            ),
+        )
+
+    async def async_step_provider(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2: Provider selection."""
+        if user_input is not None:
+            self._options_data.update(user_input)
+            return await self.async_step_behavior()
+
+        current = self._options_data
+        api_key = current.get(CONF_API_KEY, "")
+        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
+        
+        # Fetch providers for the selected model
+        if self._available_providers is None:
+            self._available_providers = await fetch_model_providers(api_key, current_model)
+        
+        provider_options = list(self._available_providers)
+        current_provider = current.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+        provider_ids = [p["value"] for p in provider_options]
+        if current_provider not in provider_ids:
+            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
+
+        return self.async_show_form(
+            step_id="provider",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_PROVIDER, default=current_provider
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=provider_options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            description_placeholders={
+                "model": current_model,
+            },
+        )
+
+    async def async_step_behavior(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 3: Behavior settings."""
+        if user_input is not None:
+            self._options_data.update(user_input)
+            return await self.async_step_caching()
+
+        current = self._options_data
+
+        return self.async_show_form(
+            step_id="behavior",
+            data_schema=vol.Schema(
+                {
                     vol.Required(
                         CONF_LANGUAGE,
                         default=current.get(CONF_LANGUAGE, DEFAULT_LANGUAGE),
@@ -612,6 +657,24 @@ class SmartAssistOptionsFlow(OptionsFlow):
                         CONF_ENABLE_QUICK_ACTIONS,
                         default=current.get(CONF_ENABLE_QUICK_ACTIONS, True),
                     ): BooleanSelector(),
+                }
+            ),
+        )
+
+    async def async_step_caching(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 4: Caching settings."""
+        if user_input is not None:
+            self._options_data.update(user_input)
+            return await self.async_step_advanced()
+
+        current = self._options_data
+
+        return self.async_show_form(
+            step_id="caching",
+            data_schema=vol.Schema(
+                {
                     vol.Required(
                         CONF_ENABLE_PROMPT_CACHING,
                         default=current.get(CONF_ENABLE_PROMPT_CACHING, True),
@@ -636,6 +699,26 @@ class SmartAssistOptionsFlow(OptionsFlow):
                             mode=NumberSelectorMode.BOX,
                         )
                     ),
+                }
+            ),
+        )
+
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 5: Advanced settings."""
+        if user_input is not None:
+            self._options_data.update(user_input)
+            # Remove API key from options (it's in data)
+            options_to_save = {k: v for k, v in self._options_data.items() if k != CONF_API_KEY}
+            return self.async_create_entry(title="", data=options_to_save)
+
+        current = self._options_data
+
+        return self.async_show_form(
+            step_id="advanced",
+            data_schema=vol.Schema(
+                {
                     vol.Required(
                         CONF_CLEAN_RESPONSES,
                         default=current.get(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES),

@@ -60,25 +60,67 @@
   "options": {
     "step": {
       "init": {
-        "title": "Smart Assist Settings",
-        "description": "Adjust your Smart Assist configuration.\n\n**Provider:** Shows providers available for your current model. If you change the model, reconfigure the integration to see updated providers.\n\n**Prompt Caching:** Requires a specific provider (not 'auto') and a supported model.",
+        "title": "Smart Assist - Model Settings",
+        "description": "Configure your AI model and provider.",
         "data": {
           "model": "Model",
-          "provider": "Provider",
           "temperature": "Temperature",
-          "max_tokens": "Maximum response tokens",
+          "max_tokens": "Maximum response tokens"
+        },
+        "data_description": {
+          "model": "Select an OpenRouter model or enter a custom model ID."
+        }
+      },
+      "provider": {
+        "title": "Smart Assist - Provider",
+        "description": "Select a provider for **{model}**.\n\nProviders are sorted by price (cheapest first).",
+        "data": {
+          "provider": "Provider"
+        },
+        "data_description": {
+          "provider": "Choose 'Automatic' for best price, or select a specific provider for prompt caching."
+        }
+      },
+      "behavior": {
+        "title": "Smart Assist - Behavior",
+        "description": "Configure assistant behavior and features.",
+        "data": {
           "language": "Response Language",
           "exposed_only": "Use only exposed entities",
           "confirm_critical": "Confirm critical actions",
           "max_history": "Maximum conversation history",
-          "enable_web_search": "Enable web search",
-          "enable_quick_actions": "Enable quick actions",
+          "enable_web_search": "Enable web search (DuckDuckGo)",
+          "enable_quick_actions": "Enable quick actions (bypass LLM)"
+        }
+      },
+      "caching": {
+        "title": "Smart Assist - Caching",
+        "description": "Configure prompt caching for reduced latency and cost.\n\nRequires a specific provider (not 'auto') and a supported model.",
+        "data": {
           "enable_prompt_caching": "Enable prompt caching",
+          "cache_ttl_extended": "Use extended cache TTL (longer cache lifetime)",
+          "enable_cache_warming": "Enable cache warming (pre-warm cache periodically)",
+          "cache_refresh_interval": "Cache refresh interval (minutes)"
+        },
+        "data_description": {
+          "enable_prompt_caching": "Reduces latency and cost by caching system prompts.",
+          "cache_ttl_extended": "Some providers support extended cache lifetime.",
+          "enable_cache_warming": "Periodically refresh cache to maintain low latency.",
+          "cache_refresh_interval": "How often to refresh the cache (1-55 minutes)."
+        }
+      },
+      "advanced": {
+        "title": "Smart Assist - Advanced",
+        "description": "Advanced response formatting and prompts.",
+        "data": {
+          "clean_responses": "Clean responses (remove markdown formatting)",
+          "ask_followup": "Ask follow-up questions",
           "user_system_prompt": "Custom System Prompt"
         },
         "data_description": {
-          "provider": "Providers available for your current model. For prompt caching, select a specific provider.",
-          "enable_prompt_caching": "Reduces latency and cost. Requires supported model + specific provider."
+          "clean_responses": "Remove markdown symbols like ** and * from responses.",
+          "ask_followup": "Assistant asks clarifying questions when needed.",
+          "user_system_prompt": "Additional instructions for the AI assistant."
         }
       }
     }

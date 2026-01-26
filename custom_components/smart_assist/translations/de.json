@@ -66,30 +66,67 @@
   "options": {
     "step": {
       "init": {
-        "title": "Smart Assist Einstellungen",
-        "description": "Passe deine Smart Assist Konfiguration an.\n\n**Prompt Caching:** Erfordert einen spezifischen Provider (nicht 'auto') und ein unterstuetztes Modell.",
+        "title": "Smart Assist - Modell",
+        "description": "Konfiguriere dein KI-Modell.",
         "data": {
           "model": "Modell",
-          "provider": "Provider",
           "temperature": "Temperatur",
-          "max_tokens": "Maximale Antwort-Tokens",
+          "max_tokens": "Maximale Antwort-Tokens"
+        },
+        "data_description": {
+          "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein."
+        }
+      },
+      "provider": {
+        "title": "Smart Assist - Provider",
+        "description": "Waehle einen Provider fuer **{model}**.\n\nProvider sind nach Preis sortiert (guenstigste zuerst).",
+        "data": {
+          "provider": "Provider"
+        },
+        "data_description": {
+          "provider": "Waehle 'Automatisch' fuer den besten Preis, oder einen spezifischen Provider fuer Prompt Caching."
+        }
+      },
+      "behavior": {
+        "title": "Smart Assist - Verhalten",
+        "description": "Konfiguriere das Verhalten des Assistenten.",
+        "data": {
           "language": "Antwortsprache",
-          "exposed_only": "Nur freigegebene Entities verwenden",
+          "exposed_only": "Nur freigegebene Entities",
           "confirm_critical": "Kritische Aktionen bestaetigen",
           "max_history": "Maximale Konversationshistorie",
-          "enable_web_search": "Websuche aktivieren",
-          "enable_quick_actions": "Schnellaktionen aktivieren",
+          "enable_web_search": "Websuche aktivieren (DuckDuckGo)",
+          "enable_quick_actions": "Schnellaktionen (LLM umgehen)"
+        }
+      },
+      "caching": {
+        "title": "Smart Assist - Caching",
+        "description": "Konfiguriere Prompt Caching fuer reduzierte Latenz und Kosten.\n\nErfordert einen spezifischen Provider (nicht 'auto') und ein unterstuetztes Modell.",
+        "data": {
           "enable_prompt_caching": "Prompt Caching aktivieren",
-          "cache_ttl_extended": "Erweiterte Cache-Dauer (1h fuer Anthropic)",
-          "enable_cache_warming": "Cache-Warming aktivieren (verursacht Kosten)",
-          "cache_refresh_interval": "Cache-Aktualisierungsintervall (min)",
-          "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
+          "cache_ttl_extended": "Erweiterte Cache-Dauer (laengere Lebensdauer)",
+          "enable_cache_warming": "Cache-Warming aktivieren (periodisch vorwaermen)",
+          "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)"
+        },
+        "data_description": {
+          "enable_prompt_caching": "Reduziert Latenz und Kosten durch Caching von System-Prompts.",
+          "cache_ttl_extended": "Einige Provider unterstuetzen laengere Cache-Lebensdauer.",
+          "enable_cache_warming": "Periodisch Cache aktualisieren fuer niedrige Latenz.",
+          "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (1-55 Minuten)."
+        }
+      },
+      "advanced": {
+        "title": "Smart Assist - Erweitert",
+        "description": "Erweiterte Antwortformatierung und Prompts.",
+        "data": {
+          "clean_responses": "Antworten bereinigen (Markdown entfernen)",
           "ask_followup": "Rueckfragen stellen",
           "user_system_prompt": "Benutzerdefinierter System Prompt"
         },
         "data_description": {
-          "provider": "Fuer Prompt Caching einen spezifischen Provider waehlen. Nicht alle Modelle unterstuetzen Caching.",
-          "enable_prompt_caching": "Reduziert Latenz und Kosten. Erfordert unterstuetztes Modell + spezifischen Provider."
+          "clean_responses": "Entfernt Markdown-Symbole wie ** und * aus Antworten.",
+          "ask_followup": "Assistent stellt bei Bedarf klaerende Fragen.",
+          "user_system_prompt": "Zusaetzliche Anweisungen fuer den KI-Assistenten."
         }
       }
     }
