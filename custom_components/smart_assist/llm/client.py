@@ -324,6 +324,7 @@ class OpenRouterClient:
             "temperature": self._temperature,
             "max_tokens": self._max_tokens,
             "stream": True,
+            "stream_options": {"include_usage": True},  # Request usage info in streaming
         }
 
         if tools:
@@ -361,6 +362,15 @@ class OpenRouterClient:
                             break
                         try:
                             data = json.loads(data_str)
+                            # Extract usage info from streaming response
+                            if usage := data.get("usage"):
+                                self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
+                                self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                                # Track cache hits
+                                if "cache_read_input_tokens" in usage or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0) > 0:
+                                    self._metrics.cache_hits += 1
+                                elif self._enable_caching:
+                                    self._metrics.cache_misses += 1
                             delta = data.get("choices", [{}])[0].get("delta", {})
                             if content := delta.get("content"):
                                 yield content
@@ -399,6 +409,7 @@ class OpenRouterClient:
             "temperature": self._temperature,
             "max_tokens": self._max_tokens,
             "stream": True,
+            "stream_options": {"include_usage": True},  # Request usage info in streaming
         }
 
         if tools:
@@ -452,17 +463,27 @@ class OpenRouterClient:
                                     )
                                 )
                             yield {"tool_calls": completed_tools}
-                        yield {"finish_reason": "stop"}
-                        # Update metrics on completion
+                        # Update metrics on stream completion
                         elapsed_ms = (time.monotonic() - start_time) * 1000
                         self._metrics.successful_requests += 1
                         self._metrics.total_response_time_ms += elapsed_ms
+                        yield {"finish_reason": "stop"}
                         break
                     
                     try:
                         data = json.loads(data_str)
                     except json.JSONDecodeError:
                         continue
+                    
+                    # Extract usage info from streaming response (sent with last chunk)
+                    if usage := data.get("usage"):
+                        self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
+                        self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                        # Track cache hits from usage data
+                        if "cache_read_input_tokens" in usage or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0) > 0:
+                            self._metrics.cache_hits += 1
+                        elif self._enable_caching:
+                            self._metrics.cache_misses += 1
                     
                     choice = data.get("choices", [{}])[0]
                     delta = choice.get("delta", {})
