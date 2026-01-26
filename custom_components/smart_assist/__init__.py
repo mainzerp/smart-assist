@@ -101,13 +101,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     
     if caching_enabled and warming_enabled:
-        async def _cache_warming_callback(event: Event) -> None:
-            """Perform cache warming after Home Assistant starts."""
-            _LOGGER.info("Starting initial cache warming...")
-            await _perform_cache_warming(hass, entry)
-            # Start periodic cache refresh
-            _start_cache_refresh_timer(hass, entry)
-
         # If HA is already running, warm cache immediately
         if hass.is_running:
             _LOGGER.info("HA running, starting cache warming immediately...")
@@ -115,12 +108,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _start_cache_refresh_timer(hass, entry)
         else:
             _LOGGER.info("Waiting for HA to start before cache warming...")
-            # Otherwise wait for HA to start
-            entry.async_on_unload(
-                hass.bus.async_listen_once(
-                    EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
-                )
+            
+            async def _cache_warming_callback(event: Event) -> None:
+                """Perform cache warming after Home Assistant starts."""
+                _LOGGER.info("Starting initial cache warming...")
+                await _perform_cache_warming(hass, entry)
+                # Start periodic cache refresh
+                _start_cache_refresh_timer(hass, entry)
+            
+            # Register and store the unsubscribe callback
+            unsub = hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
             )
+            entry.async_on_unload(unsub)
     else:
         _LOGGER.debug("Cache warming disabled (caching=%s, warming=%s)", caching_enabled, warming_enabled)
 
