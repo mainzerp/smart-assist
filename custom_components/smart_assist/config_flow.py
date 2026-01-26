@@ -19,7 +19,14 @@ except ImportError as e:
     raise
 
 try:
-    from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+    from homeassistant.config_entries import (
+        ConfigEntry,
+        ConfigFlow,
+        ConfigFlowResult,
+        ConfigSubentryFlow,
+        OptionsFlow,
+        SubentryFlowResult,
+    )
     from homeassistant.core import callback
     from homeassistant.helpers.selector import (
         BooleanSelector,
@@ -262,7 +269,11 @@ def _get_fallback_models() -> list[dict[str, str]]:
 
 
 class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Smart Assist."""
+    """Handle a config flow for Smart Assist.
+    
+    This handles initial API key setup. After setup, users can add
+    Conversation Agents and AI Tasks via subentries.
+    """
 
     VERSION = 1
 
@@ -270,7 +281,17 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         _LOGGER.info("Smart Assist: ConfigFlow.__init__ called")
         self._data: dict[str, Any] = {}
-        self._available_models: list[dict[str, str]] | None = None
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Return subentries supported by this handler."""
+        return {
+            "conversation": ConversationFlowHandler,
+            "ai_task": AITaskFlowHandler,
+        }
 
     @staticmethod
     @callback
@@ -290,9 +311,14 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.info("Smart Assist: Validating API key...")
                 # Validate API key
                 if await validate_api_key(user_input[CONF_API_KEY]):
-                    _LOGGER.info("Smart Assist: API key valid, proceeding to model step")
+                    _LOGGER.info("Smart Assist: API key valid, creating entry")
                     self._data.update(user_input)
-                    return await self.async_step_model()
+                    
+                    # Create the config entry with just the API key
+                    return self.async_create_entry(
+                        title="Smart Assist",
+                        data=self._data,
+                    )
                 _LOGGER.warning("Smart Assist: API key validation failed")
                 errors["base"] = "invalid_api_key"
 
@@ -313,31 +339,58 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Smart Assist: Error in async_step_user: %s", e)
             raise
 
-    async def async_step_model(
+
+# =============================================================================
+# SUBENTRY FLOW HANDLERS
+# =============================================================================
+
+class SmartAssistSubentryFlowHandler(ConfigSubentryFlow):
+    """Base class for Smart Assist subentry flows."""
+    
+    def _get_api_key(self) -> str:
+        """Get API key from parent config entry."""
+        return self._get_entry().data.get(CONF_API_KEY, "")
+    
+    async def _fetch_models(self) -> list[dict[str, str]]:
+        """Fetch available models from OpenRouter."""
+        return await fetch_openrouter_models(self._get_api_key())
+    
+    async def _fetch_providers(self, model_id: str) -> list[dict[str, str]]:
+        """Fetch available providers for a model."""
+        return await fetch_model_providers(self._get_api_key(), model_id)
+
+
+class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
+    """Handle subentry flow for Conversation Agents."""
+    
+    def __init__(self) -> None:
+        """Initialize the flow handler."""
+        super().__init__()
+        self._data: dict[str, Any] = {}
+        self._available_models: list[dict[str, str]] | None = None
+        self._available_providers: list[dict[str, str]] | None = None
+
+    async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Handle model selection step."""
+    ) -> SubentryFlowResult:
+        """Handle first step - model selection."""
         if user_input is not None:
             self._data.update(user_input)
-            # Proceed to provider selection (dynamically based on model)
             return await self.async_step_provider()
-
-        # Fetch models from OpenRouter (with fallback to static list)
-        if self._available_models is None:
-            api_key = self._data.get(CONF_API_KEY, "")
-            self._available_models = await fetch_openrouter_models(api_key)
         
-        model_options = self._available_models
-
+        # Fetch models
+        if self._available_models is None:
+            self._available_models = await self._fetch_models()
+        
         return self.async_show_form(
-            step_id="model",
+            step_id="user",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_MODEL, default=DEFAULT_MODEL): SelectSelector(
                         SelectSelectorConfig(
-                            options=model_options,
+                            options=self._available_models,
                             mode=SelectSelectorMode.DROPDOWN,
-                            custom_value=True,  # Allow free text entry
+                            custom_value=True,
                         )
                     ),
                     vol.Required(
@@ -362,24 +415,20 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                     ),
                 }
             ),
-            description_placeholders={
-                "caching_docs_url": "https://openrouter.ai/docs/guides/best-practices/prompt-caching"
-            },
         )
 
     async def async_step_provider(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Handle provider selection step (dynamic based on selected model)."""
+    ) -> SubentryFlowResult:
+        """Handle provider selection step."""
         if user_input is not None:
             self._data.update(user_input)
             return await self.async_step_behavior()
-
-        # Fetch available providers for the selected model
-        api_key = self._data.get(CONF_API_KEY, "")
-        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
         
-        provider_options = await fetch_model_providers(api_key, model_id)
+        # Fetch providers for selected model
+        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(model_id)
         
         return self.async_show_form(
             step_id="provider",
@@ -387,7 +436,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
                         SelectSelectorConfig(
-                            options=provider_options,
+                            options=self._available_providers,
                             mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
@@ -395,19 +444,18 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             description_placeholders={
                 "model": model_id,
-                "provider_count": str(len(provider_options) - 1),  # -1 for "auto"
-                "caching_docs_url": "https://openrouter.ai/docs/guides/best-practices/prompt-caching",
+                "provider_count": str(len(self._available_providers) - 1),
             },
         )
 
     async def async_step_behavior(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> SubentryFlowResult:
         """Handle behavior settings step."""
         if user_input is not None:
             self._data.update(user_input)
             return await self.async_step_prompt()
-
+        
         return self.async_show_form(
             step_id="behavior",
             data_schema=vol.Schema(
@@ -467,15 +515,21 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_prompt(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    ) -> SubentryFlowResult:
         """Handle prompt configuration step."""
         if user_input is not None:
             self._data.update(user_input)
+            
+            # Generate title from model name
+            model = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+            model_short = model.split("/")[-1] if "/" in model else model
+            title = f"{model_short} Agent"
+            
             return self.async_create_entry(
-                title="Smart Assist",
+                title=title,
                 data=self._data,
             )
-
+        
         return self.async_show_form(
             step_id="prompt",
             data_schema=vol.Schema(
@@ -488,6 +542,216 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                             multiline=True,
                         )
                     ),
+                }
+            ),
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration of an existing conversation agent."""
+        if user_input is not None:
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=user_input,
+            )
+        
+        # Pre-fill with existing values
+        current = self._get_reconfigure_subentry().data.copy()
+        
+        # Fetch models for dropdown
+        if self._available_models is None:
+            self._available_models = await self._fetch_models()
+        
+        # Ensure current model is in the list
+        model_options = list(self._available_models)
+        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
+        model_ids = [m["value"] for m in model_options]
+        if current_model not in model_ids:
+            model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
+        
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_MODEL): SelectSelector(
+                            SelectSelectorConfig(
+                                options=model_options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                                custom_value=True,
+                            )
+                        ),
+                        vol.Required(CONF_TEMPERATURE): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER
+                            )
+                        ),
+                        vol.Required(CONF_MAX_TOKENS): NumberSelector(
+                            NumberSelectorConfig(
+                                min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
+                            )
+                        ),
+                        vol.Required(CONF_PROVIDER): SelectSelector(
+                            SelectSelectorConfig(
+                                options=[{"value": "auto", "label": "Automatic"}],
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
+                        vol.Required(CONF_LANGUAGE): SelectSelector(
+                            SelectSelectorConfig(
+                                options=[
+                                    {"value": "auto", "label": "Auto-detect"},
+                                    {"value": "en", "label": "English"},
+                                    {"value": "de", "label": "Deutsch"},
+                                ],
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
+                        vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
+                        vol.Required(CONF_CONFIRM_CRITICAL): BooleanSelector(),
+                        vol.Required(CONF_MAX_HISTORY): NumberSelector(
+                            NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
+                        ),
+                        vol.Required(CONF_ENABLE_WEB_SEARCH): BooleanSelector(),
+                        vol.Required(CONF_ENABLE_PROMPT_CACHING): BooleanSelector(),
+                        vol.Required(CONF_CACHE_TTL_EXTENDED): BooleanSelector(),
+                        vol.Required(CONF_ENABLE_CACHE_WARMING): BooleanSelector(),
+                        vol.Required(CONF_CACHE_REFRESH_INTERVAL): NumberSelector(
+                            NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
+                        ),
+                        vol.Required(CONF_CLEAN_RESPONSES): BooleanSelector(),
+                        vol.Required(CONF_ASK_FOLLOWUP): BooleanSelector(),
+                        vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
+                            TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+                        ),
+                    }
+                ),
+                current,
+            ),
+        )
+
+
+class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
+    """Handle subentry flow for AI Tasks."""
+    
+    def __init__(self) -> None:
+        """Initialize the flow handler."""
+        super().__init__()
+        self._data: dict[str, Any] = {}
+        self._available_models: list[dict[str, str]] | None = None
+        self._available_providers: list[dict[str, str]] | None = None
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle first step - model and basic settings."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_provider()
+        
+        # Fetch models
+        if self._available_models is None:
+            self._available_models = await self._fetch_models()
+        
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_MODEL, default=DEFAULT_MODEL): SelectSelector(
+                        SelectSelectorConfig(
+                            options=self._available_models,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            custom_value=True,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=0.0,
+                            max=1.0,
+                            step=0.1,
+                            mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=100,
+                            max=4000,
+                            step=100,
+                            mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_provider(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle provider selection step."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_settings()
+        
+        # Fetch providers for selected model
+        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(model_id)
+        
+        return self.async_show_form(
+            step_id="provider",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
+                        SelectSelectorConfig(
+                            options=self._available_providers,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+            description_placeholders={
+                "model": model_id,
+            },
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle settings step."""
+        if user_input is not None:
+            self._data.update(user_input)
+            
+            # Generate title from model name
+            model = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+            model_short = model.split("/")[-1] if "/" in model else model
+            title = f"{model_short} Task"
+            
+            return self.async_create_entry(
+                title=title,
+                data=self._data,
+            )
+        
+        return self.async_show_form(
+            step_id="settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": "auto", "label": "Auto-detect"},
+                                {"value": "en", "label": "English"},
+                                {"value": "de", "label": "Deutsch"},
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                    vol.Required(CONF_EXPOSED_ONLY, default=True): BooleanSelector(),
                     vol.Required(
                         CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT
                     ): TextSelector(
@@ -506,281 +770,111 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
         )
 
-
-class SmartAssistOptionsFlow(OptionsFlow):
-    """Handle options flow for Smart Assist."""
-
-    _available_models: list[dict[str, str]] | None = None
-    _available_providers: list[dict[str, str]] | None = None
-    _options_data: dict[str, Any]
-
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialize options flow."""
-        super().__init__()
-        # Merge data and options - options take precedence
-        self._options_data = {**config_entry.data, **config_entry.options}
-
-    async def async_step_init(
+    async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 1: Model selection."""
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration of an existing AI task."""
         if user_input is not None:
-            self._options_data.update(user_input)
-            # Reset providers cache when model changes
-            self._available_providers = None
-            return await self.async_step_provider()
-
-        # Merge data and options - options take precedence
-        current = self._options_data
-        api_key = current.get(CONF_API_KEY, "")
+            return self.async_update_and_abort(
+                self._get_entry(),
+                self._get_reconfigure_subentry(),
+                data=user_input,
+            )
         
+        # Pre-fill with existing values
+        current = self._get_reconfigure_subentry().data.copy()
+        
+        # Fetch models for dropdown
         if self._available_models is None:
-            self._available_models = await fetch_openrouter_models(api_key)
+            self._available_models = await self._fetch_models()
         
+        # Ensure current model is in the list
         model_options = list(self._available_models)
         current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
         model_ids = [m["value"] for m in model_options]
         if current_model not in model_ids:
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
+        
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_MODEL): SelectSelector(
+                            SelectSelectorConfig(
+                                options=model_options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                                custom_value=True,
+                            )
+                        ),
+                        vol.Required(CONF_TEMPERATURE): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER
+                            )
+                        ),
+                        vol.Required(CONF_MAX_TOKENS): NumberSelector(
+                            NumberSelectorConfig(
+                                min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
+                            )
+                        ),
+                        vol.Required(CONF_PROVIDER): SelectSelector(
+                            SelectSelectorConfig(
+                                options=[{"value": "auto", "label": "Automatic"}],
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
+                        vol.Required(CONF_LANGUAGE): SelectSelector(
+                            SelectSelectorConfig(
+                                options=[
+                                    {"value": "auto", "label": "Auto-detect"},
+                                    {"value": "en", "label": "English"},
+                                    {"value": "de", "label": "Deutsch"},
+                                ],
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
+                        vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
+                        vol.Required(CONF_TASK_SYSTEM_PROMPT): TextSelector(
+                            TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+                        ),
+                        vol.Required(CONF_TASK_ENABLE_PROMPT_CACHING): BooleanSelector(),
+                        vol.Required(CONF_TASK_ENABLE_CACHE_WARMING): BooleanSelector(),
+                    }
+                ),
+                current,
+            ),
+        )
 
+
+# =============================================================================
+# OPTIONS FLOW (for global settings like debug logging)
+# =============================================================================
+
+class SmartAssistOptionsFlow(OptionsFlow):
+    """Handle options flow for Smart Assist (global settings)."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        super().__init__()
+        self._config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle options step."""
+        if user_input is not None:
+            # Apply debug logging setting immediately
+            debug_enabled = user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
+            self._apply_debug_logging(debug_enabled)
+            
+            return self.async_create_entry(title="", data=user_input)
+        
+        current = {**self._config_entry.data, **self._config_entry.options}
+        
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        CONF_MODEL, default=current_model
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=model_options,
-                            mode=SelectSelectorMode.DROPDOWN,
-                            custom_value=True,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_TEMPERATURE,
-                        default=current.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=0.0,
-                            max=1.0,
-                            step=0.1,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_MAX_TOKENS,
-                        default=current.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=100,
-                            max=4000,
-                            step=100,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                }
-            ),
-        )
-
-    async def async_step_provider(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 2: Provider selection."""
-        if user_input is not None:
-            self._options_data.update(user_input)
-            return await self.async_step_behavior()
-
-        current = self._options_data
-        api_key = current.get(CONF_API_KEY, "")
-        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
-        
-        # Fetch providers for the selected model
-        if self._available_providers is None:
-            self._available_providers = await fetch_model_providers(api_key, current_model)
-        
-        provider_options = list(self._available_providers)
-        current_provider = current.get(CONF_PROVIDER, DEFAULT_PROVIDER)
-        provider_ids = [p["value"] for p in provider_options]
-        if current_provider not in provider_ids:
-            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
-
-        return self.async_show_form(
-            step_id="provider",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_PROVIDER, default=current_provider
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=provider_options,
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-            description_placeholders={
-                "model": current_model,
-            },
-        )
-
-    async def async_step_behavior(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 3: Behavior settings."""
-        if user_input is not None:
-            self._options_data.update(user_input)
-            return await self.async_step_caching()
-
-        current = self._options_data
-
-        return self.async_show_form(
-            step_id="behavior",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_LANGUAGE,
-                        default=current.get(CONF_LANGUAGE, DEFAULT_LANGUAGE),
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                {"value": "auto", "label": "Auto-detect"},
-                                {"value": "en", "label": "English"},
-                                {"value": "de", "label": "Deutsch"},
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_EXPOSED_ONLY, default=current.get(CONF_EXPOSED_ONLY, True)
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_CONFIRM_CRITICAL,
-                        default=current.get(CONF_CONFIRM_CRITICAL, True),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_MAX_HISTORY,
-                        default=current.get(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY),
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=1,
-                            max=20,
-                            step=1,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_ENABLE_WEB_SEARCH,
-                        default=current.get(CONF_ENABLE_WEB_SEARCH, True),
-                    ): BooleanSelector(),
-                }
-            ),
-        )
-
-    async def async_step_caching(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 4: Caching settings."""
-        if user_input is not None:
-            self._options_data.update(user_input)
-            return await self.async_step_advanced()
-
-        current = self._options_data
-
-        return self.async_show_form(
-            step_id="caching",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_ENABLE_PROMPT_CACHING,
-                        default=current.get(CONF_ENABLE_PROMPT_CACHING, True),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_CACHE_TTL_EXTENDED,
-                        default=current.get(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_ENABLE_CACHE_WARMING,
-                        default=current.get(CONF_ENABLE_CACHE_WARMING, DEFAULT_ENABLE_CACHE_WARMING),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_CACHE_REFRESH_INTERVAL,
-                        default=current.get(CONF_CACHE_REFRESH_INTERVAL, DEFAULT_CACHE_REFRESH_INTERVAL),
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=1,
-                            max=55,
-                            step=1,
-                            unit_of_measurement="min",
-                            mode=NumberSelectorMode.BOX,
-                        )
-                    ),
-                }
-            ),
-        )
-
-    async def async_step_advanced(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 5: Advanced settings."""
-        if user_input is not None:
-            self._options_data.update(user_input)
-            # Remove API key from options (it's in data)
-            options_to_save = {k: v for k, v in self._options_data.items() if k != CONF_API_KEY}
-            
-            # Apply debug logging setting immediately
-            debug_enabled = options_to_save.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
-            self._apply_debug_logging(debug_enabled)
-            
-            return self.async_create_entry(title="", data=options_to_save)
-
-        current = self._options_data
-
-        return self.async_show_form(
-            step_id="advanced",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_CLEAN_RESPONSES,
-                        default=current.get(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_ASK_FOLLOWUP,
-                        default=current.get(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_USER_SYSTEM_PROMPT,
-                        default=current.get(
-                            CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT
-                        ),
-                    ): TextSelector(
-                        TextSelectorConfig(
-                            type=TextSelectorType.TEXT,
-                            multiline=True,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_TASK_SYSTEM_PROMPT,
-                        default=current.get(
-                            CONF_TASK_SYSTEM_PROMPT, DEFAULT_TASK_SYSTEM_PROMPT
-                        ),
-                    ): TextSelector(
-                        TextSelectorConfig(
-                            type=TextSelectorType.TEXT,
-                            multiline=True,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_TASK_ENABLE_PROMPT_CACHING,
-                        default=current.get(
-                            CONF_TASK_ENABLE_PROMPT_CACHING, DEFAULT_TASK_ENABLE_PROMPT_CACHING
-                        ),
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_TASK_ENABLE_CACHE_WARMING,
-                        default=current.get(
-                            CONF_TASK_ENABLE_CACHE_WARMING, DEFAULT_TASK_ENABLE_CACHE_WARMING
-                        ),
-                    ): BooleanSelector(),
                     vol.Required(
                         CONF_DEBUG_LOGGING,
                         default=current.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),

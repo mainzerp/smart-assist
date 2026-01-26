@@ -3,62 +3,9 @@
     "step": {
       "user": {
         "title": "OpenRouter API Configuration",
-        "description": "Enter your OpenRouter API key. You can get one at {docs_url}",
+        "description": "Enter your OpenRouter API key. You can get one at {docs_url}\n\nAfter setup, add Conversation Agents or AI Tasks via the integration menu.",
         "data": {
           "api_key": "API Key"
-        }
-      },
-      "model": {
-        "title": "Model Configuration",
-        "description": "Select any OpenRouter model. You can enter a custom model ID or choose from suggestions.\n\n**Prompt Caching:** If enabled, select a specific provider (not 'auto'). Not all models support caching - see [OpenRouter docs]({caching_docs_url}).",
-        "data": {
-          "model": "Model (e.g. anthropic/claude-3-haiku)",
-          "provider": "Provider",
-          "temperature": "Temperature (0 = precise, 1 = creative)",
-          "max_tokens": "Maximum response tokens"
-        },
-        "data_description": {
-          "provider": "For prompt caching, select a specific provider. 'Auto' may route to providers without caching support."
-        }
-      },
-      "behavior": {
-        "title": "Behavior Settings",
-        "description": "Configure how Smart Assist behaves",
-        "data": {
-          "language": "Response Language",
-          "exposed_only": "Use only exposed entities",
-          "confirm_critical": "Confirm critical actions (locks, alarms)",
-          "max_history": "Maximum conversation history",
-          "enable_web_search": "Enable web search (DuckDuckGo)",
-          "enable_prompt_caching": "Enable prompt caching (reduces latency and cost)",
-          "cache_ttl_extended": "Extended cache TTL (1 hour for Anthropic)",
-          "enable_cache_warming": "Enable automatic cache warming (incurs additional cost)",
-          "cache_refresh_interval": "Cache refresh interval",
-          "clean_responses": "Clean responses for voice output",
-          "ask_followup": "Ask follow-up questions"
-        },
-        "data_description": {
-          "cache_ttl_extended": "Enable 1-hour cache instead of 5 minutes. Reduces costs for frequently used prompts. Only applies to Anthropic models.",
-          "enable_cache_warming": "Keeps the prompt cache warm by sending periodic requests. This ensures instant responses but incurs small additional API costs (~1 request per interval).",
-          "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL (5 min standard, 60 min extended). Lower = more reliable cache, higher cost.",
-          "clean_responses": "Makes responses TTS-friendly by removing emojis, markdown formatting, and URLs. Converts symbols to words (e.g., 25°C to '25 degrees Celsius'). Original responses are preserved in conversation history.",
-          "ask_followup": "If enabled, the assistant will offer further help after completing actions. Disable for voice assistants to avoid loop-like interactions."
-        }
-      },
-      "prompt": {
-        "title": "Prompt Configuration",
-        "description": "Customize the assistant's personality and behavior",
-        "data": {
-          "user_system_prompt": "Conversation System Prompt",
-          "task_system_prompt": "AI Task System Prompt",
-          "task_enable_prompt_caching": "AI Task: Enable prompt caching",
-          "task_enable_cache_warming": "AI Task: Enable cache warming"
-        },
-        "data_description": {
-          "user_system_prompt": "Personality and instructions for interactive conversations.",
-          "task_system_prompt": "Instructions for background AI tasks in automations.",
-          "task_enable_prompt_caching": "Not recommended for tasks - they run in background and are not time-critical.",
-          "task_enable_cache_warming": "Not recommended for tasks - they run in background and are not time-critical."
         }
       }
     },
@@ -74,74 +21,125 @@
   "options": {
     "step": {
       "init": {
-        "title": "Smart Assist - Model Settings",
-        "description": "Configure your AI model and provider.",
+        "title": "Smart Assist Settings",
+        "description": "Configure global settings for Smart Assist.",
         "data": {
-          "model": "Model",
-          "temperature": "Temperature",
-          "max_tokens": "Maximum response tokens"
-        },
-        "data_description": {
-          "model": "Select an OpenRouter model or enter a custom model ID."
-        }
-      },
-      "provider": {
-        "title": "Smart Assist - Provider",
-        "description": "Select a provider for **{model}**.\n\nProviders are sorted by price (cheapest first).",
-        "data": {
-          "provider": "Provider"
-        },
-        "data_description": {
-          "provider": "Choose 'Automatic' for best price, or select a specific provider for prompt caching."
-        }
-      },
-      "behavior": {
-        "title": "Smart Assist - Behavior",
-        "description": "Configure assistant behavior and features.",
-        "data": {
-          "language": "Response Language",
-          "exposed_only": "Use only exposed entities",
-          "confirm_critical": "Confirm critical actions",
-          "max_history": "Maximum conversation history",
-          "enable_web_search": "Enable web search (DuckDuckGo)"
-        }
-      },
-      "caching": {
-        "title": "Smart Assist - Caching",
-        "description": "Configure prompt caching for reduced latency and cost.\n\nRequires a specific provider (not 'auto') and a supported model.",
-        "data": {
-          "enable_prompt_caching": "Enable prompt caching",
-          "cache_ttl_extended": "Use extended cache TTL (longer cache lifetime)",
-          "enable_cache_warming": "Enable cache warming (pre-warm cache periodically)",
-          "cache_refresh_interval": "Cache refresh interval (minutes)"
-        },
-        "data_description": {
-          "enable_prompt_caching": "Reduces latency and cost by caching system prompts.",
-          "cache_ttl_extended": "Some providers support extended cache lifetime.",
-          "enable_cache_warming": "Periodically refresh cache to maintain low latency.",
-          "cache_refresh_interval": "How often to refresh the cache (1-55 minutes)."
-        }
-      },
-      "advanced": {
-        "title": "Smart Assist - Advanced",
-        "description": "Advanced response formatting and prompts.",
-        "data": {
-          "clean_responses": "Clean responses (remove markdown formatting)",
-          "ask_followup": "Ask follow-up questions",
-          "user_system_prompt": "Conversation System Prompt",
-          "task_system_prompt": "AI Task System Prompt",
-          "task_enable_prompt_caching": "AI Task: Enable prompt caching",
-          "task_enable_cache_warming": "AI Task: Enable cache warming",
           "debug_logging": "Enable debug logging"
         },
         "data_description": {
-          "clean_responses": "Remove markdown symbols like ** and * from responses.",
-          "ask_followup": "Assistant asks clarifying questions when needed.",
-          "user_system_prompt": "Personality and instructions for interactive conversations.",
-          "task_system_prompt": "Instructions for background AI tasks in automations.",
-          "task_enable_prompt_caching": "Not recommended - background tasks are not time-critical.",
-          "task_enable_cache_warming": "Not recommended - background tasks are not time-critical.",
           "debug_logging": "Enable verbose logging for debugging."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "initiate_flow": {
+        "user": "Add Conversation Agent"
+      },
+      "step": {
+        "user": {
+          "title": "Conversation Agent",
+          "description": "Create a new conversation agent for Smart Assist.",
+          "data": {
+            "name": "Agent Name",
+            "model": "Model (e.g. anthropic/claude-3-haiku)"
+          },
+          "data_description": {
+            "name": "A unique name for this conversation agent.",
+            "model": "Select an OpenRouter model or enter a custom model ID."
+          }
+        },
+        "provider": {
+          "title": "Provider Selection",
+          "description": "Select a provider for **{model}**.\n\nProviders are sorted by price (cheapest first).",
+          "data": {
+            "provider": "Provider",
+            "temperature": "Temperature (0 = precise, 1 = creative)",
+            "max_tokens": "Maximum response tokens"
+          },
+          "data_description": {
+            "provider": "Choose 'Automatic' for best price, or select a specific provider for prompt caching."
+          }
+        },
+        "behavior": {
+          "title": "Behavior Settings",
+          "description": "Configure how this conversation agent behaves.",
+          "data": {
+            "language": "Response Language",
+            "exposed_only": "Use only exposed entities",
+            "confirm_critical": "Confirm critical actions (locks, alarms)",
+            "max_history": "Maximum conversation history",
+            "enable_web_search": "Enable web search (DuckDuckGo)",
+            "enable_prompt_caching": "Enable prompt caching (reduces latency and cost)",
+            "cache_ttl_extended": "Extended cache TTL (1 hour for Anthropic)",
+            "enable_cache_warming": "Enable automatic cache warming",
+            "cache_refresh_interval": "Cache refresh interval (minutes)",
+            "clean_responses": "Clean responses for voice output",
+            "ask_followup": "Ask follow-up questions"
+          },
+          "data_description": {
+            "cache_ttl_extended": "Enable 1-hour cache instead of 5 minutes. Only applies to Anthropic models.",
+            "enable_cache_warming": "Keeps the prompt cache warm by sending periodic requests. Incurs small additional API costs.",
+            "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL.",
+            "clean_responses": "Makes responses TTS-friendly by removing emojis, markdown formatting, and URLs.",
+            "ask_followup": "If enabled, the assistant will offer further help after completing actions."
+          }
+        },
+        "prompt": {
+          "title": "System Prompt",
+          "description": "Customize the assistant's personality and behavior.",
+          "data": {
+            "user_system_prompt": "System Prompt"
+          },
+          "data_description": {
+            "user_system_prompt": "Personality and instructions for this conversation agent."
+          }
+        }
+      }
+    },
+    "ai_task": {
+      "initiate_flow": {
+        "user": "Add AI Task"
+      },
+      "step": {
+        "user": {
+          "title": "AI Task",
+          "description": "Create a new AI Task for use in automations.",
+          "data": {
+            "name": "Task Name",
+            "model": "Model (e.g. anthropic/claude-3-haiku)"
+          },
+          "data_description": {
+            "name": "A unique name for this AI task.",
+            "model": "Select an OpenRouter model or enter a custom model ID."
+          }
+        },
+        "provider": {
+          "title": "Provider Selection",
+          "description": "Select a provider for **{model}**.\n\nProviders are sorted by price (cheapest first).",
+          "data": {
+            "provider": "Provider",
+            "temperature": "Temperature (0 = precise, 1 = creative)",
+            "max_tokens": "Maximum response tokens"
+          },
+          "data_description": {
+            "provider": "Choose 'Automatic' for best price, or select a specific provider."
+          }
+        },
+        "settings": {
+          "title": "Task Settings",
+          "description": "Configure this AI task.",
+          "data": {
+            "task_system_prompt": "System Prompt",
+            "task_enable_prompt_caching": "Enable prompt caching",
+            "task_enable_cache_warming": "Enable cache warming"
+          },
+          "data_description": {
+            "task_system_prompt": "Instructions for this AI task in automations.",
+            "task_enable_prompt_caching": "Not recommended - background tasks are not time-critical.",
+            "task_enable_cache_warming": "Not recommended - background tasks are not time-critical."
+          }
         }
       }
     }

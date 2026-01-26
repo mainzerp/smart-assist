@@ -3,62 +3,9 @@
     "step": {
       "user": {
         "title": "OpenRouter API Konfiguration",
-        "description": "Gib deinen OpenRouter API Key ein. Du kannst einen Key bei {docs_url} erstellen.",
+        "description": "Gib deinen OpenRouter API Key ein. Du kannst einen Key bei {docs_url} erstellen.\n\nNach der Einrichtung kannst du Konversations-Agenten oder AI Tasks ueber das Integrationsmenü hinzufuegen.",
         "data": {
           "api_key": "API Key"
-        }
-      },
-      "model": {
-        "title": "Modell Konfiguration",
-        "description": "Waehle ein beliebiges OpenRouter-Modell. Du kannst eine eigene Modell-ID eingeben oder aus Vorschlaegen waehlen.\n\n**Prompt Caching:** Falls aktiviert, waehle einen spezifischen Provider (nicht 'auto'). Nicht alle Modelle unterstuetzen Caching - siehe [OpenRouter Docs]({caching_docs_url}).",
-        "data": {
-          "model": "Modell (z.B. anthropic/claude-3-haiku)",
-          "provider": "Provider",
-          "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
-          "max_tokens": "Maximale Antwort-Tokens"
-        },
-        "data_description": {
-          "provider": "Fuer Prompt Caching einen spezifischen Provider waehlen. 'Auto' kann zu Providern ohne Caching-Unterstuetzung routen."
-        }
-      },
-      "behavior": {
-        "title": "Verhaltenseinstellungen",
-        "description": "Konfiguriere das Verhalten von Smart Assist",
-        "data": {
-          "language": "Antwortsprache",
-          "exposed_only": "Nur freigegebene Entities verwenden",
-          "confirm_critical": "Kritische Aktionen bestaetigen (Schloesser, Alarme)",
-          "max_history": "Maximale Konversationshistorie",
-          "enable_web_search": "Websuche aktivieren (DuckDuckGo)",
-          "enable_prompt_caching": "Prompt Caching aktivieren (reduziert Latenz und Kosten)",
-          "cache_ttl_extended": "Erweiterte Cache-Dauer (1 Stunde fuer Anthropic)",
-          "enable_cache_warming": "Automatisches Cache-Warming aktivieren (verursacht Kosten)",
-          "cache_refresh_interval": "Cache-Aktualisierungsintervall",
-          "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
-          "ask_followup": "Rueckfragen stellen"
-        },
-        "data_description": {
-          "cache_ttl_extended": "Aktiviert 1-Stunden-Cache statt 5 Minuten. Reduziert Kosten fuer haeufig genutzte Prompts. Gilt nur fuer Anthropic-Modelle.",
-          "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Garantiert sofortige Antworten, verursacht aber geringe zusaetzliche API-Kosten (~1 Anfrage pro Intervall).",
-          "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen (5 min Standard, 60 min erweitert). Niedriger = zuverlaessigerer Cache, hoehere Kosten.",
-          "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs. Konvertiert Symbole in Woerter (z.B. 25°C zu '25 Grad Celsius'). Original-Antworten bleiben im Gespraechsverlauf erhalten.",
-          "ask_followup": "Wenn aktiviert, bietet der Assistent nach Aktionen weitere Hilfe an. Fuer Sprachassistenten deaktivieren, um schleifenartige Interaktionen zu vermeiden."
-        }
-      },
-      "prompt": {
-        "title": "Prompt Konfiguration",
-        "description": "Passe die Persoenlichkeit und das Verhalten des Assistenten an",
-        "data": {
-          "user_system_prompt": "Konversations-System-Prompt",
-          "task_system_prompt": "AI Task System Prompt",
-          "task_enable_prompt_caching": "AI Task: Prompt Caching aktivieren",
-          "task_enable_cache_warming": "AI Task: Cache-Warming aktivieren"
-        },
-        "data_description": {
-          "user_system_prompt": "Persoenlichkeit und Anweisungen fuer interaktive Konversationen.",
-          "task_system_prompt": "Anweisungen fuer Hintergrund-AI-Tasks in Automationen.",
-          "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
-          "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
         }
       }
     },
@@ -74,74 +21,125 @@
   "options": {
     "step": {
       "init": {
-        "title": "Smart Assist - Modell",
-        "description": "Konfiguriere dein KI-Modell.",
+        "title": "Smart Assist Einstellungen",
+        "description": "Konfiguriere globale Einstellungen fuer Smart Assist.",
         "data": {
-          "model": "Modell",
-          "temperature": "Temperatur",
-          "max_tokens": "Maximale Antwort-Tokens"
-        },
-        "data_description": {
-          "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein."
-        }
-      },
-      "provider": {
-        "title": "Smart Assist - Provider",
-        "description": "Waehle einen Provider fuer **{model}**.\n\nProvider sind nach Preis sortiert (guenstigste zuerst).",
-        "data": {
-          "provider": "Provider"
-        },
-        "data_description": {
-          "provider": "Waehle 'Automatisch' fuer den besten Preis, oder einen spezifischen Provider fuer Prompt Caching."
-        }
-      },
-      "behavior": {
-        "title": "Smart Assist - Verhalten",
-        "description": "Konfiguriere das Verhalten des Assistenten.",
-        "data": {
-          "language": "Antwortsprache",
-          "exposed_only": "Nur freigegebene Entities",
-          "confirm_critical": "Kritische Aktionen bestaetigen",
-          "max_history": "Maximale Konversationshistorie",
-          "enable_web_search": "Websuche aktivieren (DuckDuckGo)"
-        }
-      },
-      "caching": {
-        "title": "Smart Assist - Caching",
-        "description": "Konfiguriere Prompt Caching fuer reduzierte Latenz und Kosten.\n\nErfordert einen spezifischen Provider (nicht 'auto') und ein unterstuetztes Modell.",
-        "data": {
-          "enable_prompt_caching": "Prompt Caching aktivieren",
-          "cache_ttl_extended": "Erweiterte Cache-Dauer (laengere Lebensdauer)",
-          "enable_cache_warming": "Cache-Warming aktivieren (periodisch vorwaermen)",
-          "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)"
-        },
-        "data_description": {
-          "enable_prompt_caching": "Reduziert Latenz und Kosten durch Caching von System-Prompts.",
-          "cache_ttl_extended": "Einige Provider unterstuetzen laengere Cache-Lebensdauer.",
-          "enable_cache_warming": "Periodisch Cache aktualisieren fuer niedrige Latenz.",
-          "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (1-55 Minuten)."
-        }
-      },
-      "advanced": {
-        "title": "Smart Assist - Erweitert",
-        "description": "Erweiterte Antwortformatierung und Prompts.",
-        "data": {
-          "clean_responses": "Antworten bereinigen (Markdown entfernen)",
-          "ask_followup": "Rueckfragen stellen",
-          "user_system_prompt": "Konversations-System-Prompt",
-          "task_system_prompt": "AI Task System Prompt",
-          "task_enable_prompt_caching": "AI Task: Prompt Caching aktivieren",
-          "task_enable_cache_warming": "AI Task: Cache-Warming aktivieren",
           "debug_logging": "Debug-Logging aktivieren"
         },
         "data_description": {
-          "clean_responses": "Entfernt Markdown-Symbole wie ** und * aus Antworten.",
-          "ask_followup": "Assistent stellt bei Bedarf klaerende Fragen.",
-          "user_system_prompt": "Persoenlichkeit und Anweisungen fuer interaktive Konversationen.",
-          "task_system_prompt": "Anweisungen fuer Hintergrund-AI-Tasks in Automationen.",
-          "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
-          "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
-          "debug_logging": "Aktiviert ausfuehrliches Logging zur Fehlersuche (in Home Assistant Logs)."
+          "debug_logging": "Aktiviert ausfuehrliches Logging zur Fehlersuche."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "conversation": {
+      "initiate_flow": {
+        "user": "Konversations-Agent hinzufuegen"
+      },
+      "step": {
+        "user": {
+          "title": "Konversations-Agent",
+          "description": "Erstelle einen neuen Konversations-Agenten fuer Smart Assist.",
+          "data": {
+            "name": "Agentenname",
+            "model": "Modell (z.B. anthropic/claude-3-haiku)"
+          },
+          "data_description": {
+            "name": "Ein eindeutiger Name fuer diesen Konversations-Agenten.",
+            "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein."
+          }
+        },
+        "provider": {
+          "title": "Provider Auswahl",
+          "description": "Waehle einen Provider fuer **{model}**.\n\nProvider sind nach Preis sortiert (guenstigste zuerst).",
+          "data": {
+            "provider": "Provider",
+            "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
+            "max_tokens": "Maximale Antwort-Tokens"
+          },
+          "data_description": {
+            "provider": "Waehle 'Automatisch' fuer den besten Preis, oder einen spezifischen Provider fuer Prompt Caching."
+          }
+        },
+        "behavior": {
+          "title": "Verhaltenseinstellungen",
+          "description": "Konfiguriere das Verhalten dieses Konversations-Agenten.",
+          "data": {
+            "language": "Antwortsprache",
+            "exposed_only": "Nur freigegebene Entities verwenden",
+            "confirm_critical": "Kritische Aktionen bestaetigen (Schloesser, Alarme)",
+            "max_history": "Maximale Konversationshistorie",
+            "enable_web_search": "Websuche aktivieren (DuckDuckGo)",
+            "enable_prompt_caching": "Prompt Caching aktivieren (reduziert Latenz und Kosten)",
+            "cache_ttl_extended": "Erweiterte Cache-Dauer (1 Stunde fuer Anthropic)",
+            "enable_cache_warming": "Automatisches Cache-Warming aktivieren",
+            "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
+            "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
+            "ask_followup": "Rueckfragen stellen"
+          },
+          "data_description": {
+            "cache_ttl_extended": "Aktiviert 1-Stunden-Cache statt 5 Minuten. Gilt nur fuer Anthropic-Modelle.",
+            "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
+            "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
+            "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs.",
+            "ask_followup": "Wenn aktiviert, bietet der Assistent nach Aktionen weitere Hilfe an."
+          }
+        },
+        "prompt": {
+          "title": "System Prompt",
+          "description": "Passe die Persoenlichkeit und das Verhalten des Assistenten an.",
+          "data": {
+            "user_system_prompt": "System Prompt"
+          },
+          "data_description": {
+            "user_system_prompt": "Persoenlichkeit und Anweisungen fuer diesen Konversations-Agenten."
+          }
+        }
+      }
+    },
+    "ai_task": {
+      "initiate_flow": {
+        "user": "AI Task hinzufuegen"
+      },
+      "step": {
+        "user": {
+          "title": "AI Task",
+          "description": "Erstelle einen neuen AI Task fuer Automationen.",
+          "data": {
+            "name": "Task Name",
+            "model": "Modell (z.B. anthropic/claude-3-haiku)"
+          },
+          "data_description": {
+            "name": "Ein eindeutiger Name fuer diesen AI Task.",
+            "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein."
+          }
+        },
+        "provider": {
+          "title": "Provider Auswahl",
+          "description": "Waehle einen Provider fuer **{model}**.\n\nProvider sind nach Preis sortiert (guenstigste zuerst).",
+          "data": {
+            "provider": "Provider",
+            "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
+            "max_tokens": "Maximale Antwort-Tokens"
+          },
+          "data_description": {
+            "provider": "Waehle 'Automatisch' fuer den besten Preis, oder einen spezifischen Provider."
+          }
+        },
+        "settings": {
+          "title": "Task Einstellungen",
+          "description": "Konfiguriere diesen AI Task.",
+          "data": {
+            "task_system_prompt": "System Prompt",
+            "task_enable_prompt_caching": "Prompt Caching aktivieren",
+            "task_enable_cache_warming": "Cache-Warming aktivieren"
+          },
+          "data_description": {
+            "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
+            "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
+            "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
+          }
         }
       }
     }

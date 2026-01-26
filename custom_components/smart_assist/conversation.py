@@ -46,17 +46,15 @@ except ImportError:
     _LOGGER.debug("Smart Assist: ChatLog API not available, using fallback")
 
 try:
-    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.config_entries import ConfigEntry, ConfigSubentry
     from homeassistant.const import MATCH_ALL
     from homeassistant.core import HomeAssistant
-    from homeassistant.helpers import intent
+    from homeassistant.helpers import intent, device_registry as dr
     from homeassistant.helpers.dispatcher import async_dispatcher_send
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 except ImportError as e:
     _LOGGER.error("Smart Assist: Failed to import HA core modules: %s", e)
     raise
-
-# AddEntitiesCallback is the standard platform callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 try:
     from .const import (
@@ -102,24 +100,28 @@ _LOGGER.info("Smart Assist: conversation.py module loaded successfully")
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    config_entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Smart Assist conversation entity from config entry."""
-    _LOGGER.debug("Smart Assist: Setting up conversation entity")
-    entity = SmartAssistConversationEntity(hass, entry)
-    async_add_entities([entity])
+    """Set up Smart Assist conversation entities from config entry subentries."""
+    _LOGGER.debug("Smart Assist: Setting up conversation entities from subentries")
     
-    # Store entity reference for cache warming
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN].setdefault(entry.entry_id, {})
-    hass.data[DOMAIN][entry.entry_id]["agent"] = entity
+    for subentry_id, subentry in config_entry.subentries.items():
+        if subentry.subentry_type != "conversation":
+            continue
+        
+        _LOGGER.debug("Smart Assist: Creating conversation entity for subentry %s", subentry_id)
+        async_add_entities(
+            [SmartAssistConversationEntity(hass, config_entry, subentry)],
+            config_subentry_id=subentry_id,
+        )
 
 
 class SmartAssistConversationEntity(ConversationEntity):
     """Smart Assist conversation entity for Home Assistant Assist Pipeline.
     
     This entity provides LLM-powered conversation with streaming support.
+    Each entity is created from a subentry configuration.
     """
 
     # Entity attributes
@@ -128,33 +130,37 @@ class SmartAssistConversationEntity(ConversationEntity):
     _attr_supports_streaming = True
     _attr_supported_features = ConversationEntityFeature.CONTROL
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the conversation entity."""
         self.hass = hass
         self._entry = entry
+        self._subentry = subentry
         
-        # Unique ID based on config entry
-        self._attr_unique_id = f"{entry.entry_id}_conversation"
+        # Unique ID based on subentry
+        self._attr_unique_id = subentry.subentry_id
         
         # Device info for proper UI display
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Smart Assist",
-            "manufacturer": "Smart Assist",
-            "model": "Conversation Agent",
-            "entry_type": "service",
-        }
+        self._attr_device_info = dr.DeviceInfo(
+            identifiers={(DOMAIN, subentry.subentry_id)},
+            name=subentry.title,
+            manufacturer="Smart Assist",
+            model="Conversation Agent",
+            entry_type=dr.DeviceEntryType.SERVICE,
+        )
 
-        # Helper to get config values (options override data)
+        # Helper to get config values from subentry
         def get_config(key: str, default: Any = None) -> Any:
-            """Get config value from options first, then data, then default."""
-            if key in entry.options:
-                return entry.options[key]
-            return entry.data.get(key, default)
+            """Get config value from subentry data."""
+            return subentry.data.get(key, default)
 
-        # Initialize LLM client
+        # Initialize LLM client (API key from main entry, settings from subentry)
         self._llm_client = OpenRouterClient(
-            api_key=entry.data[CONF_API_KEY],  # API key only in data
+            api_key=entry.data[CONF_API_KEY],
             model=get_config(CONF_MODEL, DEFAULT_MODEL),
             provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
             temperature=get_config(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
@@ -166,7 +172,11 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Store LLM client reference for sensors to access metrics
         hass.data.setdefault(DOMAIN, {})
         hass.data[DOMAIN].setdefault(entry.entry_id, {})
-        hass.data[DOMAIN][entry.entry_id]["llm_client"] = self._llm_client
+        hass.data[DOMAIN][entry.entry_id].setdefault("agents", {})
+        hass.data[DOMAIN][entry.entry_id]["agents"][subentry.subentry_id] = {
+            "llm_client": self._llm_client,
+            "entity": self,
+        }
 
         # Entity manager for entity discovery
         self._entity_manager = EntityManager(
@@ -185,14 +195,8 @@ class SmartAssistConversationEntity(ConversationEntity):
         self._cached_system_prompt: str | None = None
 
     def _get_config(self, key: str, default: Any = None) -> Any:
-        """Get config value from options first, then data, then default.
-        
-        This is needed because OptionsFlow saves to entry.options,
-        while initial config goes to entry.data.
-        """
-        if key in self._entry.options:
-            return self._entry.options[key]
-        return self._entry.data.get(key, default)
+        """Get config value from subentry data."""
+        return self._subentry.data.get(key, default)
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -813,3 +817,8 @@ Only exposed entities are available. Entities not listed in the index cannot be 
             conversation_id=user_input.conversation_id,
             continue_conversation=continue_conversation,
         )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up when entity is removed."""
+        if self._llm_client:
+            await self._llm_client.close()

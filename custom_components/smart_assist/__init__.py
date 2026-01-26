@@ -1,4 +1,8 @@
-"""Smart Assist - LLM-powered Home Assistant conversation integration."""
+"""Smart Assist - LLM-powered Home Assistant conversation integration.
+
+This integration uses Home Assistant's Subentry system to allow
+multiple Conversation Agents and AI Tasks with individual settings.
+"""
 
 from __future__ import annotations
 
@@ -38,6 +42,7 @@ except ImportError as e:
 
 _LOGGER.warning("Smart Assist: __init__.py module loaded successfully")
 
+# Platforms are set up from subentries (conversation and ai_task)
 PLATFORMS: list[Platform] = [Platform.AI_TASK, Platform.CONVERSATION, Platform.SENSOR]
 
 
@@ -68,11 +73,18 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Smart Assist from a config entry."""
+    """Set up Smart Assist from a config entry.
+    
+    The main config entry contains the API key.
+    Subentries (conversation, ai_task) contain the individual settings.
+    """
     _LOGGER.info("Setting up Smart Assist integration")
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {}
+    hass.data[DOMAIN][entry.entry_id] = {
+        "agents": {},  # Store conversation agents by subentry_id
+        "tasks": {},   # Store AI tasks by subentry_id
+    }
 
     # Helper to get config values (options override data)
     def get_config(key: str, default: Any = None) -> Any:
@@ -85,67 +97,63 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     debug_enabled = get_config(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
     _apply_debug_logging(debug_enabled)
 
-    # Set up conversation platform
+    # Set up platforms (they will read from subentries)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Register update listener for options
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    # Schedule cache warming and periodic refresh if enabled
-    caching_enabled = get_config(CONF_ENABLE_PROMPT_CACHING, True)
-    warming_enabled = get_config(CONF_ENABLE_CACHE_WARMING, DEFAULT_ENABLE_CACHE_WARMING)
-    
-    _LOGGER.debug(
-        "Cache settings: caching=%s, warming=%s",
-        caching_enabled, warming_enabled
-    )
-    
-    if caching_enabled and warming_enabled:
-        # If HA is already running, warm cache immediately
-        if hass.is_running:
-            _LOGGER.info("HA running, starting cache warming immediately...")
-            hass.async_create_task(_perform_cache_warming(hass, entry))
-            _start_cache_refresh_timer(hass, entry)
-        else:
-            _LOGGER.info("Waiting for HA to start before cache warming...")
-            
-            async def _cache_warming_callback(event: Event) -> None:
-                """Perform cache warming after Home Assistant starts."""
-                _LOGGER.info("Starting initial cache warming...")
-                await _perform_cache_warming(hass, entry)
-                # Start periodic cache refresh
-                _start_cache_refresh_timer(hass, entry)
-            
-            # Register and store the unsubscribe callback
-            unsub = hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
-            )
-            entry.async_on_unload(unsub)
-    else:
-        _LOGGER.debug("Cache warming disabled (caching=%s, warming=%s)", caching_enabled, warming_enabled)
+    # Cache warming for conversation agents (if any subentries have it enabled)
+    # This is handled per-subentry now, so we iterate through conversation subentries
+    for subentry_id, subentry in entry.subentries.items():
+        if subentry.subentry_type != "conversation":
+            continue
+        
+        caching_enabled = subentry.data.get(CONF_ENABLE_PROMPT_CACHING, True)
+        warming_enabled = subentry.data.get(CONF_ENABLE_CACHE_WARMING, DEFAULT_ENABLE_CACHE_WARMING)
+        
+        if caching_enabled and warming_enabled:
+            if hass.is_running:
+                _LOGGER.info("HA running, starting cache warming for %s...", subentry.title)
+                hass.async_create_task(_perform_cache_warming(hass, entry, subentry_id))
+                _start_cache_refresh_timer(hass, entry, subentry)
+            else:
+                async def _cache_warming_callback(event: Event, se_id=subentry_id, se=subentry) -> None:
+                    """Perform cache warming after Home Assistant starts."""
+                    _LOGGER.info("Starting initial cache warming for %s...", se.title)
+                    await _perform_cache_warming(hass, entry, se_id)
+                    _start_cache_refresh_timer(hass, entry, se)
+                
+                unsub = hass.bus.async_listen_once(
+                    EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
+                )
+                entry.async_on_unload(unsub)
 
     _LOGGER.info("Smart Assist integration setup complete")
     return True
 
 
-def _start_cache_refresh_timer(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Start periodic cache refresh timer."""
+def _start_cache_refresh_timer(
+    hass: HomeAssistant, entry: ConfigEntry, subentry: Any
+) -> None:
+    """Start periodic cache refresh timer for a specific conversation agent."""
     from datetime import timedelta
+    from homeassistant.config_entries import ConfigSubentry
     
-    # Helper to get config values (options override data)
-    def get_config(key: str, default: Any = None) -> Any:
-        if key in entry.options:
-            return entry.options[key]
-        return entry.data.get(key, default)
-    
-    # Get user-configured refresh interval (in minutes)
-    interval_minutes = get_config(CONF_CACHE_REFRESH_INTERVAL, DEFAULT_CACHE_REFRESH_INTERVAL)
+    # Get user-configured refresh interval (in minutes) from subentry
+    interval_minutes = subentry.data.get(
+        CONF_CACHE_REFRESH_INTERVAL, DEFAULT_CACHE_REFRESH_INTERVAL
+    )
     interval_seconds = interval_minutes * 60
+    subentry_id = subentry.subentry_id
     
     async def _refresh_cache(now: Any) -> None:
         """Periodically refresh the cache."""
-        _LOGGER.info("Refreshing prompt cache (periodic, every %d min)", interval_minutes)
-        await _perform_cache_warming(hass, entry, initial=False)
+        _LOGGER.info(
+            "Refreshing prompt cache for %s (every %d min)",
+            subentry.title, interval_minutes
+        )
+        await _perform_cache_warming(hass, entry, subentry_id, initial=False)
     
     # Register the periodic task
     cancel_refresh = async_track_time_interval(
@@ -154,20 +162,24 @@ def _start_cache_refresh_timer(hass: HomeAssistant, entry: ConfigEntry) -> None:
         timedelta(seconds=interval_seconds),
     )
     
-    # Store cancellation function and register for cleanup
-    hass.data[DOMAIN][entry.entry_id]["cancel_cache_refresh"] = cancel_refresh
+    # Store cancellation function for this subentry
+    hass.data[DOMAIN][entry.entry_id].setdefault("cache_timers", {})
+    hass.data[DOMAIN][entry.entry_id]["cache_timers"][subentry_id] = cancel_refresh
     entry.async_on_unload(cancel_refresh)
     
     _LOGGER.info(
-        "Cache refresh timer started (interval: %d minutes)",
-        interval_minutes,
+        "Cache refresh timer started for %s (interval: %d minutes)",
+        subentry.title, interval_minutes,
     )
 
 
 async def _perform_cache_warming(
-    hass: HomeAssistant, entry: ConfigEntry, initial: bool = True
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    subentry_id: str,
+    initial: bool = True,
 ) -> None:
-    """Perform cache warming by sending a minimal request to populate the cache.
+    """Perform cache warming for a specific conversation agent.
     
     This pre-populates the prompt cache with the system prompt and entity index,
     reducing latency and cost for subsequent requests.
@@ -175,48 +187,53 @@ async def _perform_cache_warming(
     Args:
         hass: Home Assistant instance
         entry: Config entry
+        subentry_id: ID of the subentry (conversation agent) to warm
         initial: If True, wait for entities to load (first run only)
     """
-    _LOGGER.debug("Starting cache warming for Smart Assist")
+    _LOGGER.debug("Starting cache warming for subentry %s", subentry_id)
     
     # Wait a bit for entities to be fully loaded (only on initial warmup)
     if initial:
         await asyncio.sleep(5)
     
     try:
-        # Get the conversation entity
+        # Get the conversation entity for this subentry
         from .conversation import SmartAssistConversationEntity
         
         agent_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-        entity: SmartAssistConversationEntity | None = agent_data.get("agent")
+        agents = agent_data.get("agents", {})
+        agent_info = agents.get(subentry_id, {})
+        entity: SmartAssistConversationEntity | None = agent_info.get("entity")
         
         if entity is None:
-            _LOGGER.debug("No entity found for cache warming, skipping")
+            _LOGGER.debug("No entity found for cache warming (subentry %s), skipping", subentry_id)
             return
         
         # Perform a minimal warming request
         # This builds the system prompt and entity index, populating the cache
         await entity.warm_cache()
         
-        _LOGGER.info("Cache warming completed successfully")
+        _LOGGER.info("Cache warming completed successfully for subentry %s", subentry_id)
         
     except Exception as err:
-        _LOGGER.warning("Cache warming failed: %s", err)
+        _LOGGER.warning("Cache warming failed for subentry %s: %s", subentry_id, err)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Smart Assist integration")
 
-    # Close LLM client session before unloading
+    # Close LLM client sessions for all agents
     try:
         agent_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-        if agent := agent_data.get("agent"):
-            if hasattr(agent, "_llm_client") and agent._llm_client:
-                await agent._llm_client.close()
-                _LOGGER.debug("Closed LLM client session")
+        agents = agent_data.get("agents", {})
+        for subentry_id, agent_info in agents.items():
+            entity = agent_info.get("entity")
+            if entity and hasattr(entity, "_llm_client") and entity._llm_client:
+                await entity._llm_client.close()
+                _LOGGER.debug("Closed LLM client session for %s", subentry_id)
     except Exception as err:
-        _LOGGER.warning("Error closing LLM client session: %s", err)
+        _LOGGER.warning("Error closing LLM client sessions: %s", err)
 
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

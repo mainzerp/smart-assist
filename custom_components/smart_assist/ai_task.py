@@ -13,9 +13,10 @@ from homeassistant.components.ai_task import (
     GenDataTaskResult,
 )
 from homeassistant.components.conversation import ChatLog
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     CONF_API_KEY,
@@ -47,36 +48,66 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up AI Task entity from config entry."""
-    async_add_entities([SmartAssistAITask(hass, config_entry)])
+    """Set up AI Task entities from config entry subentries."""
+    _LOGGER.debug("Smart Assist: Setting up AI Task entities from subentries")
+    
+    for subentry_id, subentry in config_entry.subentries.items():
+        if subentry.subentry_type != "ai_task":
+            continue
+        
+        _LOGGER.debug("Smart Assist: Creating AI Task entity for subentry %s", subentry_id)
+        async_add_entities(
+            [SmartAssistAITask(hass, config_entry, subentry)],
+            config_subentry_id=subentry_id,
+        )
 
 
 class SmartAssistAITask(AITaskEntity):
-    """AI Task entity for Smart Assist."""
+    """AI Task entity for Smart Assist.
+    
+    Each entity is created from a subentry configuration, allowing
+    multiple AI Tasks with different settings.
+    """
 
     _attr_has_entity_name = True
-    _attr_name = "Smart Assist Task"
+    _attr_name = None  # Use device name
     _attr_supported_features = AITaskEntityFeature.GENERATE_DATA
 
-    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the AI Task entity."""
         self.hass = hass
         self._config_entry = config_entry
-        self._attr_unique_id = f"{config_entry.entry_id}_ai_task"
+        self._subentry = subentry
         
-        # Helper to get config values
+        # Unique ID based on subentry
+        self._attr_unique_id = subentry.subentry_id
+        
+        # Device info for proper UI display
+        self._attr_device_info = dr.DeviceInfo(
+            identifiers={(DOMAIN, subentry.subentry_id)},
+            name=subentry.title,
+            manufacturer="Smart Assist",
+            model="AI Task",
+            entry_type=dr.DeviceEntryType.SERVICE,
+        )
+        
+        # Helper to get config values from subentry
         def get_config(key: str, default: Any = None) -> Any:
-            if key in config_entry.options:
-                return config_entry.options[key]
-            return config_entry.data.get(key, default)
+            """Get config value from subentry data."""
+            return subentry.data.get(key, default)
         
         self._get_config = get_config
         
-        # Initialize LLM client
+        # Initialize LLM client (API key from main entry, settings from subentry)
         self._llm_client = OpenRouterClient(
-            api_key=get_config(CONF_API_KEY),
+            api_key=config_entry.data.get(CONF_API_KEY),
             model=get_config(CONF_MODEL, DEFAULT_MODEL),
             provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
             temperature=get_config(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
