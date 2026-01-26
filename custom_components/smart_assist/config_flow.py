@@ -112,8 +112,11 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
     
     # Parse model_id to get author/slug format
     if "/" not in model_id:
-        _LOGGER.warning("Invalid model_id format: %s", model_id)
+        _LOGGER.warning("fetch_model_providers: Invalid model_id format: %s", model_id)
         return providers
+    
+    # Strip any variant suffix like :free, :extended, etc.
+    base_model_id = model_id.split(":")[0] if ":" in model_id else model_id
     
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -121,8 +124,8 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
     }
 
     try:
-        # URL encode the model_id (author/slug format)
-        url = f"https://openrouter.ai/api/v1/models/{model_id}/endpoints"
+        url = f"https://openrouter.ai/api/v1/models/{base_model_id}/endpoints"
+        _LOGGER.debug("fetch_model_providers: Fetching from %s", url)
         
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -130,18 +133,22 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as response:
+                _LOGGER.debug("fetch_model_providers: Response status %s", response.status)
                 if response.status != 200:
                     _LOGGER.warning(
-                        "Failed to fetch providers for model %s: %s", 
-                        model_id, response.status
+                        "fetch_model_providers: Failed to fetch for model %s: status %s", 
+                        base_model_id, response.status
                     )
                     return providers
                 
                 data = await response.json()
+                _LOGGER.debug("fetch_model_providers: Raw data keys: %s", list(data.keys()) if isinstance(data, dict) else type(data))
+                
                 endpoints = data.get("data", {}).get("endpoints", [])
+                _LOGGER.debug("fetch_model_providers: Found %d endpoints for %s", len(endpoints), base_model_id)
                 
                 if not endpoints:
-                    _LOGGER.debug("No endpoints found for model %s", model_id)
+                    _LOGGER.debug("fetch_model_providers: No endpoints found for model %s", base_model_id)
                     return providers
                 
                 # Extract unique providers and sort by price
@@ -153,10 +160,6 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                     tag = endpoint.get("tag", "")
                     provider_name = endpoint.get("provider_name", tag)
                     quantization = endpoint.get("quantization", "")
-                    
-                    # Skip if already seen this base provider
-                    # Some providers have variants like deepinfra/fp4, deepinfra/turbo
-                    base_provider = tag.split("/")[0] if "/" in tag else tag
                     
                     if tag and tag not in seen_providers:
                         seen_providers.add(tag)
@@ -174,14 +177,14 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                         
                         providers.append({"value": tag, "label": label})
                 
-                _LOGGER.debug(
-                    "Fetched %d providers for model %s", 
-                    len(providers) - 1, model_id
+                _LOGGER.info(
+                    "fetch_model_providers: Fetched %d providers for model %s", 
+                    len(providers) - 1, base_model_id
                 )
                 return providers
                 
     except (aiohttp.ClientError, TimeoutError, Exception) as err:
-        _LOGGER.warning("Error fetching providers for model %s: %s", model_id, err)
+        _LOGGER.warning("fetch_model_providers: Error for model %s: %s", base_model_id, err)
         return providers
 
 

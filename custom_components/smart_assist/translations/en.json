@@ -39,24 +39,24 @@
       },
       "step": {
         "user": {
-          "title": "Conversation Agent",
-          "description": "Create a new conversation agent for Smart Assist.",
+          "title": "Model Selection",
+          "description": "Select the AI model for this conversation agent.",
           "data": {
-            "name": "Agent Name",
-            "model": "Model (e.g. anthropic/claude-3-haiku)"
+            "model": "Model",
+            "temperature": "Temperature (0 = precise, 1 = creative)",
+            "max_tokens": "Maximum response tokens"
           },
           "data_description": {
-            "name": "A unique name for this conversation agent.",
-            "model": "Select an OpenRouter model or enter a custom model ID."
+            "model": "Select an OpenRouter model or enter a custom model ID.",
+            "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "max_tokens": "Maximum number of tokens in the response."
           }
         },
         "provider": {
           "title": "Provider Selection",
-          "description": "Select a provider for **{model}**.\n\nProviders are sorted by price (cheapest first).",
+          "description": "Select a provider for **{model}**.\n\n{provider_count} providers available, sorted by price (cheapest first).",
           "data": {
-            "provider": "Provider",
-            "temperature": "Temperature (0 = precise, 1 = creative)",
-            "max_tokens": "Maximum response tokens"
+            "provider": "Provider"
           },
           "data_description": {
             "provider": "Choose 'Automatic' for best price, or select a specific provider for prompt caching."
@@ -104,24 +104,24 @@
       },
       "step": {
         "user": {
-          "title": "AI Task",
-          "description": "Create a new AI Task for use in automations.",
+          "title": "Model Selection",
+          "description": "Select the AI model for this task.",
           "data": {
-            "name": "Task Name",
-            "model": "Model (e.g. anthropic/claude-3-haiku)"
+            "model": "Model",
+            "temperature": "Temperature (0 = precise, 1 = creative)",
+            "max_tokens": "Maximum response tokens"
           },
           "data_description": {
-            "name": "A unique name for this AI task.",
-            "model": "Select an OpenRouter model or enter a custom model ID."
+            "model": "Select an OpenRouter model or enter a custom model ID.",
+            "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "max_tokens": "Maximum number of tokens in the response."
           }
         },
         "provider": {
           "title": "Provider Selection",
-          "description": "Select a provider for **{model}**.\n\nProviders are sorted by price (cheapest first).",
+          "description": "Select a provider for **{model}**.\n\n{provider_count} providers available, sorted by price (cheapest first).",
           "data": {
-            "provider": "Provider",
-            "temperature": "Temperature (0 = precise, 1 = creative)",
-            "max_tokens": "Maximum response tokens"
+            "provider": "Provider"
           },
           "data_description": {
             "provider": "Choose 'Automatic' for best price, or select a specific provider."
