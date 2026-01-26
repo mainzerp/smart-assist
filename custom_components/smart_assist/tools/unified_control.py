@@ -127,32 +127,63 @@ class UnifiedControlTool(BaseTool):
         """Execute unified control based on entity domain."""
         domain = entity_id.split(".")[0]
         
+        _LOGGER.debug(
+            "UnifiedControl: entity=%s, action=%s, domain=%s, extras=%s",
+            entity_id,
+            action,
+            domain,
+            {
+                k: v for k, v in {
+                    "brightness": brightness,
+                    "color_temp": color_temp,
+                    "rgb_color": rgb_color,
+                    "temperature": temperature,
+                    "hvac_mode": hvac_mode,
+                    "preset": preset,
+                    "volume": volume,
+                    "source": source,
+                    "position": position,
+                }.items() if v is not None
+            },
+        )
+        
+        # Check if entity exists
+        state = self._hass.states.get(entity_id)
+        if state is None:
+            _LOGGER.warning("Entity not found: %s", entity_id)
+            return ToolResult(success=False, message=f"Entity {entity_id} not found.")
+        
+        _LOGGER.debug("Entity %s current state: %s", entity_id, state.state)
+        
         try:
             # Route to domain-specific handler
             if domain == "light":
-                return await self._control_light(
+                result = await self._control_light(
                     entity_id, action, brightness, color_temp, rgb_color
                 )
             elif domain == "climate":
-                return await self._control_climate(
+                result = await self._control_climate(
                     entity_id, action, temperature, hvac_mode, preset
                 )
             elif domain == "media_player":
-                return await self._control_media(
+                result = await self._control_media(
                     entity_id, action, volume, source
                 )
             elif domain == "cover":
-                return await self._control_cover(
+                result = await self._control_cover(
                     entity_id, action, position
                 )
             elif domain == "script":
-                return await self._control_script(entity_id, action)
+                result = await self._control_script(entity_id, action)
             else:
                 # Generic on/off/toggle for other domains
-                return await self._control_generic(entity_id, action)
+                result = await self._control_generic(entity_id, action)
+            
+            _LOGGER.debug("UnifiedControl result: %s", result.message)
+            return result
                 
         except Exception as err:
-            _LOGGER.error("Control error for %s: %s", entity_id, err)
+            _LOGGER.error("Control error for %s: %s", entity_id, err, exc_info=True)
             return ToolResult(success=False, message=f"Failed to control {entity_id}: {err}")
 
     async def _control_generic(self, entity_id: str, action: str) -> ToolResult:

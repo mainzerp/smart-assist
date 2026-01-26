@@ -115,15 +115,24 @@ class ToolRegistry:
         """Execute a tool by name."""
         tool = self._tools.get(name)
         if not tool:
+            _LOGGER.warning("Tool not found: %s (available: %s)", name, list(self._tools.keys()))
             return ToolResult(
                 success=False,
                 message=f"Unknown tool: {name}",
             )
 
         try:
-            return await tool.execute(**arguments)
+            _LOGGER.debug("Executing tool: %s with args: %s", name, arguments)
+            result = await tool.execute(**arguments)
+            _LOGGER.debug(
+                "Tool %s result: success=%s, message=%s",
+                name,
+                result.success,
+                result.message[:100] if result.message else "None",
+            )
+            return result
         except Exception as err:
-            _LOGGER.error("Tool execution error for %s: %s", name, err)
+            _LOGGER.error("Tool execution error for %s: %s", name, err, exc_info=True)
             return ToolResult(
                 success=False,
                 message=f"Tool error: {err}",

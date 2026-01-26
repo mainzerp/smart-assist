@@ -233,10 +233,18 @@ class SmartAssistConversationEntity(ConversationEntity):
         This method uses real token-by-token streaming for faster TTS responses.
         The assistant pipeline can start TTS synthesis before the full response is ready.
         """
+        _LOGGER.debug(
+            "Processing message: user_id=%s, text_length=%d, language=%s",
+            user_input.conversation_id,
+            len(user_input.text),
+            user_input.language,
+        )
+        
         # Quick action bypass (if enabled)
         if self._get_config(CONF_ENABLE_QUICK_ACTIONS, True):
             quick_result = await self._try_quick_action(user_input.text)
             if quick_result:
+                _LOGGER.debug("Quick action matched: %s", quick_result[:50])
                 # Add response to chat log
                 chat_log.async_add_assistant_content_without_tools(
                     conversation.AssistantContent(
@@ -250,6 +258,13 @@ class SmartAssistConversationEntity(ConversationEntity):
         messages = self._build_messages_for_llm(user_input.text, chat_log)
         tools = self._tool_registry.get_schemas()
         cached_prefix_length = 3 if self._get_config(CONF_ENABLE_PROMPT_CACHING, True) else 0
+        
+        _LOGGER.debug(
+            "LLM request: messages=%d, tools=%d, cache_prefix=%d",
+            len(messages),
+            len(tools),
+            cached_prefix_length,
+        )
 
         try:
             # Use streaming with tool loop

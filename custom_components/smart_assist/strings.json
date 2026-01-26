@@ -115,12 +115,14 @@
         "data": {
           "clean_responses": "Clean responses (remove markdown formatting)",
           "ask_followup": "Ask follow-up questions",
-          "user_system_prompt": "Custom System Prompt"
+          "user_system_prompt": "Custom System Prompt",
+          "debug_logging": "Enable debug logging"
         },
         "data_description": {
           "clean_responses": "Remove markdown symbols like ** and * from responses.",
           "ask_followup": "Assistant asks clarifying questions when needed.",
-          "user_system_prompt": "Additional instructions for the AI assistant."
+          "user_system_prompt": "Additional instructions for the AI assistant.",
+          "debug_logging": "Enable verbose logging for troubleshooting (logs to Home Assistant)."
         }
       }
     }

@@ -47,6 +47,7 @@ try:
         CONF_CACHE_TTL_EXTENDED,
         CONF_CLEAN_RESPONSES,
         CONF_CONFIRM_CRITICAL,
+        CONF_DEBUG_LOGGING,
         CONF_ENABLE_CACHE_WARMING,
         CONF_ENABLE_PROMPT_CACHING,
         CONF_ENABLE_QUICK_ACTIONS,
@@ -63,6 +64,7 @@ try:
         DEFAULT_CACHE_REFRESH_INTERVAL,
         DEFAULT_CACHE_TTL_EXTENDED,
         DEFAULT_CLEAN_RESPONSES,
+        DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_LANGUAGE,
         DEFAULT_MAX_HISTORY,
@@ -711,6 +713,11 @@ class SmartAssistOptionsFlow(OptionsFlow):
             self._options_data.update(user_input)
             # Remove API key from options (it's in data)
             options_to_save = {k: v for k, v in self._options_data.items() if k != CONF_API_KEY}
+            
+            # Apply debug logging setting immediately
+            debug_enabled = options_to_save.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
+            self._apply_debug_logging(debug_enabled)
+            
             return self.async_create_entry(title="", data=options_to_save)
 
         current = self._options_data
@@ -738,6 +745,29 @@ class SmartAssistOptionsFlow(OptionsFlow):
                             multiline=True,
                         )
                     ),
+                    vol.Required(
+                        CONF_DEBUG_LOGGING,
+                        default=current.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                    ): BooleanSelector(),
                 }
             ),
         )
+
+    def _apply_debug_logging(self, enabled: bool) -> None:
+        """Apply debug logging setting to all Smart Assist loggers."""
+        import logging
+        level = logging.DEBUG if enabled else logging.INFO
+        
+        # Set level for all Smart Assist loggers
+        loggers = [
+            "custom_components.smart_assist",
+            "custom_components.smart_assist.conversation",
+            "custom_components.smart_assist.config_flow",
+            "custom_components.smart_assist.llm.client",
+            "custom_components.smart_assist.llm.tools",
+            "custom_components.smart_assist.sensor",
+        ]
+        for logger_name in loggers:
+            logging.getLogger(logger_name).setLevel(level)
+        
+        _LOGGER.info("Smart Assist debug logging %s", "enabled" if enabled else "disabled")

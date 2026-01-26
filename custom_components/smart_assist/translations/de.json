@@ -121,12 +121,14 @@
         "data": {
           "clean_responses": "Antworten bereinigen (Markdown entfernen)",
           "ask_followup": "Rueckfragen stellen",
-          "user_system_prompt": "Benutzerdefinierter System Prompt"
+          "user_system_prompt": "Benutzerdefinierter System Prompt",
+          "debug_logging": "Debug-Logging aktivieren"
         },
         "data_description": {
           "clean_responses": "Entfernt Markdown-Symbole wie ** und * aus Antworten.",
           "ask_followup": "Assistent stellt bei Bedarf klaerende Fragen.",
-          "user_system_prompt": "Zusaetzliche Anweisungen fuer den KI-Assistenten."
+          "user_system_prompt": "Zusaetzliche Anweisungen fuer den KI-Assistenten.",
+          "debug_logging": "Aktiviert ausfuehrliches Logging zur Fehlersuche (in Home Assistant Logs)."
         }
       }
     }

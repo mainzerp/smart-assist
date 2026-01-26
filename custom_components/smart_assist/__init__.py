@@ -23,10 +23,12 @@ try:
     from .const import (
         CONF_CACHE_REFRESH_INTERVAL,
         CONF_CACHE_TTL_EXTENDED,
+        CONF_DEBUG_LOGGING,
         CONF_ENABLE_CACHE_WARMING,
         CONF_ENABLE_PROMPT_CACHING,
         DEFAULT_CACHE_REFRESH_INTERVAL,
         DEFAULT_CACHE_TTL_EXTENDED,
+        DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
         DOMAIN,
     )
@@ -37,6 +39,26 @@ except ImportError as e:
 _LOGGER.warning("Smart Assist: __init__.py module loaded successfully")
 
 PLATFORMS: list[Platform] = [Platform.CONVERSATION, Platform.SENSOR]
+
+
+def _apply_debug_logging(enabled: bool) -> None:
+    """Apply debug logging setting to all Smart Assist loggers."""
+    level = logging.DEBUG if enabled else logging.INFO
+    
+    # Set level for all Smart Assist loggers
+    loggers = [
+        "custom_components.smart_assist",
+        "custom_components.smart_assist.conversation",
+        "custom_components.smart_assist.config_flow",
+        "custom_components.smart_assist.llm",
+        "custom_components.smart_assist.llm.client",
+        "custom_components.smart_assist.llm.tools",
+        "custom_components.smart_assist.sensor",
+    ]
+    for logger_name in loggers:
+        logging.getLogger(logger_name).setLevel(level)
+    
+    _LOGGER.info("Smart Assist debug logging %s", "enabled" if enabled else "disabled")
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -52,18 +74,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {}
 
-    # Set up conversation platform
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Register update listener for options
-    entry.async_on_unload(entry.add_update_listener(async_update_options))
-
     # Helper to get config values (options override data)
     def get_config(key: str, default: Any = None) -> Any:
         """Get config value from options first, then data, then default."""
         if key in entry.options:
             return entry.options[key]
         return entry.data.get(key, default)
+
+    # Apply debug logging setting
+    debug_enabled = get_config(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
+    _apply_debug_logging(debug_enabled)
+
+    # Set up conversation platform
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Register update listener for options
+    entry.async_on_unload(entry.add_update_listener(async_update_options))
 
     # Schedule cache warming and periodic refresh if enabled
     caching_enabled = get_config(CONF_ENABLE_PROMPT_CACHING, True)

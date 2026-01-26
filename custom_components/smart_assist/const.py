@@ -24,6 +24,7 @@ CONF_CACHE_REFRESH_INTERVAL: Final = "cache_refresh_interval"
 CONF_CLEAN_RESPONSES: Final = "clean_responses"
 CONF_ASK_FOLLOWUP: Final = "ask_followup"
 CONF_USER_SYSTEM_PROMPT: Final = "user_system_prompt"
+CONF_DEBUG_LOGGING: Final = "debug_logging"
 
 # Default values
 DEFAULT_MODEL: Final = "anthropic/claude-3-haiku"
@@ -38,6 +39,7 @@ DEFAULT_CACHE_REFRESH_INTERVAL: Final = 4  # Minutes
 DEFAULT_CLEAN_RESPONSES: Final = False  # Disabled by default (preserves original response)
 DEFAULT_ASK_FOLLOWUP: Final = True  # Enabled by default
 DEFAULT_USER_SYSTEM_PROMPT: Final = "You are a helpful smart home assistant."
+DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
 
 # OpenRouter API
 OPENROUTER_API_URL: Final = "https://openrouter.ai/api/v1/chat/completions"
