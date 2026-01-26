@@ -102,8 +102,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 hass.async_create_task(_perform_cache_warming(hass, entry, subentry_id))
                 _start_cache_refresh_timer(hass, entry, subentry)
             else:
-                async def _cache_warming_callback(event: Event, se_id=subentry_id, se=subentry) -> None:
+                # Track whether the listener has been called
+                listener_called = {"value": False}
+                
+                async def _cache_warming_callback(
+                    event: Event,
+                    se_id: str = subentry_id,
+                    se: ConfigSubentry = subentry,
+                    called: dict = listener_called,
+                ) -> None:
                     """Perform cache warming after Home Assistant starts."""
+                    called["value"] = True
                     _LOGGER.info("Starting initial cache warming for %s...", se.title)
                     await _perform_cache_warming(hass, entry, se_id)
                     _start_cache_refresh_timer(hass, entry, se)
@@ -111,7 +120,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 unsub = hass.bus.async_listen_once(
                     EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
                 )
-                entry.async_on_unload(unsub)
+                
+                def _safe_unsub() -> None:
+                    """Only unsubscribe if listener hasn't been called yet."""
+                    if not listener_called["value"]:
+                        unsub()
+                
+                entry.async_on_unload(_safe_unsub)
 
     _LOGGER.info("Smart Assist integration setup complete")
     return True
