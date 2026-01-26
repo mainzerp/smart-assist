@@ -15,9 +15,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .base import BaseTool, ToolRegistry, ToolResult
+from ..const import CONF_ENABLE_WEB_SEARCH
 
 if TYPE_CHECKING:
-    pass
+    from typing import Any
+
+
+def _get_config(entry: ConfigEntry, key: str, default: Any = None) -> Any:
+    """Get config value from options first, then data, then default."""
+    if key in entry.options:
+        return entry.options[key]
+    return entry.data.get(key, default)
 
 
 def create_tool_registry(
@@ -67,8 +75,8 @@ def create_tool_registry(
     if "weather" in available_domains:
         registry.register(GetWeatherTool(hass))
     
-    # Web search (if enabled in config)
-    if entry.data.get("enable_web_search", True):
+    # Web search (if enabled in config - options override data)
+    if _get_config(entry, CONF_ENABLE_WEB_SEARCH, True):
         registry.register(WebSearchTool(hass))
     
     return registry
