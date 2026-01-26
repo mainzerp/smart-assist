@@ -40,22 +40,21 @@
       "step": {
         "user": {
           "title": "Model Selection",
-          "description": "Select the AI model for this conversation agent.\n\nProvider will be set to 'Automatic' by default. You can change it later via reconfigure.",
+          "description": "Select the AI model for this conversation agent.\n\nAfter selecting a model, you can choose a specific provider in the next step.",
           "data": {
-            "model": "Model",
-            "temperature": "Temperature (0 = precise, 1 = creative)",
-            "max_tokens": "Maximum response tokens"
+            "model": "Model"
           },
           "data_description": {
-            "model": "Select an OpenRouter model or enter a custom model ID.",
-            "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
-            "max_tokens": "Maximum number of tokens in the response."
+            "model": "Select an OpenRouter model or enter a custom model ID."
           }
         },
-        "behavior": {
-          "title": "Behavior Settings",
-          "description": "Configure how this conversation agent behaves.",
+        "settings": {
+          "title": "Agent Settings",
+          "description": "Configure provider and behavior settings for this conversation agent.",
           "data": {
+            "provider": "Provider",
+            "temperature": "Temperature (0 = precise, 1 = creative)",
+            "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
             "confirm_critical": "Confirm critical actions (locks, alarms)",
@@ -69,6 +68,9 @@
             "ask_followup": "Ask follow-up questions"
           },
           "data_description": {
+            "provider": "Select a specific provider or use 'Automatic' for best price routing.",
+            "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "max_tokens": "Maximum number of tokens in the response.",
             "cache_ttl_extended": "Enable 1-hour cache instead of 5 minutes. Only applies to Anthropic models.",
             "enable_cache_warming": "Keeps the prompt cache warm by sending periodic requests. Incurs small additional API costs.",
             "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL.",
@@ -88,15 +90,17 @@
         },
         "reconfigure": {
           "title": "Reconfigure Agent",
-          "description": "Update settings for this conversation agent.\n\nTo select a specific provider for prompt caching, choose one from the Provider dropdown.",
+          "description": "Update settings for this conversation agent.",
           "data": {
             "model": "Model",
+            "provider": "Provider",
             "temperature": "Temperature",
             "max_tokens": "Maximum response tokens",
-            "provider": "Provider",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
             "confirm_critical": "Confirm critical actions",
+            "max_history": "Maximum conversation history",
+            "enable_web_search": "Enable web search",
             "enable_prompt_caching": "Enable prompt caching",
             "cache_ttl_extended": "Extended cache TTL",
             "enable_cache_warming": "Enable cache warming",
@@ -115,22 +119,21 @@
       "step": {
         "user": {
           "title": "Model Selection",
-          "description": "Select the AI model for this task.",
+          "description": "Select the AI model for this task.\n\nAfter selecting a model, you can choose a specific provider in the next step.",
           "data": {
-            "model": "Model",
-            "temperature": "Temperature (0 = precise, 1 = creative)",
-            "max_tokens": "Maximum response tokens"
+            "model": "Model"
           },
           "data_description": {
-            "model": "Select an OpenRouter model or enter a custom model ID.",
-            "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
-            "max_tokens": "Maximum number of tokens in the response."
+            "model": "Select an OpenRouter model or enter a custom model ID."
           }
         },
         "settings": {
           "title": "Task Settings",
-          "description": "Configure this AI task.",
+          "description": "Configure provider and other settings for this AI task.",
           "data": {
+            "provider": "Provider",
+            "temperature": "Temperature (0 = precise, 1 = creative)",
+            "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
             "task_system_prompt": "System Prompt",
@@ -138,9 +141,27 @@
             "task_enable_cache_warming": "Enable cache warming"
           },
           "data_description": {
+            "provider": "Select a specific provider or use 'Automatic' for best price routing.",
+            "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "max_tokens": "Maximum number of tokens in the response.",
             "task_system_prompt": "Instructions for this AI task in automations.",
             "task_enable_prompt_caching": "Not recommended - background tasks are not time-critical.",
             "task_enable_cache_warming": "Not recommended - background tasks are not time-critical."
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure Task",
+          "description": "Update settings for this AI task.",
+          "data": {
+            "model": "Model",
+            "provider": "Provider",
+            "temperature": "Temperature",
+            "max_tokens": "Maximum response tokens",
+            "language": "Response Language",
+            "exposed_only": "Use only exposed entities",
+            "task_system_prompt": "System Prompt",
+            "task_enable_prompt_caching": "Enable prompt caching",
+            "task_enable_cache_warming": "Enable cache warming"
           }
         }
       }

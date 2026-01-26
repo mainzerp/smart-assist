@@ -367,12 +367,11 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     """Handle subentry flow for Conversation Agents.
     
     Flow steps:
-    1. user: Model selection + temperature + max_tokens
-    2. behavior: Language, entity exposure, caching settings
+    1. user: Model selection only (so we can fetch providers in next step)
+    2. settings: Provider + temperature + max_tokens + all behavior settings
     3. prompt: System prompt customization
     
-    Provider is set to "auto" by default. Users can select a specific
-    provider later via reconfigure (when the model is already known).
+    Two-step approach allows dynamic provider loading after model is selected.
     """
     
     def __init__(self) -> None:
@@ -385,12 +384,11 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle first step - model and basic settings."""
+        """Handle first step - model selection only."""
         if user_input is not None:
             self._data.update(user_input)
-            # Set provider to auto for new agents (can be changed via reconfigure)
-            self._data[CONF_PROVIDER] = DEFAULT_PROVIDER
-            return await self.async_step_behavior()
+            # Now go to settings step where we can fetch providers for the selected model
+            return await self.async_step_settings()
         
         # Fetch models
         if self._available_models is None:
@@ -405,6 +403,33 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                             options=self._available_models,
                             mode=SelectSelectorMode.DROPDOWN,
                             custom_value=True,
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle settings step - provider + all other settings."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_prompt()
+        
+        # Fetch providers for the selected model (now we know the model!)
+        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(model_id)
+        
+        return self.async_show_form(
+            step_id="settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
+                        SelectSelectorConfig(
+                            options=self._available_providers,
+                            mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
                     vol.Required(
@@ -427,22 +452,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                             mode=NumberSelectorMode.SLIDER,
                         )
                     ),
-                }
-            ),
-        )
-
-    async def async_step_behavior(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Handle behavior settings step."""
-        if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_prompt()
-        
-        return self.async_show_form(
-            step_id="behavior",
-            data_schema=vol.Schema(
-                {
                     vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): SelectSelector(
                         SelectSelectorConfig(
                             options=[
@@ -547,12 +556,23 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         if self._available_models is None:
             self._available_models = await self._fetch_models()
         
+        # Fetch providers for the current model
+        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(current_model)
+        
         # Ensure current model is in the list
         model_options = list(self._available_models)
-        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
         model_ids = [m["value"] for m in model_options]
         if current_model not in model_ids:
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
+        
+        # Ensure current provider is in the list
+        provider_options = list(self._available_providers)
+        current_provider = current.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+        provider_values = [p["value"] for p in provider_options]
+        if current_provider not in provider_values:
+            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
         
         return self.async_show_form(
             step_id="reconfigure",
@@ -566,6 +586,12 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                                 custom_value=True,
                             )
                         ),
+                        vol.Required(CONF_PROVIDER): SelectSelector(
+                            SelectSelectorConfig(
+                                options=provider_options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
                         vol.Required(CONF_TEMPERATURE): NumberSelector(
                             NumberSelectorConfig(
                                 min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER
@@ -574,12 +600,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                         vol.Required(CONF_MAX_TOKENS): NumberSelector(
                             NumberSelectorConfig(
                                 min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
-                            )
-                        ),
-                        vol.Required(CONF_PROVIDER): SelectSelector(
-                            SelectSelectorConfig(
-                                options=[{"value": "auto", "label": "Automatic"}],
-                                mode=SelectSelectorMode.DROPDOWN,
                             )
                         ),
                         vol.Required(CONF_LANGUAGE): SelectSelector(
@@ -620,10 +640,10 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
     """Handle subentry flow for AI Tasks.
     
     Flow steps:
-    1. user: Model selection + temperature + max_tokens
-    2. settings: System prompt, caching settings
+    1. user: Model selection only (so we can fetch providers in next step)
+    2. settings: Provider + temperature + all other settings
     
-    Provider is set to "auto" by default (AI Tasks don't need specific providers).
+    Two-step approach allows dynamic provider loading after model is selected.
     """
     
     def __init__(self) -> None:
@@ -631,15 +651,15 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         super().__init__()
         self._data: dict[str, Any] = {}
         self._available_models: list[dict[str, str]] | None = None
+        self._available_providers: list[dict[str, str]] | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle first step - model and basic settings."""
+        """Handle first step - model selection only."""
         if user_input is not None:
             self._data.update(user_input)
-            # Set provider to auto for AI tasks
-            self._data[CONF_PROVIDER] = DEFAULT_PROVIDER
+            # Now go to settings step where we can fetch providers for the selected model
             return await self.async_step_settings()
         
         # Fetch models
@@ -655,6 +675,42 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                             options=self._available_models,
                             mode=SelectSelectorMode.DROPDOWN,
                             custom_value=True,
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle settings step - provider + all other settings."""
+        if user_input is not None:
+            self._data.update(user_input)
+            
+            # Generate title from model name
+            model = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+            model_short = model.split("/")[-1] if "/" in model else model
+            title = f"{model_short} Task"
+            
+            return self.async_create_entry(
+                title=title,
+                data=self._data,
+            )
+        
+        # Fetch providers for the selected model (now we know the model!)
+        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(model_id)
+        
+        return self.async_show_form(
+            step_id="settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
+                        SelectSelectorConfig(
+                            options=self._available_providers,
+                            mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
                     vol.Required(
@@ -677,31 +733,6 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                             mode=NumberSelectorMode.SLIDER,
                         )
                     ),
-                }
-            ),
-        )
-
-    async def async_step_settings(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Handle settings step."""
-        if user_input is not None:
-            self._data.update(user_input)
-            
-            # Generate title from model name
-            model = self._data.get(CONF_MODEL, DEFAULT_MODEL)
-            model_short = model.split("/")[-1] if "/" in model else model
-            title = f"{model_short} Task"
-            
-            return self.async_create_entry(
-                title=title,
-                data=self._data,
-            )
-        
-        return self.async_show_form(
-            step_id="settings",
-            data_schema=vol.Schema(
-                {
                     vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): SelectSelector(
                         SelectSelectorConfig(
                             options=[
@@ -749,12 +780,23 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         if self._available_models is None:
             self._available_models = await self._fetch_models()
         
+        # Fetch providers for the current model
+        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
+        if self._available_providers is None:
+            self._available_providers = await self._fetch_providers(current_model)
+        
         # Ensure current model is in the list
         model_options = list(self._available_models)
-        current_model = current.get(CONF_MODEL, DEFAULT_MODEL)
         model_ids = [m["value"] for m in model_options]
         if current_model not in model_ids:
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
+        
+        # Ensure current provider is in the list
+        provider_options = list(self._available_providers)
+        current_provider = current.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+        provider_values = [p["value"] for p in provider_options]
+        if current_provider not in provider_values:
+            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
         
         return self.async_show_form(
             step_id="reconfigure",
@@ -768,6 +810,12 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                                 custom_value=True,
                             )
                         ),
+                        vol.Required(CONF_PROVIDER): SelectSelector(
+                            SelectSelectorConfig(
+                                options=provider_options,
+                                mode=SelectSelectorMode.DROPDOWN,
+                            )
+                        ),
                         vol.Required(CONF_TEMPERATURE): NumberSelector(
                             NumberSelectorConfig(
                                 min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER
@@ -776,12 +824,6 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                         vol.Required(CONF_MAX_TOKENS): NumberSelector(
                             NumberSelectorConfig(
                                 min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
-                            )
-                        ),
-                        vol.Required(CONF_PROVIDER): SelectSelector(
-                            SelectSelectorConfig(
-                                options=[{"value": "auto", "label": "Automatic"}],
-                                mode=SelectSelectorMode.DROPDOWN,
                             )
                         ),
                         vol.Required(CONF_LANGUAGE): SelectSelector(

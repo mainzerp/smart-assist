@@ -40,22 +40,21 @@
       "step": {
         "user": {
           "title": "Modellauswahl",
-          "description": "Waehle das KI-Modell fuer diesen Konversations-Agenten.\n\nProvider wird auf 'Automatisch' gesetzt. Kann spaeter ueber Rekonfigurieren geaendert werden.",
+          "description": "Waehle das KI-Modell fuer diesen Konversations-Agenten.\n\nNach der Modellauswahl kannst du im naechsten Schritt einen spezifischen Provider auswaehlen.",
           "data": {
-            "model": "Modell",
-            "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
-            "max_tokens": "Maximale Antwort-Tokens"
+            "model": "Modell"
           },
           "data_description": {
-            "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein.",
-            "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
-            "max_tokens": "Maximale Anzahl von Tokens in der Antwort."
+            "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein."
           }
         },
-        "behavior": {
-          "title": "Verhaltenseinstellungen",
-          "description": "Konfiguriere das Verhalten dieses Konversations-Agenten.",
+        "settings": {
+          "title": "Agent Einstellungen",
+          "description": "Konfiguriere Provider und Verhaltenseinstellungen fuer diesen Konversations-Agenten.",
           "data": {
+            "provider": "Provider",
+            "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
+            "max_tokens": "Maximale Antwort-Tokens",
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
             "confirm_critical": "Kritische Aktionen bestaetigen (Schloesser, Alarme)",
@@ -69,6 +68,9 @@
             "ask_followup": "Rueckfragen stellen"
           },
           "data_description": {
+            "provider": "Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
+            "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "cache_ttl_extended": "Aktiviert 1-Stunden-Cache statt 5 Minuten. Gilt nur fuer Anthropic-Modelle.",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
@@ -88,15 +90,17 @@
         },
         "reconfigure": {
           "title": "Agent rekonfigurieren",
-          "description": "Einstellungen fuer diesen Agenten aktualisieren.\n\nUm einen spezifischen Provider fuer Prompt Caching auszuwaehlen, waehle einen aus dem Provider-Dropdown.",
+          "description": "Einstellungen fuer diesen Agenten aktualisieren.",
           "data": {
             "model": "Modell",
+            "provider": "Provider",
             "temperature": "Temperatur",
             "max_tokens": "Maximale Antwort-Tokens",
-            "provider": "Provider",
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
             "confirm_critical": "Kritische Aktionen bestaetigen",
+            "max_history": "Maximale Konversationshistorie",
+            "enable_web_search": "Websuche aktivieren",
             "enable_prompt_caching": "Prompt Caching aktivieren",
             "cache_ttl_extended": "Erweiterte Cache-Dauer",
             "enable_cache_warming": "Cache-Warming aktivieren",
@@ -115,22 +119,21 @@
       "step": {
         "user": {
           "title": "Modellauswahl",
-          "description": "Waehle das KI-Modell fuer diesen Task.",
+          "description": "Waehle das KI-Modell fuer diesen Task.\n\nNach der Modellauswahl kannst du im naechsten Schritt einen spezifischen Provider auswaehlen.",
           "data": {
-            "model": "Modell",
-            "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
-            "max_tokens": "Maximale Antwort-Tokens"
+            "model": "Modell"
           },
           "data_description": {
-            "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein.",
-            "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
-            "max_tokens": "Maximale Anzahl von Tokens in der Antwort."
+            "model": "Waehle ein OpenRouter-Modell oder gib eine eigene Modell-ID ein."
           }
         },
         "settings": {
           "title": "Task Einstellungen",
-          "description": "Konfiguriere diesen AI Task.",
+          "description": "Konfiguriere Provider und andere Einstellungen fuer diesen AI Task.",
           "data": {
+            "provider": "Provider",
+            "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
+            "max_tokens": "Maximale Antwort-Tokens",
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
             "task_system_prompt": "System Prompt",
@@ -138,9 +141,27 @@
             "task_enable_cache_warming": "Cache-Warming aktivieren"
           },
           "data_description": {
+            "provider": "Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
+            "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
             "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
             "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
+          }
+        },
+        "reconfigure": {
+          "title": "Task rekonfigurieren",
+          "description": "Einstellungen fuer diesen AI Task aktualisieren.",
+          "data": {
+            "model": "Modell",
+            "provider": "Provider",
+            "temperature": "Temperatur",
+            "max_tokens": "Maximale Antwort-Tokens",
+            "language": "Antwortsprache",
+            "exposed_only": "Nur freigegebene Entities verwenden",
+            "task_system_prompt": "System Prompt",
+            "task_enable_prompt_caching": "Prompt Caching aktivieren",
+            "task_enable_cache_warming": "Cache-Warming aktivieren"
           }
         }
       }
