@@ -359,11 +359,16 @@ class OpenRouterClient:
                             elapsed_ms = (time.monotonic() - start_time) * 1000
                             self._metrics.successful_requests += 1
                             self._metrics.total_response_time_ms += elapsed_ms
+                            _LOGGER.debug("Stream completed. Metrics: tokens=%d+%d, cache_hits=%d",
+                                         self._metrics.total_prompt_tokens,
+                                         self._metrics.total_completion_tokens,
+                                         self._metrics.cache_hits)
                             break
                         try:
                             data = json.loads(data_str)
                             # Extract usage info from streaming response
                             if usage := data.get("usage"):
+                                _LOGGER.debug("Got usage in stream: %s", usage)
                                 self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                                 self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
                                 # Track cache hits
@@ -477,6 +482,7 @@ class OpenRouterClient:
                     
                     # Extract usage info from streaming response (sent with last chunk)
                     if usage := data.get("usage"):
+                        _LOGGER.debug("Got usage in full stream: %s", usage)
                         self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                         self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
                         # Track cache hits from usage data
