@@ -110,7 +110,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
     Model variants like :free or :exacto are kept as-is since they have
     different provider availability.
     """
-    _LOGGER.warning("fetch_model_providers: Starting for model %s", model_id)
+    _LOGGER.debug("fetch_model_providers: Starting for model %s", model_id)
     
     # Always include auto option
     providers = [{"value": "auto", "label": "Automatic (Best Price)"}]
@@ -127,7 +127,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
 
     try:
         url = f"https://openrouter.ai/api/v1/models/{model_id}/endpoints"
-        _LOGGER.warning("fetch_model_providers: Fetching from %s", url)
+        _LOGGER.debug("fetch_model_providers: Fetching from %s", url)
         
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -135,7 +135,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as response:
-                _LOGGER.warning("fetch_model_providers: Response status %s", response.status)
+                _LOGGER.debug("fetch_model_providers: Response status %s", response.status)
                 if response.status != 200:
                     _LOGGER.warning(
                         "fetch_model_providers: Failed to fetch for model %s: status %s", 
@@ -144,13 +144,11 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                     return providers
                 
                 data = await response.json()
-                _LOGGER.warning("fetch_model_providers: Raw data keys: %s", list(data.keys()) if isinstance(data, dict) else type(data))
-                
                 endpoints = data.get("data", {}).get("endpoints", [])
-                _LOGGER.warning("fetch_model_providers: Found %d endpoints for %s", len(endpoints), model_id)
+                _LOGGER.debug("fetch_model_providers: Found %d endpoints for %s", len(endpoints), model_id)
                 
                 if not endpoints:
-                    _LOGGER.warning("fetch_model_providers: No endpoints found for model %s", model_id)
+                    _LOGGER.debug("fetch_model_providers: No endpoints found for model %s", model_id)
                     return providers
                 
                 # Extract unique providers and sort by price
@@ -179,8 +177,8 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                         
                         providers.append({"value": tag, "label": label})
                 
-                _LOGGER.warning(
-                    "fetch_model_providers: SUCCESS - Fetched %d providers for model %s", 
+                _LOGGER.info(
+                    "fetch_model_providers: Fetched %d providers for model %s", 
                     len(providers) - 1, model_id
                 )
                 return providers
@@ -366,7 +364,16 @@ class SmartAssistSubentryFlowHandler(ConfigSubentryFlow):
 
 
 class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
-    """Handle subentry flow for Conversation Agents."""
+    """Handle subentry flow for Conversation Agents.
+    
+    Flow steps:
+    1. user: Model selection + temperature + max_tokens
+    2. behavior: Language, entity exposure, caching settings
+    3. prompt: System prompt customization
+    
+    Provider is set to "auto" by default. Users can select a specific
+    provider later via reconfigure (when the model is already known).
+    """
     
     def __init__(self) -> None:
         """Initialize the flow handler."""
@@ -378,10 +385,12 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle first step - model selection."""
+        """Handle first step - model and basic settings."""
         if user_input is not None:
             self._data.update(user_input)
-            return await self.async_step_provider()
+            # Set provider to auto for new agents (can be changed via reconfigure)
+            self._data[CONF_PROVIDER] = DEFAULT_PROVIDER
+            return await self.async_step_behavior()
         
         # Fetch models
         if self._available_models is None:
@@ -420,37 +429,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                     ),
                 }
             ),
-        )
-
-    async def async_step_provider(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Handle provider selection step."""
-        if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_behavior()
-        
-        # Fetch providers for selected model
-        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(model_id)
-        
-        return self.async_show_form(
-            step_id="provider",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
-                        SelectSelectorConfig(
-                            options=self._available_providers,
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-            description_placeholders={
-                "model": model_id,
-                "provider_count": str(len(self._available_providers) - 1),
-            },
         )
 
     async def async_step_behavior(
@@ -639,14 +617,20 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
 
 
 class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
-    """Handle subentry flow for AI Tasks."""
+    """Handle subentry flow for AI Tasks.
+    
+    Flow steps:
+    1. user: Model selection + temperature + max_tokens
+    2. settings: System prompt, caching settings
+    
+    Provider is set to "auto" by default (AI Tasks don't need specific providers).
+    """
     
     def __init__(self) -> None:
         """Initialize the flow handler."""
         super().__init__()
         self._data: dict[str, Any] = {}
         self._available_models: list[dict[str, str]] | None = None
-        self._available_providers: list[dict[str, str]] | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -654,7 +638,9 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         """Handle first step - model and basic settings."""
         if user_input is not None:
             self._data.update(user_input)
-            return await self.async_step_provider()
+            # Set provider to auto for AI tasks
+            self._data[CONF_PROVIDER] = DEFAULT_PROVIDER
+            return await self.async_step_settings()
         
         # Fetch models
         if self._available_models is None:
@@ -693,36 +679,6 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                     ),
                 }
             ),
-        )
-
-    async def async_step_provider(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Handle provider selection step."""
-        if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_settings()
-        
-        # Fetch providers for selected model
-        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(model_id)
-        
-        return self.async_show_form(
-            step_id="provider",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
-                        SelectSelectorConfig(
-                            options=self._available_providers,
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-            description_placeholders={
-                "model": model_id,
-            },
         )
 
     async def async_step_settings(

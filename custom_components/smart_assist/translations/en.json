@@ -40,7 +40,7 @@
       "step": {
         "user": {
           "title": "Model Selection",
-          "description": "Select the AI model for this conversation agent.",
+          "description": "Select the AI model for this conversation agent.\n\nProvider will be set to 'Automatic' by default. You can change it later via reconfigure.",
           "data": {
             "model": "Model",
             "temperature": "Temperature (0 = precise, 1 = creative)",
@@ -50,16 +50,6 @@
             "model": "Select an OpenRouter model or enter a custom model ID.",
             "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
             "max_tokens": "Maximum number of tokens in the response."
-          }
-        },
-        "provider": {
-          "title": "Provider Selection",
-          "description": "Select a provider for **{model}**.\n\n{provider_count} providers available, sorted by price (cheapest first).",
-          "data": {
-            "provider": "Provider"
-          },
-          "data_description": {
-            "provider": "Choose 'Automatic' for best price, or select a specific provider for prompt caching."
           }
         },
         "behavior": {
@@ -95,6 +85,26 @@
           "data_description": {
             "user_system_prompt": "Personality and instructions for this conversation agent."
           }
+        },
+        "reconfigure": {
+          "title": "Reconfigure Agent",
+          "description": "Update settings for this conversation agent.\n\nTo select a specific provider for prompt caching, choose one from the Provider dropdown.",
+          "data": {
+            "model": "Model",
+            "temperature": "Temperature",
+            "max_tokens": "Maximum response tokens",
+            "provider": "Provider",
+            "language": "Response Language",
+            "exposed_only": "Use only exposed entities",
+            "confirm_critical": "Confirm critical actions",
+            "enable_prompt_caching": "Enable prompt caching",
+            "cache_ttl_extended": "Extended cache TTL",
+            "enable_cache_warming": "Enable cache warming",
+            "cache_refresh_interval": "Cache refresh interval",
+            "clean_responses": "Clean responses for voice output",
+            "ask_followup": "Ask follow-up questions",
+            "user_system_prompt": "System Prompt"
+          }
         }
       }
     },
@@ -117,20 +127,12 @@
             "max_tokens": "Maximum number of tokens in the response."
           }
         },
-        "provider": {
-          "title": "Provider Selection",
-          "description": "Select a provider for **{model}**.\n\n{provider_count} providers available, sorted by price (cheapest first).",
-          "data": {
-            "provider": "Provider"
-          },
-          "data_description": {
-            "provider": "Choose 'Automatic' for best price, or select a specific provider."
-          }
-        },
         "settings": {
           "title": "Task Settings",
           "description": "Configure this AI task.",
           "data": {
+            "language": "Response Language",
+            "exposed_only": "Use only exposed entities",
             "task_system_prompt": "System Prompt",
             "task_enable_prompt_caching": "Enable prompt caching",
             "task_enable_cache_warming": "Enable cache warming"
