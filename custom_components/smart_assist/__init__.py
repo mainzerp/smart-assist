@@ -36,7 +36,7 @@ except ImportError as e:
 
 _LOGGER.warning("Smart Assist: __init__.py module loaded successfully")
 
-PLATFORMS: list[Platform] = [Platform.CONVERSATION]
+PLATFORMS: list[Platform] = [Platform.CONVERSATION, Platform.SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:

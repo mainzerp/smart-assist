@@ -121,7 +121,7 @@ class SmartAssistConversationEntity(ConversationEntity):
 
     # Entity attributes
     _attr_has_entity_name = True
-    _attr_name = "Smart Assist"
+    _attr_name = None  # Use device name
     _attr_supports_streaming = True
     _attr_supported_features = ConversationEntityFeature.CONTROL
 
@@ -132,6 +132,15 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Unique ID based on config entry
         self._attr_unique_id = f"{entry.entry_id}_conversation"
+        
+        # Device info for proper UI display
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": "Smart Assist",
+            "manufacturer": "Smart Assist",
+            "model": "Conversation Agent",
+            "entry_type": "service",
+        }
 
         # Helper to get config values (options override data)
         def get_config(key: str, default: Any = None) -> Any:
@@ -150,6 +159,11 @@ class SmartAssistConversationEntity(ConversationEntity):
             enable_caching=get_config(CONF_ENABLE_PROMPT_CACHING, True),
             cache_ttl_extended=get_config(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED),
         )
+        
+        # Store LLM client reference for sensors to access metrics
+        hass.data.setdefault(DOMAIN, {})
+        hass.data[DOMAIN].setdefault(entry.entry_id, {})
+        hass.data[DOMAIN][entry.entry_id]["llm_client"] = self._llm_client
 
         # Entity manager for entity discovery
         self._entity_manager = EntityManager(

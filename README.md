@@ -1,10 +1,12 @@
 # Smart Assist
 
-[![Validate](https://github.com/YOUR_USERNAME/smart-assist/actions/workflows/validate.yml/badge.svg)](https://github.com/YOUR_USERNAME/smart-assist/actions/workflows/validate.yml)
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Release](https://img.shields.io/github/release/mainzerp/smart-assist.svg)](https://github.com/mainzerp/smart-assist/releases)
 
-A Home Assistant custom integration that connects LLMs (via OpenRouter) with Home Assistant to create an intelligent smart home assistant.
+**LLM-powered smart home assistant for Home Assistant using OpenRouter.**
+
+Control your smart home with natural language. Supports Claude, GPT-4, Gemini, Llama, and 200+ other models via OpenRouter.
 
 ## Features
 
