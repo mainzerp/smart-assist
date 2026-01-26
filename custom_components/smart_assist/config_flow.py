@@ -106,6 +106,9 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
     Uses the /api/v1/models/:author/:slug/endpoints API to get providers.
     Returns list of {"value": provider_tag, "label": display_name} dicts.
     Always includes "auto" as first option.
+    
+    Model variants like :free or :exacto are kept as-is since they have
+    different provider availability.
     """
     # Always include auto option
     providers = [{"value": "auto", "label": "Automatic (Best Price)"}]
@@ -115,16 +118,13 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
         _LOGGER.warning("fetch_model_providers: Invalid model_id format: %s", model_id)
         return providers
     
-    # Strip any variant suffix like :free, :extended, etc.
-    base_model_id = model_id.split(":")[0] if ":" in model_id else model_id
-    
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
     try:
-        url = f"https://openrouter.ai/api/v1/models/{base_model_id}/endpoints"
+        url = f"https://openrouter.ai/api/v1/models/{model_id}/endpoints"
         _LOGGER.debug("fetch_model_providers: Fetching from %s", url)
         
         async with aiohttp.ClientSession() as session:
@@ -137,7 +137,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                 if response.status != 200:
                     _LOGGER.warning(
                         "fetch_model_providers: Failed to fetch for model %s: status %s", 
-                        base_model_id, response.status
+                        model_id, response.status
                     )
                     return providers
                 
@@ -145,10 +145,10 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                 _LOGGER.debug("fetch_model_providers: Raw data keys: %s", list(data.keys()) if isinstance(data, dict) else type(data))
                 
                 endpoints = data.get("data", {}).get("endpoints", [])
-                _LOGGER.debug("fetch_model_providers: Found %d endpoints for %s", len(endpoints), base_model_id)
+                _LOGGER.debug("fetch_model_providers: Found %d endpoints for %s", len(endpoints), model_id)
                 
                 if not endpoints:
-                    _LOGGER.debug("fetch_model_providers: No endpoints found for model %s", base_model_id)
+                    _LOGGER.debug("fetch_model_providers: No endpoints found for model %s", model_id)
                     return providers
                 
                 # Extract unique providers and sort by price
@@ -179,12 +179,12 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                 
                 _LOGGER.info(
                     "fetch_model_providers: Fetched %d providers for model %s", 
-                    len(providers) - 1, base_model_id
+                    len(providers) - 1, model_id
                 )
                 return providers
                 
     except (aiohttp.ClientError, TimeoutError, Exception) as err:
-        _LOGGER.warning("fetch_model_providers: Error for model %s: %s", base_model_id, err)
+        _LOGGER.warning("fetch_model_providers: Error for model %s: %s", model_id, err)
         return providers
 
 
