@@ -49,6 +49,7 @@ try:
     from homeassistant.const import MATCH_ALL
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers import intent
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
 except ImportError as e:
     _LOGGER.error("Smart Assist: Failed to import HA core modules: %s", e)
     raise
@@ -745,6 +746,12 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         """Build a ConversationResult from the chat log."""
         intent_response = intent.IntentResponse(language=user_input.language)
         intent_response.async_set_speech(response_text)
+        
+        # Signal sensors to update their state
+        async_dispatcher_send(
+            self.hass,
+            f"smart_assist_metrics_updated_{self._entry.entry_id}",
+        )
         
         return ConversationResult(
             response=intent_response,

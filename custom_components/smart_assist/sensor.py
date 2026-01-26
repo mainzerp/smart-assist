@@ -12,12 +12,16 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+# Signal name for metrics updates
+SIGNAL_METRICS_UPDATED = f"{DOMAIN}_metrics_updated"
 
 
 async def async_setup_entry(
@@ -26,9 +30,6 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Smart Assist sensors from a config entry."""
-    # Get the conversation entity to access metrics
-    # We'll store a reference in hass.data
-    
     sensors = [
         SmartAssistResponseTimeSensor(hass, entry),
         SmartAssistRequestCountSensor(hass, entry),
@@ -45,6 +46,7 @@ class SmartAssistSensorBase(SensorEntity):
 
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_should_poll = False  # We use signals instead of polling
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the sensor."""
@@ -58,9 +60,23 @@ class SmartAssistSensorBase(SensorEntity):
             "entry_type": "service",
         }
 
+    async def async_added_to_hass(self) -> None:
+        """Register signal listener when added to hass."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{SIGNAL_METRICS_UPDATED}_{self._entry.entry_id}",
+                self._handle_metrics_update,
+            )
+        )
+
+    @callback
+    def _handle_metrics_update(self) -> None:
+        """Handle metrics update signal."""
+        self.async_write_ha_state()
+
     def _get_metrics(self) -> dict[str, Any] | None:
         """Get metrics from the conversation entity."""
-        # Access the LLM client metrics via the conversation entity
         domain_data = self.hass.data.get(DOMAIN, {})
         entry_data = domain_data.get(self._entry.entry_id, {})
         llm_client = entry_data.get("llm_client")
