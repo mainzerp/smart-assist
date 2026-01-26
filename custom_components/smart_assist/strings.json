@@ -44,7 +44,16 @@
         "title": "Prompt Configuration",
         "description": "Customize the assistant's personality and behavior",
         "data": {
-          "user_system_prompt": "Custom System Prompt"
+          "user_system_prompt": "Custom System Prompt",
+          "task_system_prompt": "AI Task System Prompt",
+          "task_enable_prompt_caching": "AI Task: Enable prompt caching",
+          "task_enable_cache_warming": "AI Task: Enable cache warming"
+        },
+        "data_description": {
+          "user_system_prompt": "Personality and instructions for interactive conversations.",
+          "task_system_prompt": "Instructions for background AI tasks in automations.",
+          "task_enable_prompt_caching": "Not recommended for tasks - they run in background and are not time-critical.",
+          "task_enable_cache_warming": "Not recommended for tasks - they run in background and are not time-critical."
         }
       }
     },
@@ -116,12 +125,18 @@
           "clean_responses": "Clean responses (remove markdown formatting)",
           "ask_followup": "Ask follow-up questions",
           "user_system_prompt": "Custom System Prompt",
+          "task_system_prompt": "AI Task System Prompt",
+          "task_enable_prompt_caching": "AI Task: Enable prompt caching",
+          "task_enable_cache_warming": "AI Task: Enable cache warming",
           "debug_logging": "Enable debug logging"
         },
         "data_description": {
           "clean_responses": "Remove markdown symbols like ** and * from responses.",
           "ask_followup": "Assistant asks clarifying questions when needed.",
           "user_system_prompt": "Additional instructions for the AI assistant.",
+          "task_system_prompt": "Instructions for background AI tasks in automations.",
+          "task_enable_prompt_caching": "Not recommended - background tasks are not time-critical.",
+          "task_enable_cache_warming": "Not recommended - background tasks are not time-critical.",
           "debug_logging": "Enable verbose logging for troubleshooting (logs to Home Assistant)."
         }
       }

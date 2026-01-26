@@ -11,10 +11,12 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 ## Features
 
 - **Prompt Caching**: Up to 85% faster responses and reduced costs (Anthropic, OpenAI, Groq, Google)
+- **AI Task Platform**: Use LLM in automations via `ai_task.generate_data` service
 - **Natural Language Control**: Talk to your smart home naturally
 - **OpenRouter Integration**: Access to 200+ AI models via single API
 - **Provider Selection**: Choose specific providers for optimal caching support
 - **Unified Control Tool**: Single efficient tool for all entity types
+- **Parallel Tool Execution**: Execute multiple tool calls concurrently for faster responses
 - **Full Streaming**: Real-time token streaming even during tool execution
 - **Cache Warming**: Optional periodic cache refresh for instant responses
 - **Metrics/Telemetry**: Track token usage, response times, cache hit rates
@@ -86,6 +88,9 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 | Ask Follow-up | Assistant asks clarifying questions | true |
 | Debug Logging | Enable verbose logging | false |
 | System Prompt | Custom instructions for assistant | - |
+| Task System Prompt | Custom instructions for AI tasks | - |
+| Task Prompt Caching | Enable caching for AI tasks | false |
+| Task Cache Warming | Enable warming for AI tasks | false |
 
 ## Prompt Caching
 
@@ -106,6 +111,29 @@ When you select a model, Smart Assist shows only providers that offer that model
 ### Cache Warming
 
 Enable cache warming to periodically refresh the cache with a minimal request. This keeps the cache "warm" for instant responses but incurs additional API costs (~1 request per interval).
+
+## AI Task Platform
+
+Smart Assist registers as an `ai_task` platform, enabling LLM usage in automations:
+
+```yaml
+service: ai_task.generate_data
+target:
+  entity_id: ai_task.smart_assist_task
+data:
+  task_type: generate_data
+  instructions: "Summarize all lights that are currently on"
+```
+
+**Features:**
+- Full tool support (entity queries, control, scenes, web search)
+- Parallel tool execution for multi-entity commands
+- Separate configurable system prompt for task-oriented responses
+
+**Configuration:**
+- **Task System Prompt**: Custom instructions for background tasks
+- **Task Prompt Caching**: Disabled by default (tasks are not time-critical)
+- **Task Cache Warming**: Disabled by default (tasks are not time-critical)
 
 ## Tools
 

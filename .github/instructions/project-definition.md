@@ -4,7 +4,7 @@
 
 A Home Assistant custom integration that connects LLMs (via OpenRouter) with Home Assistant to create an intelligent smart home assistant capable of answering questions about the smart home environment and controlling devices.
 
-**Version**: 1.1.0  
+**Version**: 1.2.0  
 **Last Updated**: January 2026
 
 ## Core Requirements
@@ -35,6 +35,8 @@ custom_components/smart_assist/
     manifest.json         # HA integration manifest
     config_flow.py        # 4-step setup wizard
     conversation.py       # Assist pipeline integration with full streaming
+    ai_task.py            # AI Task platform for automations
+    sensor.py             # Metrics/telemetry sensor
     const.py              # Constants, models, helper functions
     utils.py              # TTS cleaning utilities
     translations/
@@ -247,6 +249,9 @@ Step 3: Behavior Settings
 
 Step 4: Prompt Configuration
   - User System Prompt (custom personality)
+  - Task System Prompt (AI Task instructions)
+  - Task Prompt Caching (disabled by default - not time-critical)
+  - Task Cache Warming (disabled by default - not time-critical)
 ```
 
 ### Configuration Keys
@@ -254,21 +259,24 @@ Step 4: Prompt Configuration
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `api_key` | string | - | OpenRouter API key |
-| `model` | string | claude-3-haiku | LLM model |
-| `provider` | string | auto | Provider for routing |
-| `temperature` | float | 0.3 | Response creativity |
+| `model` | string | openai/gpt-oss-120b | LLM model |
+| `provider` | string | groq | Provider for routing |
+| `temperature` | float | 0.5 | Response creativity |
 | `max_tokens` | int | 500 | Max response length |
-| `language` | string | en | Response language |
+| `language` | string | auto | Response language |
 | `exposed_only` | bool | true | Use only exposed entities |
 | `confirm_critical` | bool | true | Confirm locks/alarms |
 | `max_history` | int | 10 | Conversation history |
 | `enable_web_search` | bool | true | DuckDuckGo search |
-| `enable_quick_actions` | bool | true | Bypass LLM for simple |
+| `enable_quick_actions` | bool | false | Bypass LLM for simple (disabled) |
 | `enable_prompt_caching` | bool | true | Prompt caching |
 | `cache_ttl_extended` | bool | false | 1h TTL (Anthropic) |
 | `enable_cache_warming` | bool | false | Periodic warming |
 | `cache_refresh_interval` | int | 4 | Warming interval (min) |
 | `user_system_prompt` | string | - | Custom personality |
+| `task_system_prompt` | string | - | AI Task instructions |
+| `task_enable_prompt_caching` | bool | false | AI Task caching (not needed) |
+| `task_enable_cache_warming` | bool | false | AI Task warming (not needed) |
 
 ---
 
@@ -333,16 +341,55 @@ ruff format custom_components/smart_assist --check
   - Hallucination detection (compare claimed actions with tool results)
   - State consistency check (verify claimed states match actual states)
   - Safety filter (block problematic content, code injection attempts)
-- [ ] Additional LLM providers (direct API access)
-- [ ] Proactive suggestions
-- [ ] Scheduled actions
-- [ ] Rate limiting
+- [x] **Parallel Tool Execution**: Execute multiple tool calls concurrently
+  - LLMs can request multiple tools in one response (e.g., "turn off all lights")
+  - Uses `asyncio.gather()` to execute independent tools in parallel
+  - Reduces response latency for multi-entity commands
+- [x] **AI Task Platform**: Register as `ai_task` platform in addition to `conversation`
+  - Enables LLM usage in automations via `ai_task.generate_data` service
+  - Background tasks without user interaction (e.g., "Summarize today's events")
+  - Separate configurable system prompt for task-oriented responses
+  - Full tool support with parallel execution
+- [ ] **Additional LLM Providers**: Direct API access bypassing OpenRouter
+  - Anthropic, OpenAI, Google APIs directly for lower latency
+  - Local LLM support (Ollama, llama.cpp)
+  - Provider failover and load balancing
+- [ ] **Scheduled Actions**: Time-based command execution via LLM
+  - "Turn off lights in 30 minutes"
+  - Integration with HA's built-in scheduler
+  - Persistent schedules surviving restarts
+- [ ] **Rate Limiting**: Protect against API cost spikes
+  - Configurable requests per minute/hour
+  - Token budget limits (daily/monthly)
+  - Graceful degradation when limits reached
 
 ### Phase 3 - Advanced Features
 
-- [ ] Multi-user support with per-user preferences
-- [ ] Learning from user preferences
-- [ ] Automation suggestions
-- [ ] Energy optimization
-- [ ] Calendar integration
-- [ ] Custom tool plugins
+- [ ] **Proactive Suggestions**: Context-aware recommendations without user prompts
+  - "Garage door open for 30 min - close it?"
+  - "AC running but window open"
+  - Event-based triggers (time, state changes)
+- [ ] **Multi-User Support**: Per-user preferences and permissions
+  - Different system prompts per user
+  - User-specific entity access
+  - Voice recognition integration
+- [ ] **Learning from Preferences**: Adapt to user behavior patterns
+  - Remember preferred brightness levels
+  - Learn routine schedules
+  - Personalized response style
+- [ ] **Automation Suggestions**: AI-generated automation ideas
+  - "You turn on porch light every evening - create automation?"
+  - Analyze usage patterns for optimization
+  - One-click automation creation
+- [ ] **Energy Optimization**: Smart energy management via LLM
+  - Peak/off-peak aware scheduling
+  - Solar production integration
+  - Cost-saving recommendations
+- [ ] **Calendar Integration**: Schedule-aware responses
+  - "Meeting in 10 min - set DND mode"
+  - Vacation mode suggestions
+  - Event-triggered automations
+- [ ] **Custom Tool Plugins**: User-defined tools for LLM
+  - YAML-based tool definitions
+  - Custom service calls
+  - Third-party API integrations

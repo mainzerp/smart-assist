@@ -38,7 +38,7 @@ except ImportError as e:
 
 _LOGGER.warning("Smart Assist: __init__.py module loaded successfully")
 
-PLATFORMS: list[Platform] = [Platform.CONVERSATION, Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.AI_TASK, Platform.CONVERSATION, Platform.SENSOR]
 
 
 def _apply_debug_logging(enabled: bool) -> None:

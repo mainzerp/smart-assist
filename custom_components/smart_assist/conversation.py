@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import traceback
 from collections.abc import AsyncGenerator
@@ -359,7 +360,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                 return final_content
             
             # Execute tool calls and add results to messages
-            _LOGGER.debug("Executing %d tool calls in streaming loop", len(tool_calls))
+            _LOGGER.debug("Executing %d tool calls in parallel", len(tool_calls))
             
             # Add assistant message with tool calls
             working_messages.append(
@@ -370,19 +371,30 @@ class SmartAssistConversationEntity(ConversationEntity):
                 )
             )
             
-            # Execute each tool
-            for tool_call in tool_calls:
+            # Execute all tools in parallel using asyncio.gather
+            async def execute_tool(tool_call):
+                """Execute a single tool and return result with metadata."""
                 _LOGGER.debug(
                     "Executing tool: %s with args: %s",
                     tool_call.name,
                     tool_call.arguments,
                 )
-                
                 result = await self._tool_registry.execute(
                     tool_call.name, tool_call.arguments
                 )
-                
-                # Add tool result to messages
+                return (tool_call, result)
+            
+            tool_results = await asyncio.gather(
+                *[execute_tool(tc) for tc in tool_calls],
+                return_exceptions=True
+            )
+            
+            # Add tool results to messages in order
+            for item in tool_results:
+                if isinstance(item, Exception):
+                    _LOGGER.error("Tool execution failed: %s", item)
+                    continue
+                tool_call, result = item
                 working_messages.append(
                     ChatMessage(
                         role=MessageRole.TOOL,
@@ -440,18 +452,30 @@ class SmartAssistConversationEntity(ConversationEntity):
                 )
             )
 
-            # Execute each tool call
-            for tool_call in response.tool_calls:
+            # Execute all tools in parallel using asyncio.gather
+            async def execute_tool(tool_call):
+                """Execute a single tool and return result with metadata."""
                 _LOGGER.debug(
                     "Executing tool: %s with args: %s",
                     tool_call.name,
                     tool_call.arguments,
                 )
-
                 result = await self._tool_registry.execute(
                     tool_call.name, tool_call.arguments
                 )
-
+                return (tool_call, result)
+            
+            tool_results = await asyncio.gather(
+                *[execute_tool(tc) for tc in response.tool_calls],
+                return_exceptions=True
+            )
+            
+            # Add tool results to messages in order
+            for item in tool_results:
+                if isinstance(item, Exception):
+                    _LOGGER.error("Tool execution failed: %s", item)
+                    continue
+                tool_call, result = item
                 messages.append(
                     ChatMessage(
                         role=MessageRole.TOOL,

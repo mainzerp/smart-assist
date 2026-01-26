@@ -49,7 +49,16 @@
         "title": "Prompt Konfiguration",
         "description": "Passe die Persoenlichkeit und das Verhalten des Assistenten an",
         "data": {
-          "user_system_prompt": "Benutzerdefinierter System Prompt"
+          "user_system_prompt": "Konversations-System-Prompt",
+          "task_system_prompt": "AI Task System Prompt",
+          "task_enable_prompt_caching": "AI Task: Prompt Caching aktivieren",
+          "task_enable_cache_warming": "AI Task: Cache-Warming aktivieren"
+        },
+        "data_description": {
+          "user_system_prompt": "Persoenlichkeit und Anweisungen fuer interaktive Konversationen.",
+          "task_system_prompt": "Anweisungen fuer Hintergrund-AI-Tasks in Automationen.",
+          "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
+          "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
         }
       }
     },
@@ -119,13 +128,19 @@
         "data": {
           "clean_responses": "Antworten bereinigen (Markdown entfernen)",
           "ask_followup": "Rueckfragen stellen",
-          "user_system_prompt": "Benutzerdefinierter System Prompt",
+          "user_system_prompt": "Konversations-System-Prompt",
+          "task_system_prompt": "AI Task System Prompt",
+          "task_enable_prompt_caching": "AI Task: Prompt Caching aktivieren",
+          "task_enable_cache_warming": "AI Task: Cache-Warming aktivieren",
           "debug_logging": "Debug-Logging aktivieren"
         },
         "data_description": {
           "clean_responses": "Entfernt Markdown-Symbole wie ** und * aus Antworten.",
           "ask_followup": "Assistent stellt bei Bedarf klaerende Fragen.",
-          "user_system_prompt": "Zusaetzliche Anweisungen fuer den KI-Assistenten.",
+          "user_system_prompt": "Persoenlichkeit und Anweisungen fuer interaktive Konversationen.",
+          "task_system_prompt": "Anweisungen fuer Hintergrund-AI-Tasks in Automationen.",
+          "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
+          "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
           "debug_logging": "Aktiviert ausfuehrliches Logging zur Fehlersuche (in Home Assistant Logs)."
         }
       }

@@ -58,6 +58,9 @@ try:
         CONF_MAX_TOKENS,
         CONF_MODEL,
         CONF_PROVIDER,
+        CONF_TASK_ENABLE_CACHE_WARMING,
+        CONF_TASK_ENABLE_PROMPT_CACHING,
+        CONF_TASK_SYSTEM_PROMPT,
         CONF_TEMPERATURE,
         CONF_USER_SYSTEM_PROMPT,
         DEFAULT_ASK_FOLLOWUP,
@@ -71,6 +74,9 @@ try:
         DEFAULT_MAX_TOKENS,
         DEFAULT_MODEL,
         DEFAULT_PROVIDER,
+        DEFAULT_TASK_ENABLE_CACHE_WARMING,
+        DEFAULT_TASK_ENABLE_PROMPT_CACHING,
+        DEFAULT_TASK_SYSTEM_PROMPT,
         DEFAULT_TEMPERATURE,
         DEFAULT_USER_SYSTEM_PROMPT,
         DOMAIN,
@@ -482,6 +488,20 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                             multiline=True,
                         )
                     ),
+                    vol.Required(
+                        CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT
+                    ): TextSelector(
+                        TextSelectorConfig(
+                            type=TextSelectorType.TEXT,
+                            multiline=True,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_TASK_ENABLE_PROMPT_CACHING, default=DEFAULT_TASK_ENABLE_PROMPT_CACHING
+                    ): BooleanSelector(),
+                    vol.Required(
+                        CONF_TASK_ENABLE_CACHE_WARMING, default=DEFAULT_TASK_ENABLE_CACHE_WARMING
+                    ): BooleanSelector(),
                 }
             ),
         )
@@ -738,6 +758,29 @@ class SmartAssistOptionsFlow(OptionsFlow):
                             multiline=True,
                         )
                     ),
+                    vol.Required(
+                        CONF_TASK_SYSTEM_PROMPT,
+                        default=current.get(
+                            CONF_TASK_SYSTEM_PROMPT, DEFAULT_TASK_SYSTEM_PROMPT
+                        ),
+                    ): TextSelector(
+                        TextSelectorConfig(
+                            type=TextSelectorType.TEXT,
+                            multiline=True,
+                        )
+                    ),
+                    vol.Required(
+                        CONF_TASK_ENABLE_PROMPT_CACHING,
+                        default=current.get(
+                            CONF_TASK_ENABLE_PROMPT_CACHING, DEFAULT_TASK_ENABLE_PROMPT_CACHING
+                        ),
+                    ): BooleanSelector(),
+                    vol.Required(
+                        CONF_TASK_ENABLE_CACHE_WARMING,
+                        default=current.get(
+                            CONF_TASK_ENABLE_CACHE_WARMING, DEFAULT_TASK_ENABLE_CACHE_WARMING
+                        ),
+                    ): BooleanSelector(),
                     vol.Required(
                         CONF_DEBUG_LOGGING,
                         default=current.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
