@@ -54,8 +54,8 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| Model | Any OpenRouter model ID | Claude 3 Haiku |
-| Provider | Specific provider for routing | Automatic |
+| Model | Any OpenRouter model ID | GPT-OSS 120B |
+| Provider | Specific provider for routing | Groq |
 | Temperature | Response creativity (0-1) | 0.3 |
 | Max Tokens | Maximum response length | 500 |
 
