@@ -104,10 +104,17 @@ class SmartAssistSensorBase(SensorEntity):
         for agent_info in agents.values():
             llm_client = agent_info.get("llm_client")
             if llm_client and hasattr(llm_client, "metrics"):
-                metrics = llm_client.metrics.to_dict()
-                for key in aggregated:
-                    if key in metrics:
-                        aggregated[key] += metrics[key]
+                # Access metrics object directly (not to_dict) to get raw values
+                metrics = llm_client.metrics
+                aggregated["total_requests"] += metrics.total_requests
+                aggregated["successful_requests"] += metrics.successful_requests
+                aggregated["failed_requests"] += metrics.failed_requests
+                aggregated["total_retries"] += metrics.total_retries
+                aggregated["total_prompt_tokens"] += metrics.total_prompt_tokens
+                aggregated["total_completion_tokens"] += metrics.total_completion_tokens
+                aggregated["total_response_time_ms"] += metrics.total_response_time_ms
+                aggregated["cache_hits"] += metrics.cache_hits
+                aggregated["cache_misses"] += metrics.cache_misses
         
         # Calculate derived metrics
         if aggregated["successful_requests"] > 0:
