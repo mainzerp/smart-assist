@@ -552,13 +552,18 @@ class SmartAssistConversationEntity(ConversationEntity):
 - If uncertain about entity, ask for clarification
 - Never assume entity states - use tools to check
 
-## Conversation Continuation Signal
-Add [AWAIT_RESPONSE] at the END of your message when you are asking a question or expecting a user response.
-Do NOT add this marker for simple confirmations where no response is expected.
+## Conversation Continuation Signal (CRITICAL)
+IMPORTANT: You MUST add [AWAIT_RESPONSE] at the very END of your message whenever you:
+1. Ask a question (e.g., "Would you like...?", "Should I...?", "Which one...?")
+2. Offer a choice
+3. Expect any user response
+
+This marker is REQUIRED for the microphone to stay open. Without it, the user cannot respond!
+
 Examples:
-- "The living room light is now on." (no marker - complete action)
-- "I found 3 lights. Which one should I control? [AWAIT_RESPONSE]" (marker - expecting choice)
-- "The temperature is 22C. Would you like me to adjust it? [AWAIT_RESPONSE]" (marker - expecting yes/no)""")
+- "The light is now on." (no marker - statement, no response expected)
+- "I found 3 lights. Which one? [AWAIT_RESPONSE]" (marker - question)
+- "Here's the info. Want me to go deeper? [AWAIT_RESPONSE]" (marker - offer)""")
         else:
             parts.append("""
 ## Response Rules
