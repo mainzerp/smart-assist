@@ -34,7 +34,6 @@ DEFAULT_MODEL: Final = "openai/gpt-oss-120b"
 DEFAULT_PROVIDER: Final = "groq"
 DEFAULT_TEMPERATURE: Final = 0.5
 DEFAULT_MAX_TOKENS: Final = 500
-DEFAULT_LANGUAGE: Final = "auto"
 DEFAULT_MAX_HISTORY: Final = 10
 DEFAULT_EXPOSED_ONLY: Final = True
 DEFAULT_CONFIRM_CRITICAL: Final = True
@@ -49,12 +48,31 @@ DEFAULT_TASK_ENABLE_PROMPT_CACHING: Final = False  # Tasks are not time-critical
 DEFAULT_TASK_ENABLE_CACHE_WARMING: Final = False   # Tasks are not time-critical
 DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
 
-# Supported languages for UI selectors
-SUPPORTED_LANGUAGES: Final = [
-    {"value": "auto", "label": "Auto-detect"},
-    {"value": "en", "label": "English"},
-    {"value": "de", "label": "Deutsch"},
-]
+# Common Home Assistant locale to language name mapping for auto-detection
+# Used when language is empty/auto to show a readable language name in prompts
+# Format: locale prefix -> (English name, native name)
+LOCALE_TO_LANGUAGE: Final = {
+    "de": ("German", "Deutsch"),
+    "en": ("English", "English"),
+    "fr": ("French", "Francais"),
+    "es": ("Spanish", "Espanol"),
+    "it": ("Italian", "Italiano"),
+    "nl": ("Dutch", "Nederlands"),
+    "pt": ("Portuguese", "Portugues"),
+    "pl": ("Polish", "Polski"),
+    "ru": ("Russian", "Russkij"),
+    "uk": ("Ukrainian", "Ukrajinska"),
+    "cs": ("Czech", "Cestina"),
+    "sk": ("Slovak", "Slovencina"),
+    "hu": ("Hungarian", "Magyar"),
+    "sv": ("Swedish", "Svenska"),
+    "no": ("Norwegian", "Norsk"),
+    "da": ("Danish", "Dansk"),
+    "fi": ("Finnish", "Suomi"),
+    "ja": ("Japanese", "Nihongo"),
+    "ko": ("Korean", "Hangugeo"),
+    "zh": ("Chinese", "Zhongwen"),
+}
 
 # OpenRouter API
 OPENROUTER_API_URL: Final = "https://openrouter.ai/api/v1/chat/completions"

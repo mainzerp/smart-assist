@@ -78,7 +78,6 @@ try:
         DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_EXPOSED_ONLY,
-        DEFAULT_LANGUAGE,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
         DEFAULT_MODEL,
@@ -91,7 +90,6 @@ try:
         DOMAIN,
         OPENROUTER_API_URL,
         PROVIDERS,
-        SUPPORTED_LANGUAGES,
         supports_prompt_caching,
     )
     from .utils import apply_debug_logging
@@ -456,10 +454,9 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                             mode=NumberSelectorMode.SLIDER,
                         )
                     ),
-                    vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): SelectSelector(
-                        SelectSelectorConfig(
-                            options=SUPPORTED_LANGUAGES,
-                            mode=SelectSelectorMode.DROPDOWN,
+                    vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
+                        TextSelectorConfig(
+                            type=TextSelectorType.TEXT,
                         )
                     ),
                     vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
@@ -626,10 +623,9 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                                 min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
                             )
                         ),
-                        vol.Required(CONF_LANGUAGE): SelectSelector(
-                            SelectSelectorConfig(
-                                options=SUPPORTED_LANGUAGES,
-                                mode=SelectSelectorMode.DROPDOWN,
+                        vol.Optional(CONF_LANGUAGE): TextSelector(
+                            TextSelectorConfig(
+                                type=TextSelectorType.TEXT,
                             )
                         ),
                         vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
@@ -753,10 +749,9 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                             mode=NumberSelectorMode.SLIDER,
                         )
                     ),
-                    vol.Required(CONF_LANGUAGE, default=DEFAULT_LANGUAGE): SelectSelector(
-                        SelectSelectorConfig(
-                            options=SUPPORTED_LANGUAGES,
-                            mode=SelectSelectorMode.DROPDOWN,
+                    vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
+                        TextSelectorConfig(
+                            type=TextSelectorType.TEXT,
                         )
                     ),
                     vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
@@ -866,10 +861,9 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                                 min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
                             )
                         ),
-                        vol.Required(CONF_LANGUAGE): SelectSelector(
-                            SelectSelectorConfig(
-                                options=SUPPORTED_LANGUAGES,
-                                mode=SelectSelectorMode.DROPDOWN,
+                        vol.Optional(CONF_LANGUAGE): TextSelector(
+                            TextSelectorConfig(
+                                type=TextSelectorType.TEXT,
                             )
                         ),
                         vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),

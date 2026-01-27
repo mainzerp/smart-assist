@@ -73,6 +73,7 @@
             "provider": "Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
+            "language": "Leer lassen fuer Auto-Erkennung (nutzt HA-Sprache). Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "cache_ttl_extended": "Aktiviert 1-Stunden-Cache statt 5 Minuten. Gilt nur fuer Anthropic-Modelle.",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
@@ -157,6 +158,7 @@
             "provider": "Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
+            "language": "Leer lassen fuer Auto-Erkennung (nutzt HA-Sprache). Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
             "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
             "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."

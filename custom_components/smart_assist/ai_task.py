@@ -28,7 +28,6 @@ from .const import (
     CONF_TASK_ENABLE_PROMPT_CACHING,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
-    DEFAULT_LANGUAGE,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -36,6 +35,7 @@ from .const import (
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DOMAIN,
+    LOCALE_TO_LANGUAGE,
 )
 from .context.entity_manager import EntityManager
 from .llm import OpenRouterClient
@@ -181,10 +181,21 @@ class SmartAssistAITask(AITaskEntity):
         # Get entity index for context
         entity_index = self._entity_manager.get_entity_index()
         
-        # Get language preference
-        language = self._get_config(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+        # Determine language instruction for response
+        language = self._get_config(CONF_LANGUAGE, "")
         language_instruction = ""
-        if language != "auto":
+        
+        if not language or language == "auto":
+            # Auto-detect: use Home Assistant's configured language
+            ha_language = self.hass.config.language  # e.g., "de-DE", "en-US"
+            locale_prefix = ha_language.split("-")[0].lower()  # "de", "en", etc.
+            
+            if locale_prefix in LOCALE_TO_LANGUAGE:
+                english_name, native_name = LOCALE_TO_LANGUAGE[locale_prefix]
+                language_instruction = f"\n\nRespond in {english_name} ({native_name})."
+            # If locale not in mapping, don't add instruction (LLM will use context)
+        else:
+            # User-specified language - use directly
             language_instruction = f"\n\nRespond in {language}."
         
         # Build full system prompt

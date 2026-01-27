@@ -129,7 +129,7 @@ SYMBOL_MAPPINGS_DE: Final = {
 }
 
 
-def clean_for_tts(text: str, language: str = "en") -> str:
+def clean_for_tts(text: str, language: str = "") -> str:
     """Clean text for TTS output.
 
     Removes:
@@ -138,11 +138,12 @@ def clean_for_tts(text: str, language: str = "en") -> str:
     - URLs
 
     Converts:
-    - Symbols to spoken words (e.g., °C -> degrees Celsius)
+    - Symbols to spoken words (e.g., degrees Celsius -> Grad Celsius for German)
 
     Args:
         text: The text to clean
-        language: Language code for symbol conversion (en, de)
+        language: Language code or name for symbol conversion. 
+                  Detects German if "de" is in the string (e.g., "de", "de-DE", "German", "Deutsch")
 
     Returns:
         Cleaned text suitable for TTS
@@ -163,7 +164,9 @@ def clean_for_tts(text: str, language: str = "en") -> str:
         result = pattern.sub(replacement, result)
 
     # Convert symbols to words (order matters - longer patterns first)
-    symbol_map = SYMBOL_MAPPINGS_DE if language == "de" else SYMBOL_MAPPINGS
+    # Use German symbols if language contains "de" (e.g., "de", "de-DE", "German (Deutsch)")
+    is_german = "de" in language.lower() if language else False
+    symbol_map = SYMBOL_MAPPINGS_DE if is_german else SYMBOL_MAPPINGS
     # Sort by length descending to match longer patterns first
     for symbol, word in sorted(symbol_map.items(), key=lambda x: len(x[0]), reverse=True):
         result = result.replace(symbol, word)

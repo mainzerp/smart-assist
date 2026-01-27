@@ -21,7 +21,7 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 - **Cache Warming**: Optional periodic cache refresh for instant responses
 - **Metrics/Telemetry**: Track token usage, response times, cache hit rates
 - **Debug Logging**: UI toggle for verbose logging in Home Assistant logs
-- **Multi-Language**: English and German UI support
+- **Multi-Language**: Supports any language (auto-detect from HA or custom)
 
 ## Installation
 
@@ -65,7 +65,7 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| Language | Response language | Auto |
+| Language | Response language (empty = auto-detect from HA, or any language like "French", "es-ES") | Auto |
 | Exposed Only | Use only exposed entities | true |
 | Confirm Critical | Confirm locks/alarms before action | true |
 | Max History | Conversation history length | 10 |

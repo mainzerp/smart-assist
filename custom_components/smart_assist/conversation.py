@@ -76,7 +76,6 @@ try:
         DEFAULT_ASK_FOLLOWUP,
         DEFAULT_CACHE_TTL_EXTENDED,
         DEFAULT_CLEAN_RESPONSES,
-        DEFAULT_LANGUAGE,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
         DEFAULT_MODEL,
@@ -84,6 +83,7 @@ try:
         DEFAULT_TEMPERATURE,
         DEFAULT_USER_SYSTEM_PROMPT,
         DOMAIN,
+        LOCALE_TO_LANGUAGE,
     )
     from .context import EntityManager
     from .llm import ChatMessage, OpenRouterClient
@@ -292,7 +292,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             # Clean response for TTS if enabled
             final_response = cleaned_content
             if self._get_config(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES):
-                language = self._get_config(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+                language = self._get_config(CONF_LANGUAGE, "")
                 final_response = clean_for_tts(final_response, language)
 
             _LOGGER.debug("Streaming response complete. continue=%s", continue_conversation)
@@ -505,16 +505,23 @@ class SmartAssistConversationEntity(ConversationEntity):
         if self._cached_system_prompt is not None:
             return self._cached_system_prompt
         
-        language = self._get_config(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+        language = self._get_config(CONF_LANGUAGE, "")
         
-        # Auto-detect: use Home Assistant's configured language
-        if language == "auto":
-            ha_language = self.hass.config.language
-            # Map HA language codes to our supported languages
-            if ha_language.startswith("de"):
-                language = "de"
+        # Determine language instruction for response
+        if not language or language == "auto":
+            # Auto-detect: use Home Assistant's configured language
+            ha_language = self.hass.config.language  # e.g., "de-DE", "en-US"
+            locale_prefix = ha_language.split("-")[0].lower()  # "de", "en", etc.
+            
+            if locale_prefix in LOCALE_TO_LANGUAGE:
+                english_name, native_name = LOCALE_TO_LANGUAGE[locale_prefix]
+                language_instruction = f"Always respond in {english_name} ({native_name})."
             else:
-                language = "en"  # Default to English for unsupported languages
+                # Fallback: use the locale as-is
+                language_instruction = f"Always respond in the language with code '{ha_language}'."
+        else:
+            # User-specified language - use directly
+            language_instruction = f"Always respond in {language}."
         
         confirm_critical = self._get_config(CONF_CONFIRM_CRITICAL, True)
         exposed_only = self._get_config(CONF_EXPOSED_ONLY, True)
@@ -524,10 +531,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         parts = []
         
         # Base prompt with language instruction
-        if language == "de":
-            parts.append("You are a Home Assistant smart home controller. Always respond in German (Deutsch). Be concise and helpful.")
-        else:
-            parts.append("You are a Home Assistant smart home controller. Always respond in English. Be concise and helpful.")
+        parts.append(f"You are a Home Assistant smart home controller. {language_instruction} Be concise and helpful.")
         
         # Response rules with conversation continuation marker
         if ask_followup:
