@@ -4,8 +4,8 @@
 
 A Home Assistant custom integration that connects LLMs (via OpenRouter) with Home Assistant to create an intelligent smart home assistant capable of answering questions about the smart home environment and controlling devices.
 
-**Version**: 1.2.0  
-**Last Updated**: January 2026
+**Version**: 1.5.11  
+**Last Updated**: January 27, 2026
 
 ## Core Requirements
 
@@ -20,6 +20,8 @@ A Home Assistant custom integration that connects LLMs (via OpenRouter) with Hom
 | Performance | Prompt caching, cache warming, minimal context | Done |
 | Responses | Concise LLM responses | Done |
 | Streaming | Full streaming with tool execution | Done |
+| TTS Streaming | Real-time token streaming to TTS via ChatLog API | Done |
+| Multi-Language | Flexible language (auto-detect or any language) | Done |
 | Reliability | Retry logic with exponential backoff | Done |
 | Observability | Metrics/telemetry for debugging | Done |
 
@@ -223,35 +225,32 @@ The `control` tool auto-detects domain from entity_id and supports:
 
 ## Configuration Options
 
-### Config Flow (4 Steps)
+### Config Flow
 
 ```
-Step 1: API Configuration
+Main Entry:
   - OpenRouter API Key (validated)
 
-Step 2: Model Configuration
-  - Model Selection (filtered by caching support if enabled)
-  - Provider Selection (for guaranteed caching)
-  - Temperature (0.0 - 1.0)
-  - Max Tokens
-
-Step 3: Behavior Settings
-  - Language (en/de)
-  - Exposed entities only
-  - Confirm critical actions
-  - Max conversation history
-  - Enable web search
-  - Enable quick actions
-  - Enable prompt caching
-  - Extended cache TTL (Anthropic only)
-  - Enable cache warming (incurs cost)
-  - Cache refresh interval
-
-Step 4: Prompt Configuration
-  - User System Prompt (custom personality)
-  - Task System Prompt (AI Task instructions)
-  - Task Prompt Caching (disabled by default - not time-critical)
-  - Task Cache Warming (disabled by default - not time-critical)
+Subentry (Conversation Agent / AI Task):
+  Step 1: Model Selection
+    - Model (any OpenRouter model ID or custom)
+  
+  Step 2: Settings
+    - Provider Selection (for guaranteed caching)
+    - Temperature (0.0 - 1.0)
+    - Max Tokens
+    - Language (empty = auto-detect from HA, or any language text)
+    - Exposed entities only
+    - Confirm critical actions
+    - Max conversation history
+    - Enable web search
+    - Enable prompt caching
+    - Extended cache TTL (Anthropic only)
+    - Enable cache warming (incurs cost)
+    - Cache refresh interval
+  
+  Step 3 (Conversation only): Prompt Configuration
+    - User System Prompt (custom personality)
 ```
 
 ### Configuration Keys
@@ -263,7 +262,7 @@ Step 4: Prompt Configuration
 | `provider` | string | groq | Provider for routing |
 | `temperature` | float | 0.5 | Response creativity |
 | `max_tokens` | int | 500 | Max response length |
-| `language` | string | auto | Response language |
+| `language` | string | "" (auto) | Response language (empty = auto-detect from HA) |
 | `exposed_only` | bool | true | Use only exposed entities |
 | `confirm_critical` | bool | true | Confirm locks/alarms |
 | `max_history` | int | 10 | Conversation history |
