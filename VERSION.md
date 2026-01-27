@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.2   | 2026-01-27 |
+| Smart Assist | 1.6.3   | 2026-01-27 |
 
 ## Version History
+
+### v1.6.3 (2026-01-27) - Chat History Fix
+
+**Bug Fix:**
+
+- Fixed "slice indices must be integers" error in chat history processing
+- max_history config value now explicitly cast to integer
 
 ### v1.6.2 (2026-01-27) - Calendar Reminder Mention Fix
 
