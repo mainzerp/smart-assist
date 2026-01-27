@@ -112,6 +112,14 @@ When you select a model, Smart Assist shows only providers that offer that model
 
 Enable cache warming to periodically refresh the cache with a minimal request. This keeps the cache "warm" for instant responses but incurs additional API costs (~1 request per interval).
 
+**Cost Example:**
+- Model: GPT-OSS 120B (Groq)
+- Static prompt size: ~3,500 tokens
+- Refresh interval: 4 minutes (default)
+- Daily cost: **~1 cent** (~360 warming requests/day)
+
+Note: Actual costs depend on your model, provider, and refresh interval.
+
 ## AI Task Platform
 
 Smart Assist registers as an `ai_task` platform, enabling LLM usage in automations:
