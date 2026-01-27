@@ -795,7 +795,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         # Build context content with optional calendar reminders
         context_parts = [f"[CURRENT CONTEXT]\n{time_context}", relevant_states]
         if calendar_context:
-            _LOGGER.debug("Injecting calendar context: %s", calendar_context[:100])
+            _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
             context_parts.append(calendar_context)
         
         messages.append(
