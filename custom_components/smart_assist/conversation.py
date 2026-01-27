@@ -581,6 +581,13 @@ Examples:
 - Use get_entities tool with domain filter to find entities
 - Use get_entity_state to check current state before taking action""")
         
+        # Calendar reminders instruction (if enabled)
+        calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
+        if calendar_enabled:
+            parts.append("""
+## Calendar Reminders
+If you see a 'Calendar Reminders' section in the CURRENT CONTEXT, briefly mention the upcoming event(s) naturally in your response. For example: "By the way, you have 'Meeting' in about an hour." Keep it casual and non-intrusive.""")
+        
         # Control instructions
         parts.append("""
 ## Entity Control
@@ -787,6 +794,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         # Build context content with optional calendar reminders
         context_parts = [f"[CURRENT CONTEXT]\n{time_context}", relevant_states]
         if calendar_context:
+            _LOGGER.debug("Injecting calendar context: %s", calendar_context[:100])
             context_parts.append(calendar_context)
         
         messages.append(
