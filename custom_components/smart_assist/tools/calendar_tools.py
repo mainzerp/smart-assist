@@ -209,12 +209,12 @@ class CreateCalendarEventTool(BaseTool):
     """Tool to create calendar events."""
 
     name = "create_calendar_event"
-    description = "Create a new event on a calendar. Use this when the user wants to add an appointment, meeting, or reminder to their calendar. If you don't know the exact calendar entity ID, first use get_calendar_events to see available calendars and their owners."
+    description = "Create a new event on a calendar. Use this when the user wants to add an appointment, meeting, or reminder to their calendar. The calendar_id can be a name (e.g., 'Laura', 'Family') or entity ID - fuzzy matching will find the best match."
     parameters = [
         ToolParameter(
             name="calendar_id",
             type="string",
-            description="Calendar entity ID (e.g., calendar.laura, calendar.family). The entity name usually matches the owner's name. Required.",
+            description="Calendar name or entity ID (e.g., 'Laura', 'Patrick', 'Family', or 'calendar.laura'). Fuzzy matching is applied to find the best match.",
             required=True,
         ),
         ToolParameter(
@@ -273,21 +273,24 @@ class CreateCalendarEventTool(BaseTool):
         location: str | None = None,
     ) -> ToolResult:
         """Execute the create_calendar_event tool."""
-        # Ensure it's a calendar entity
-        if not calendar_id.startswith("calendar."):
-            calendar_id = f"calendar.{calendar_id}"
-
-        # Validate that the calendar exists
-        state = self._hass.states.get(calendar_id)
-        if not state:
+        # Fuzzy match calendar_id to actual calendar entity
+        matched_calendar = await self._match_calendar(calendar_id)
+        
+        if not matched_calendar:
+            # List available calendars in error message
+            available = self._get_available_calendars()
+            cal_list = ", ".join([c["name"] for c in available]) if available else "none"
             return ToolResult(
                 success=False,
-                message=f"Calendar '{calendar_id}' not found. Please check the calendar name.",
+                message=f"Calendar '{calendar_id}' not found. Available calendars: {cal_list}",
             )
+        
+        calendar_entity_id = matched_calendar["entity_id"]
+        calendar_name = matched_calendar["name"]
 
         # Build service data
         service_data: dict[str, Any] = {
-            "entity_id": calendar_id,
+            "entity_id": calendar_entity_id,
             "summary": summary,
         }
 
@@ -364,7 +367,7 @@ class CreateCalendarEventTool(BaseTool):
                 success=True,
                 message=f"Termin erstellt: {confirmation} in {calendar_name}s Kalender.",
                 data={
-                    "calendar": calendar_id,
+                    "calendar": calendar_entity_id,
                     "summary": summary,
                     "start": start_date_time or start_date,
                 },
@@ -376,6 +379,132 @@ class CreateCalendarEventTool(BaseTool):
                 success=False,
                 message=f"Fehler beim Erstellen des Termins: {err}",
             )
+
+    def _get_available_calendars(self) -> list[dict[str, str]]:
+        """Get all available calendar entities with their names.
+        
+        Returns:
+            List of dicts with 'entity_id' and 'name' keys.
+        """
+        calendars = []
+        for state in self._hass.states.async_all():
+            if state.entity_id.startswith("calendar."):
+                name = self._get_calendar_owner(state.entity_id)
+                calendars.append({
+                    "entity_id": state.entity_id,
+                    "name": name,
+                })
+        return calendars
+
+    async def _match_calendar(self, calendar_input: str) -> dict[str, str] | None:
+        """Fuzzy match calendar input to actual calendar entity.
+        
+        Args:
+            calendar_input: User-provided calendar name or entity ID
+            
+        Returns:
+            Dict with 'entity_id' and 'name', or None if no match found.
+        """
+        available = self._get_available_calendars()
+        
+        if not available:
+            return None
+        
+        # Normalize input for matching
+        input_lower = calendar_input.lower().strip()
+        
+        # Remove "calendar." prefix if provided
+        if input_lower.startswith("calendar."):
+            input_lower = input_lower[9:]
+        
+        # Try exact match first
+        for cal in available:
+            entity_suffix = cal["entity_id"].split(".", 1)[-1].lower()
+            name_lower = cal["name"].lower()
+            
+            if input_lower == entity_suffix or input_lower == name_lower:
+                _LOGGER.debug("Exact calendar match: %s -> %s", calendar_input, cal["entity_id"])
+                return cal
+        
+        # Try fuzzy matching (substring, similarity)
+        best_match = None
+        best_score = 0.0
+        
+        for cal in available:
+            entity_suffix = cal["entity_id"].split(".", 1)[-1].lower()
+            name_lower = cal["name"].lower()
+            
+            # Check substring match
+            if input_lower in entity_suffix or input_lower in name_lower:
+                score = len(input_lower) / max(len(entity_suffix), len(name_lower))
+                if score > best_score:
+                    best_score = score
+                    best_match = cal
+                continue
+            
+            if entity_suffix in input_lower or name_lower in input_lower:
+                score = len(entity_suffix) / len(input_lower)
+                if score > best_score:
+                    best_score = score
+                    best_match = cal
+                continue
+            
+            # Calculate similarity score (simple character matching)
+            score = self._calculate_similarity(input_lower, entity_suffix)
+            name_score = self._calculate_similarity(input_lower, name_lower)
+            max_score = max(score, name_score)
+            
+            if max_score > best_score:
+                best_score = max_score
+                best_match = cal
+        
+        # Only accept if score is reasonable (>0.6 = 60% similar)
+        if best_match and best_score > 0.6:
+            _LOGGER.debug(
+                "Fuzzy calendar match: %s -> %s (score: %.2f)",
+                calendar_input, best_match["entity_id"], best_score
+            )
+            return best_match
+        
+        _LOGGER.debug("No calendar match found for: %s (best score: %.2f)", calendar_input, best_score)
+        return None
+
+    def _calculate_similarity(self, s1: str, s2: str) -> float:
+        """Calculate similarity between two strings using character matching.
+        
+        Returns a score between 0.0 (no match) and 1.0 (exact match).
+        Handles common typos like patrick/patric, laura/laure.
+        """
+        if not s1 or not s2:
+            return 0.0
+        
+        # Handle exact match
+        if s1 == s2:
+            return 1.0
+        
+        # Count matching characters (in order)
+        matches = 0
+        s2_chars = list(s2)
+        
+        for char in s1:
+            if char in s2_chars:
+                matches += 1
+                s2_chars.remove(char)
+        
+        # Calculate score based on matching ratio
+        max_len = max(len(s1), len(s2))
+        base_score = matches / max_len
+        
+        # Bonus for same starting character
+        if s1[0] == s2[0]:
+            base_score += 0.1
+        
+        # Bonus for similar length
+        len_diff = abs(len(s1) - len(s2))
+        if len_diff <= 1:
+            base_score += 0.1
+        
+        return min(base_score, 1.0)
 
     def _get_calendar_owner(self, entity_id: str) -> str:
         """Extract owner name from calendar entity."""

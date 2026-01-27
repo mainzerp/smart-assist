@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.6   | 2026-01-27 |
+| Smart Assist | 1.6.7   | 2026-01-27 |
 
 ## Version History
+
+### v1.6.7 (2026-01-27) - Fuzzy Calendar Matching
+
+**Improvements:**
+
+- Calendar event creation now uses fuzzy matching for calendar names
+- "Patrick" matches `calendar.patric`, "Laura" matches `calendar.laura`
+- LLM no longer needs exact entity IDs to create calendar events
+- Shows available calendars in error message if no match found
 
 ### v1.6.6 (2026-01-27) - AWAIT_RESPONSE Logging
 
