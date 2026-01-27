@@ -737,6 +737,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         """
         # Get calendar context asynchronously
         calendar_context = await self._get_calendar_context()
+        _LOGGER.debug("Calendar context from _get_calendar_context: len=%d", len(calendar_context) if calendar_context else 0)
         
         # Build base messages synchronously
         return self._build_messages_for_llm(user_text, chat_log, calendar_context)
