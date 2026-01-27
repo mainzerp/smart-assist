@@ -642,6 +642,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
             Formatted string with calendar reminders, or empty string if none.
         """
         calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
+        _LOGGER.debug("Calendar context enabled: %s", calendar_enabled)
         if not calendar_enabled:
             return ""
         
@@ -659,6 +660,8 @@ Only exposed entities are available. Entities not listed in the index cannot be 
                 for state in self.hass.states.async_all()
                 if state.entity_id.startswith("calendar.")
             ]
+            
+            _LOGGER.debug("Found %d calendar entities: %s", len(calendars), calendars)
             
             if not calendars:
                 return ""
@@ -679,6 +682,8 @@ Only exposed entities are available. Entities not listed in the index cannot be 
                         return_response=True,
                     )
                     
+                    _LOGGER.debug("Calendar %s result: %s", cal_id, result)
+                    
                     if result and cal_id in result:
                         # Extract owner from calendar entity
                         state = self.hass.states.get(cal_id)
@@ -697,11 +702,15 @@ Only exposed entities are available. Entities not listed in the index cannot be 
                 except Exception as err:
                     _LOGGER.debug("Failed to fetch calendar events from %s: %s", cal_id, err)
             
+            _LOGGER.debug("Found %d events total: %s", len(all_events), all_events)
+            
             if not all_events:
                 return ""
             
             # Get reminders that should be shown
             reminders = self._calendar_reminder_tracker.get_reminders(all_events, now)
+            
+            _LOGGER.debug("Reminders to show: %s", reminders)
             
             if not reminders:
                 return ""
