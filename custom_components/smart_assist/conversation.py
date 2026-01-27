@@ -320,69 +320,72 @@ class SmartAssistConversationEntity(ConversationEntity):
     ) -> str:
         """Call LLM with streaming and handle tool calls in-loop.
         
-        Implements full streaming with tool execution - content is streamed
-        to the pipeline while tools are executed between LLM calls.
+        Implements streaming with tool execution. Content deltas are sent
+        to the ChatLog's delta_listener for real-time TTS streaming.
+        Tool calls are executed between LLM iterations.
         
         Returns the final response text after all tool calls are complete.
         """
         iteration = 0
         working_messages = messages.copy()
+        final_content = ""
         
         while iteration < max_iterations:
             iteration += 1
             _LOGGER.debug("Streaming iteration %d", iteration)
             
-            # Collect streaming response
-            final_content = ""
+            # Create delta stream and consume it through ChatLog
+            iteration_content = ""
             tool_calls: list[ToolCall] = []
             
-            async for delta in self._llm_client.chat_stream_full(
-                messages=working_messages,
-                tools=tools,
-                cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
+            # Use our delta stream generator
+            async for content_or_result in chat_log.async_add_delta_content_stream(
+                self.entity_id or "",
+                self._create_delta_stream(
+                    messages=working_messages,
+                    tools=tools,
+                    cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
+                ),
             ):
-                if "content" in delta and delta["content"]:
-                    content_chunk = delta["content"]
-                    final_content += content_chunk
-                    # Note: We collect content here but add to ChatLog once at the end
-                    # Adding chunks individually causes issues with HA's ChatLog API
-                
-                if "tool_calls" in delta and delta["tool_calls"]:
-                    tool_calls = delta["tool_calls"]
+                # async_add_delta_content_stream yields AssistantContent or ToolResultContent
+                content_type = type(content_or_result).__name__
+                if content_type == "AssistantContent":
+                    if content_or_result.content:
+                        iteration_content = content_or_result.content
+                    if content_or_result.tool_calls:
+                        # Convert HA ToolInput back to our ToolCall format for tool execution
+                        for tc in content_or_result.tool_calls:
+                            tool_calls.append(ToolCall(
+                                id=tc.id,
+                                name=tc.tool_name,
+                                arguments=tc.tool_args,
+                            ))
             
-            # If no tool calls, we're done - add final content to ChatLog
+            # Update final content with this iteration's result
+            if iteration_content:
+                final_content = iteration_content
+            
+            # If no tool calls, we're done
             if not tool_calls:
-                _LOGGER.debug("No tool calls, streaming complete")
-                # Add the complete response to ChatLog once
-                if final_content:
-                    chat_log.async_add_assistant_content_without_tools(
-                        conversation.AssistantContent(
-                            agent_id=self.entity_id or "",
-                            content=final_content,
-                        )
-                    )
+                _LOGGER.debug("No tool calls, streaming complete (iteration %d)", iteration)
                 return final_content
             
-            # Execute tool calls and add results to messages
-            _LOGGER.debug("Executing %d tool calls in parallel", len(tool_calls))
+            # Execute tool calls and add results to messages for next iteration
+            _LOGGER.debug("Executing %d tool calls", len(tool_calls))
             
-            # Add assistant message with tool calls
+            # Add assistant message with tool calls to working messages
             working_messages.append(
                 ChatMessage(
                     role=MessageRole.ASSISTANT,
-                    content=final_content,
+                    content=iteration_content,
                     tool_calls=tool_calls,
                 )
             )
             
-            # Execute all tools in parallel using asyncio.gather
-            async def execute_tool(tool_call):
+            # Execute all tools in parallel
+            async def execute_tool(tool_call: ToolCall) -> tuple[ToolCall, Any]:
                 """Execute a single tool and return result with metadata."""
-                _LOGGER.debug(
-                    "Executing tool: %s with args: %s",
-                    tool_call.name,
-                    tool_call.arguments,
-                )
+                _LOGGER.debug("Executing tool: %s", tool_call.name)
                 result = await self._tool_registry.execute(
                     tool_call.name, tool_call.arguments
                 )
@@ -393,10 +396,18 @@ class SmartAssistConversationEntity(ConversationEntity):
                 return_exceptions=True
             )
             
-            # Add tool results to messages in order
+            # Add tool results to working messages
             for item in tool_results:
                 if isinstance(item, Exception):
                     _LOGGER.error("Tool execution failed: %s", item)
+                    working_messages.append(
+                        ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=f"Error: {item}",
+                            tool_call_id="error",
+                            name="error",
+                        )
+                    )
                     continue
                 tool_call, result = item
                 working_messages.append(
@@ -408,123 +419,47 @@ class SmartAssistConversationEntity(ConversationEntity):
                     )
                 )
         
-        # Max iterations reached, return last content
+        # Max iterations reached
         _LOGGER.warning("Max tool iterations (%d) reached", max_iterations)
         return final_content
 
-    async def _call_llm_fallback(
-        self,
-        messages: list[ChatMessage],
-        tools: list[dict[str, Any]],
-        cached_prefix_length: int,
-        chat_log: ChatLog,
-        max_iterations: int = 5,
-    ) -> str:
-        """Fallback non-streaming LLM call with tool handling.
-        
-        Used when streaming tool handling is not available or fails.
-        """
-        iteration = 0
-        
-        while iteration < max_iterations:
-            iteration += 1
-            
-            response = await self._llm_client.chat(
-                messages=messages,
-                tools=tools,
-                cached_prefix_length=cached_prefix_length,
-            )
-
-            if not response.has_tool_calls:
-                # Add final response to chat log
-                chat_log.async_add_assistant_content_without_tools(
-                    conversation.AssistantContent(
-                        agent_id=self.entity_id or "",
-                        content=response.content,
-                    )
-                )
-                return response.content or ""
-
-            _LOGGER.debug("Handling tool calls (fallback iteration %d)", iteration)
-
-            # Add assistant message with tool calls to our message list
-            messages.append(
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=response.content or "",
-                    tool_calls=response.tool_calls,
-                )
-            )
-
-            # Execute all tools in parallel using asyncio.gather
-            async def execute_tool(tool_call):
-                """Execute a single tool and return result with metadata."""
-                _LOGGER.debug(
-                    "Executing tool: %s with args: %s",
-                    tool_call.name,
-                    tool_call.arguments,
-                )
-                result = await self._tool_registry.execute(
-                    tool_call.name, tool_call.arguments
-                )
-                return (tool_call, result)
-            
-            tool_results = await asyncio.gather(
-                *[execute_tool(tc) for tc in response.tool_calls],
-                return_exceptions=True
-            )
-            
-            # Add tool results to messages in order
-            for item in tool_results:
-                if isinstance(item, Exception):
-                    _LOGGER.error("Tool execution failed: %s", item)
-                    continue
-                tool_call, result = item
-                messages.append(
-                    ChatMessage(
-                        role=MessageRole.TOOL,
-                        content=result.to_string(),
-                        tool_call_id=tool_call.id,
-                        name=tool_call.name,
-                    )
-                )
-
-        return response.content or ""
-
-    async def _transform_stream(
+    async def _create_delta_stream(
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]],
         cached_prefix_length: int,
     ) -> AsyncGenerator[AssistantContentDeltaDict, None]:
-        """Transform LLM stream into HA's expected delta format.
+        """Create a delta stream from LLM response for HA's ChatLog.
         
-        This generator yields AssistantContentDeltaDict objects that HA's
-        ChatLog can consume for real-time streaming.
+        Yields AssistantContentDeltaDict objects that conform to HA's
+        streaming protocol. Each yield with "role" starts a new message.
+        Content and tool_calls are accumulated until the next role.
         """
-        from homeassistant.helpers import llm
+        from homeassistant.helpers import llm as ha_llm
         
-        # Start with role indicator
+        # Start with role indicator for new assistant message
         yield {"role": "assistant"}
         
-        # Stream from LLM
+        # Stream content and tool calls from LLM
         async for delta in self._llm_client.chat_stream_full(
             messages=messages,
             tools=tools,
             cached_prefix_length=cached_prefix_length,
         ):
+            # Yield content chunks for real-time TTS streaming
             if "content" in delta and delta["content"]:
                 yield {"content": delta["content"]}
             
+            # Yield tool calls when complete
             if "tool_calls" in delta and delta["tool_calls"]:
-                # Convert to HA's llm.ToolInput format
                 tool_inputs = []
                 for tc in delta["tool_calls"]:
                     tool_inputs.append(
-                        llm.ToolInput(
+                        ha_llm.ToolInput(
                             id=tc.id,
                             tool_name=tc.name,
                             tool_args=tc.arguments,
+                            external=True,  # Mark as external - we handle execution
                         )
                     )
                 yield {"tool_calls": tool_inputs}
