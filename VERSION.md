@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.4   | 2026-01-27 |
+| Smart Assist | 1.6.5   | 2026-01-27 |
 
 ## Version History
+
+### v1.6.5 (2026-01-27) - AWAIT_RESPONSE Prompt Fix
+
+**Fix:**
+
+- Strengthened `[AWAIT_RESPONSE]` marker instruction in system prompt
+- LLM was not consistently adding the marker when asking follow-up questions
+- Added "CRITICAL" label and more explicit examples to improve compliance
 
 ### v1.6.4 (2026-01-27) - Debug Log Improvements
 
