@@ -4,11 +4,29 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.0   | 2026-01-28 |
+| Smart Assist | 1.6.2   | 2026-01-27 |
 
 ## Version History
 
-### v1.6.0 (2026-01-28) - Calendar Integration
+### v1.6.2 (2026-01-27) - Calendar Reminder Mention Fix
+
+**Bug Fix:**
+
+- LLM now explicitly instructed to mention calendar reminders in responses
+- Added "Calendar Reminders" instruction to system prompt
+- Calendar context was being injected but LLM wasn't aware it should mention it
+
+**Debug:**
+
+- Added detailed calendar context logging for troubleshooting
+
+### v1.6.1 (2026-01-27) - Debug Logging
+
+**Debug:**
+
+- Added calendar context debug logging for troubleshooting
+
+### v1.6.0 (2026-01-27) - Calendar Integration
 
 **New Features:**
 
