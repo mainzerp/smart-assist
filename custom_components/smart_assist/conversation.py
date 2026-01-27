@@ -434,21 +434,43 @@ class SmartAssistConversationEntity(ConversationEntity):
         Yields AssistantContentDeltaDict objects that conform to HA's
         streaming protocol. Each yield with "role" starts a new message.
         Content and tool_calls are accumulated until the next role.
+        
+        Filters out [AWAIT_RESPONSE] marker before sending to TTS.
         """
         from homeassistant.helpers import llm as ha_llm
+        
+        MARKER = "[AWAIT_RESPONSE]"
+        MARKER_LEN = len(MARKER)
         
         # Start with role indicator for new assistant message
         yield {"role": "assistant"}
         
-        # Stream content and tool calls from LLM
+        # Buffer to detect and filter [AWAIT_RESPONSE] marker
+        # We need to buffer because the marker might be split across chunks
+        buffer = ""
+        
         async for delta in self._llm_client.chat_stream_full(
             messages=messages,
             tools=tools,
             cached_prefix_length=cached_prefix_length,
         ):
-            # Yield content chunks for real-time TTS streaming
+            # Handle content chunks - filter out [AWAIT_RESPONSE] marker
             if "content" in delta and delta["content"]:
-                yield {"content": delta["content"]}
+                buffer += delta["content"]
+                
+                # Check if buffer contains the marker
+                if MARKER in buffer:
+                    # Remove marker and yield the clean content
+                    clean_buffer = buffer.replace(MARKER, "").rstrip()
+                    if clean_buffer:
+                        yield {"content": clean_buffer}
+                    buffer = ""
+                elif len(buffer) > MARKER_LEN:
+                    # Safe to yield content that can't contain marker start
+                    safe_content = buffer[:-MARKER_LEN]
+                    buffer = buffer[-MARKER_LEN:]
+                    if safe_content:
+                        yield {"content": safe_content}
             
             # Yield tool calls when complete
             if "tool_calls" in delta and delta["tool_calls"]:
@@ -463,6 +485,12 @@ class SmartAssistConversationEntity(ConversationEntity):
                         )
                     )
                 yield {"tool_calls": tool_inputs}
+        
+        # Flush remaining buffer (after removing any marker)
+        if buffer:
+            clean_buffer = buffer.replace(MARKER, "").rstrip()
+            if clean_buffer:
+                yield {"content": clean_buffer}
 
     def _build_system_prompt(self) -> str:
         """Build or return cached system prompt based on configuration.
