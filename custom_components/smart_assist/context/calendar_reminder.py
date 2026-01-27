@@ -32,14 +32,14 @@ class ReminderStage(Enum):
 REMINDER_WINDOWS: Final = {
     ReminderStage.DAY_BEFORE: (timedelta(hours=20), timedelta(hours=28)),  # 24h +-4h
     ReminderStage.HOURS_BEFORE: (timedelta(hours=3), timedelta(hours=5)),  # 4h +-1h
-    ReminderStage.HOUR_BEFORE: (timedelta(minutes=30), timedelta(minutes=90)),  # 1h +-30min
+    ReminderStage.HOUR_BEFORE: (timedelta(minutes=10), timedelta(minutes=90)),  # 10min to 90min before
 }
 
 # Human-readable reminder templates per stage
 REMINDER_TEMPLATES: Final = {
     ReminderStage.DAY_BEFORE: "Morgen um {time} hast du '{summary}'",
     ReminderStage.HOURS_BEFORE: "In etwa {hours} Stunden hast du '{summary}'",
-    ReminderStage.HOUR_BEFORE: "In einer Stunde hast du '{summary}'",
+    ReminderStage.HOUR_BEFORE: "In {minutes} Minuten hast du '{summary}'",
 }
 
 
@@ -193,10 +193,16 @@ class CalendarReminderTracker:
             else:
                 reminder_text = f"In etwa {hours} Stunden hast du '{summary}'"
         elif current_stage == ReminderStage.HOUR_BEFORE:
-            if owner:
-                reminder_text = f"{owner} hat in einer Stunde '{summary}'"
+            # Make both timezone-aware or naive for calculation
+            if event_start.tzinfo is None:
+                now_calc = now.replace(tzinfo=None)
             else:
-                reminder_text = f"In einer Stunde hast du '{summary}'"
+                now_calc = dt_util.as_local(now)
+            minutes = int((event_start - now_calc).total_seconds() / 60)
+            if owner:
+                reminder_text = f"{owner} hat in {minutes} Minuten '{summary}'"
+            else:
+                reminder_text = f"In {minutes} Minuten hast du '{summary}'"
         else:
             return False, ""
 

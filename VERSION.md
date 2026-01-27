@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.7   | 2026-01-27 |
+| Smart Assist | 1.6.8   | 2026-01-27 |
 
 ## Version History
+
+### v1.6.8 (2026-01-27) - Extended Reminder Window
+
+**Improvements:**
+
+- Extended last reminder window from 30-90min to 10-90min before event
+- Reminder now shows actual minutes instead of fixed "in einer Stunde"
+- Example: "In 15 Minuten hast du 'Meeting'"
 
 ### v1.6.7 (2026-01-27) - Fuzzy Calendar Matching
 
