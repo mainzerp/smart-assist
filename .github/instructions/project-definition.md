@@ -24,6 +24,7 @@ A Home Assistant custom integration that connects LLMs (via OpenRouter) with Hom
 | Multi-Language | Flexible language (auto-detect or any language) | Done |
 | Reliability | Retry logic with exponential backoff | Done |
 | Observability | Metrics/telemetry for debugging | Done |
+| Calendar | Read/write calendar events with proactive reminders | Done |
 
 ---
 
@@ -55,10 +56,12 @@ custom_components/smart_assist/
         unified_control.py # Unified entity control (all domains)
         scene_tools.py    # Scene/automation tools
         search_tools.py   # Utility tools (weather, web search)
+        calendar_tools.py # Calendar read/write tools
     context/
         __init__.py
-        entity_manager.py # Entity indexing & state management
-        conversation.py   # Conversation session management
+        entity_manager.py     # Entity indexing & state management
+        conversation.py       # Conversation session management
+        calendar_reminder.py  # Staged calendar reminder tracker
 ```
 
 ### Component Overview
@@ -219,7 +222,14 @@ The `control` tool auto-detects domain from entity_id and supports:
 | Tool | Parameters | Description |
 |------|------------|-------------|
 | `get_calendar_events` | time_range, calendar_id, max_events | Query upcoming events |
-| `create_calendar_event` | calendar_id, summary, start_date_time/start_date, description, location | Create new event |
+| `create_calendar_event` | calendar_id, summary, start_date_time/start_date, description, location | Create new event with fuzzy calendar matching |
+
+**Calendar Features:**
+- **Read Access**: Query events from all calendars or specific calendar
+- **Write Access**: Create timed or all-day events
+- **Fuzzy Matching**: Calendar names like "Patrick" match `calendar.patric`
+- **Proactive Reminders**: Staged reminder injection (24h, 4h, 1h before events)
+- **Deduplication**: Each reminder stage shown only once per event
 
 ### Utility Tools
 
@@ -280,6 +290,9 @@ Subentry (Conversation Agent / AI Task):
 | `enable_cache_warming` | bool | false | Periodic warming |
 | `cache_refresh_interval` | int | 4 | Warming interval (min) |
 | `user_system_prompt` | string | - | Custom personality |
+| `ask_followup` | bool | true | Ask follow-up questions |
+| `clean_responses` | bool | true | Clean LLM response for TTS |
+| `calendar_context` | bool | false | Inject calendar reminders |
 | `task_system_prompt` | string | - | AI Task instructions |
 | `task_enable_prompt_caching` | bool | false | AI Task caching (not needed) |
 | `task_enable_cache_warming` | bool | false | AI Task warming (not needed) |
@@ -391,10 +404,11 @@ ruff format custom_components/smart_assist --check
   - Peak/off-peak aware scheduling
   - Solar production integration
   - Cost-saving recommendations
-- [ ] **Calendar Integration**: Schedule-aware responses
-  - "Meeting in 10 min - set DND mode"
-  - Vacation mode suggestions
-  - Event-triggered automations
+- [x] **Calendar Integration**: Schedule-aware responses (v1.6.0)
+  - Read access: Query events from all calendars
+  - Write access: Create timed and all-day events
+  - Proactive reminders: Staged context injection (24h, 4h, 1h before)
+  - Fuzzy calendar matching for easier event creation
 - [ ] **Custom Tool Plugins**: User-defined tools for LLM
   - YAML-based tool definitions
   - Custom service calls
