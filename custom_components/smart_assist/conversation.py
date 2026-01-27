@@ -637,11 +637,13 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         
         # Check if marker is present
         if MARKER in response:
+            _LOGGER.debug("AWAIT_RESPONSE marker found in LLM response - continuing conversation")
             # Remove marker and clean up
             cleaned = response.replace(MARKER, "").strip()
             return cleaned, True
         
         # No marker - don't continue conversation
+        _LOGGER.debug("No AWAIT_RESPONSE marker in LLM response - ending conversation")
         return response, False
 
     async def _get_calendar_context(self) -> str:

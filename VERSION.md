@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.5   | 2026-01-27 |
+| Smart Assist | 1.6.6   | 2026-01-27 |
 
 ## Version History
+
+### v1.6.6 (2026-01-27) - AWAIT_RESPONSE Logging
+
+**Improvements:**
+
+- Added debug logging for `[AWAIT_RESPONSE]` marker detection
+- Log shows whether marker was found or missing in LLM response
+- Helps diagnose when LLM doesn't follow instruction to keep conversation open
 
 ### v1.6.5 (2026-01-27) - AWAIT_RESPONSE Prompt Fix
 
