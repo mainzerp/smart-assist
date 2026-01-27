@@ -61,6 +61,7 @@ try:
         CONF_API_KEY,
         CONF_ASK_FOLLOWUP,
         CONF_CACHE_TTL_EXTENDED,
+        CONF_CALENDAR_CONTEXT,
         CONF_CLEAN_RESPONSES,
         CONF_CONFIRM_CRITICAL,
         CONF_ENABLE_PROMPT_CACHING,
@@ -75,6 +76,7 @@ try:
         CONF_USER_SYSTEM_PROMPT,
         DEFAULT_ASK_FOLLOWUP,
         DEFAULT_CACHE_TTL_EXTENDED,
+        DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
@@ -86,6 +88,7 @@ try:
         LOCALE_TO_LANGUAGE,
     )
     from .context import EntityManager
+    from .context.calendar_reminder import CalendarReminderTracker
     from .llm import ChatMessage, OpenRouterClient
     from .llm.models import MessageRole, ToolCall
     from .tools import create_tool_registry
@@ -193,6 +196,9 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Cache for system prompt (built once, reused for all requests)
         self._cached_system_prompt: str | None = None
+        
+        # Calendar reminder tracker for staged reminders
+        self._calendar_reminder_tracker = CalendarReminderTracker()
 
     def _get_config(self, key: str, default: Any = None) -> Any:
         """Get config value from subentry data."""
@@ -261,7 +267,8 @@ class SmartAssistConversationEntity(ConversationEntity):
                 return self._build_result(user_input, chat_log, quick_result)
 
         # Build messages for LLM (using our own message format with history)
-        messages = self._build_messages_for_llm(user_input.text, chat_log)
+        # Use async version to include calendar context if enabled
+        messages = await self._build_messages_for_llm_async(user_input.text, chat_log)
         tools = self._tool_registry.get_schemas()
         cached_prefix_length = 3 if self._get_config(CONF_ENABLE_PROMPT_CACHING, True) else 0
         
@@ -625,7 +632,100 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         # No marker - don't continue conversation
         return response, False
 
-    def _build_messages_for_llm(self, user_text: str, chat_log: ChatLog | None = None) -> list[ChatMessage]:
+    async def _get_calendar_context(self) -> str:
+        """Get upcoming calendar events for context injection.
+        
+        Returns reminders for events in appropriate reminder windows.
+        Only fetches if calendar_context is enabled in config.
+        
+        Returns:
+            Formatted string with calendar reminders, or empty string if none.
+        """
+        calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
+        if not calendar_enabled:
+            return ""
+        
+        try:
+            from datetime import timedelta
+            from homeassistant.util import dt as dt_util
+            
+            now = dt_util.now()
+            # Get events for next 28 hours to cover day-before reminders
+            end = now + timedelta(hours=28)
+            
+            # Get all calendar entities
+            calendars = [
+                state.entity_id
+                for state in self.hass.states.async_all()
+                if state.entity_id.startswith("calendar.")
+            ]
+            
+            if not calendars:
+                return ""
+            
+            # Fetch events from all calendars
+            all_events: list[dict] = []
+            for cal_id in calendars:
+                try:
+                    result = await self.hass.services.async_call(
+                        "calendar",
+                        "get_events",
+                        {
+                            "entity_id": cal_id,
+                            "start_date_time": now.isoformat(),
+                            "end_date_time": end.isoformat(),
+                        },
+                        blocking=True,
+                        return_response=True,
+                    )
+                    
+                    if result and cal_id in result:
+                        # Extract owner from calendar entity
+                        state = self.hass.states.get(cal_id)
+                        if state and state.attributes.get("friendly_name"):
+                            owner = state.attributes["friendly_name"]
+                        else:
+                            name = cal_id.split(".", 1)[-1]
+                            owner = name.replace("_", " ").title()
+                        
+                        for event in result[cal_id].get("events", []):
+                            all_events.append({
+                                "summary": event.get("summary", "Termin"),
+                                "start": event.get("start"),
+                                "owner": owner,
+                            })
+                except Exception as err:
+                    _LOGGER.debug("Failed to fetch calendar events from %s: %s", cal_id, err)
+            
+            if not all_events:
+                return ""
+            
+            # Get reminders that should be shown
+            reminders = self._calendar_reminder_tracker.get_reminders(all_events, now)
+            
+            if not reminders:
+                return ""
+            
+            return "\n## Calendar Reminders\n" + "\n".join(f"- {r}" for r in reminders)
+            
+        except Exception as err:
+            _LOGGER.warning("Failed to get calendar context: %s", err)
+            return ""
+
+    async def _build_messages_for_llm_async(self, user_text: str, chat_log: ChatLog | None = None) -> list[ChatMessage]:
+        """Build the message list for LLM request (async version with calendar context).
+        
+        Args:
+            user_text: The current user message
+            chat_log: Optional ChatLog containing conversation history
+        """
+        # Get calendar context asynchronously
+        calendar_context = await self._get_calendar_context()
+        
+        # Build base messages synchronously
+        return self._build_messages_for_llm(user_text, chat_log, calendar_context)
+
+    def _build_messages_for_llm(self, user_text: str, chat_log: ChatLog | None = None, calendar_context: str = "") -> list[ChatMessage]:
         """Build the message list for LLM request.
         
         Args:
@@ -674,10 +774,16 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
         
         relevant_states = self._entity_manager.get_relevant_entity_states(user_text)
+        
+        # Build context content with optional calendar reminders
+        context_parts = [f"[CURRENT CONTEXT]\n{time_context}", relevant_states]
+        if calendar_context:
+            context_parts.append(calendar_context)
+        
         messages.append(
             ChatMessage(
                 role=MessageRole.SYSTEM,
-                content=f"[CURRENT CONTEXT]\n{time_context}\n\n{relevant_states}",
+                content="\n\n".join(filter(None, context_parts)),
             )
         )
 

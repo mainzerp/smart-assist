@@ -4,8 +4,8 @@
 
 A Home Assistant custom integration that connects LLMs (via OpenRouter) with Home Assistant to create an intelligent smart home assistant capable of answering questions about the smart home environment and controlling devices.
 
-**Version**: 1.5.11  
-**Last Updated**: January 27, 2026
+**Version**: 1.6.0  
+**Last Updated**: January 28, 2026
 
 ## Core Requirements
 
@@ -213,6 +213,13 @@ The `control` tool auto-detects domain from entity_id and supports:
 |------|------------|-------------|
 | `run_scene` | scene_id | Activate scene |
 | `trigger_automation` | automation_id | Trigger automation |
+
+### Calendar Tools
+
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `get_calendar_events` | time_range, calendar_id, max_events | Query upcoming events |
+| `create_calendar_event` | calendar_id, summary, start_date_time/start_date, description, location | Create new event |
 
 ### Utility Tools
 

@@ -48,6 +48,7 @@ def create_tool_registry(
     from .unified_control import UnifiedControlTool
     from .scene_tools import RunSceneTool, TriggerAutomationTool
     from .search_tools import GetWeatherTool, WebSearchTool
+    from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
     
     registry = ToolRegistry(hass)
     
@@ -75,6 +76,11 @@ def create_tool_registry(
     if "weather" in available_domains:
         registry.register(GetWeatherTool(hass))
     
+    # Calendar tool (if calendar entity exists)
+    if "calendar" in available_domains:
+        registry.register(GetCalendarEventsTool(hass))
+        registry.register(CreateCalendarEventTool(hass))
+    
     # Web search (if enabled in config - options override data)
     if _get_config(entry, CONF_ENABLE_WEB_SEARCH, True):
         registry.register(WebSearchTool(hass))
@@ -87,6 +93,7 @@ from .entity_tools import GetEntitiesTool, GetEntityStateTool
 from .unified_control import UnifiedControlTool
 from .scene_tools import RunSceneTool, TriggerAutomationTool
 from .search_tools import WebSearchTool, GetWeatherTool
+from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
 
 __all__ = [
     # Base classes
@@ -104,4 +111,7 @@ __all__ = [
     # Utility
     "WebSearchTool",
     "GetWeatherTool",
+    # Calendar
+    "GetCalendarEventsTool",
+    "CreateCalendarEventTool",
 ]

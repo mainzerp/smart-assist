@@ -10,6 +10,7 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 
 ## Features
 
+- **Calendar Integration**: Query and create calendar events with proactive reminders
 - **Prompt Caching**: Up to 85% faster responses and reduced costs (Anthropic, OpenAI, Groq, Google)
 - **AI Task Platform**: Use LLM in automations via `ai_task.generate_data` service
 - **Natural Language Control**: Talk to your smart home naturally
@@ -155,6 +156,8 @@ Smart Assist provides these tools to the LLM:
 | `control` | Unified control for all entity types |
 | `run_scene` | Activate scenes |
 | `trigger_automation` | Trigger automations |
+| `get_calendar_events` | Query upcoming calendar events |
+| `create_calendar_event` | Create new calendar events |
 | `get_weather` | Current weather information |
 | `web_search` | DuckDuckGo web search |
 

@@ -28,6 +28,7 @@ CONF_TASK_SYSTEM_PROMPT: Final = "task_system_prompt"
 CONF_TASK_ENABLE_PROMPT_CACHING: Final = "task_enable_prompt_caching"
 CONF_TASK_ENABLE_CACHE_WARMING: Final = "task_enable_cache_warming"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
+CONF_CALENDAR_CONTEXT: Final = "calendar_context"
 
 # Default values
 DEFAULT_MODEL: Final = "openai/gpt-oss-120b"
@@ -47,6 +48,7 @@ DEFAULT_TASK_SYSTEM_PROMPT: Final = "You are a smart home task executor. Complet
 DEFAULT_TASK_ENABLE_PROMPT_CACHING: Final = False  # Tasks are not time-critical
 DEFAULT_TASK_ENABLE_CACHE_WARMING: Final = False   # Tasks are not time-critical
 DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
+DEFAULT_CALENDAR_CONTEXT: Final = False  # Disabled by default (token cost)
 
 # Common Home Assistant locale to language name mapping for auto-detection
 # Used when language is empty/auto to show a readable language name in prompts
@@ -155,6 +157,7 @@ SUPPORTED_DOMAINS: Final = {
     "weather",
     "vacuum",
     "camera",
+    "calendar",
 }
 
 # Technical system prompt (not user-editable)

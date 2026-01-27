@@ -52,6 +52,7 @@ try:
         CONF_ASK_FOLLOWUP,
         CONF_CACHE_REFRESH_INTERVAL,
         CONF_CACHE_TTL_EXTENDED,
+        CONF_CALENDAR_CONTEXT,
         CONF_CLEAN_RESPONSES,
         CONF_CONFIRM_CRITICAL,
         CONF_DEBUG_LOGGING,
@@ -73,6 +74,7 @@ try:
         DEFAULT_ASK_FOLLOWUP,
         DEFAULT_CACHE_REFRESH_INTERVAL,
         DEFAULT_CACHE_TTL_EXTENDED,
+        DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
         DEFAULT_CONFIRM_CRITICAL,
         DEFAULT_DEBUG_LOGGING,
@@ -498,6 +500,9 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                     vol.Required(
                         CONF_ASK_FOLLOWUP, default=DEFAULT_ASK_FOLLOWUP
                     ): BooleanSelector(),
+                    vol.Required(
+                        CONF_CALENDAR_CONTEXT, default=DEFAULT_CALENDAR_CONTEXT
+                    ): BooleanSelector(),
                 }
             ),
         )
@@ -642,6 +647,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                         ),
                         vol.Required(CONF_CLEAN_RESPONSES): BooleanSelector(),
                         vol.Required(CONF_ASK_FOLLOWUP): BooleanSelector(),
+                        vol.Required(CONF_CALENDAR_CONTEXT): BooleanSelector(),
                         vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
                             TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
                         ),

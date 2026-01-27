@@ -67,7 +67,8 @@
             "enable_cache_warming": "Enable automatic cache warming",
             "cache_refresh_interval": "Cache refresh interval (minutes)",
             "clean_responses": "Clean responses for voice output",
-            "ask_followup": "Ask follow-up questions"
+            "ask_followup": "Ask follow-up questions",
+            "calendar_context": "Proactive calendar reminders"
           },
           "data_description": {
             "provider": "Select a specific provider or use 'Automatic' for best price routing.",
@@ -78,7 +79,8 @@
             "enable_cache_warming": "Keeps the prompt cache warm by sending periodic requests. Incurs small additional API costs.",
             "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL.",
             "clean_responses": "Makes responses TTS-friendly by removing emojis, markdown formatting, and URLs.",
-            "ask_followup": "If enabled, the assistant will offer further help after completing actions."
+            "ask_followup": "If enabled, the assistant will offer further help after completing actions.",
+            "calendar_context": "Automatically mention upcoming calendar events. Note: Increases token usage."
           }
         },
         "prompt": {
@@ -116,6 +118,7 @@
             "cache_refresh_interval": "Cache refresh interval",
             "clean_responses": "Clean responses for voice output",
             "ask_followup": "Ask follow-up questions",
+            "calendar_context": "Proactive calendar reminders",
             "user_system_prompt": "System Prompt"
           }
         }

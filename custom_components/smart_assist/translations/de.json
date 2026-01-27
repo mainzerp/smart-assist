@@ -67,7 +67,8 @@
             "enable_cache_warming": "Automatisches Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
             "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
-            "ask_followup": "Rueckfragen stellen"
+            "ask_followup": "Rueckfragen stellen",
+            "calendar_context": "Proaktive Kalender-Erinnerungen"
           },
           "data_description": {
             "provider": "Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
@@ -78,7 +79,8 @@
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
             "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs.",
-            "ask_followup": "Wenn aktiviert, bietet der Assistent nach Aktionen weitere Hilfe an."
+            "ask_followup": "Wenn aktiviert, bietet der Assistent nach Aktionen weitere Hilfe an.",
+            "calendar_context": "Automatisch auf anstehende Termine hinweisen. Hinweis: Erhoehter Token-Verbrauch."
           }
         },
         "prompt": {
@@ -116,6 +118,7 @@
             "cache_refresh_interval": "Cache-Aktualisierungsintervall",
             "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
             "ask_followup": "Rueckfragen stellen",
+            "calendar_context": "Proaktive Kalender-Erinnerungen",
             "user_system_prompt": "System Prompt"
           }
         }
