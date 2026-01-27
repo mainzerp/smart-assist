@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.3   | 2026-01-27 |
+| Smart Assist | 1.6.4   | 2026-01-27 |
 
 ## Version History
+
+### v1.6.4 (2026-01-27) - Debug Log Improvements
+
+**Improvements:**
+
+- Improved calendar context log readability (replaced newlines with spaces)
+- Added calendar context length logging for debugging
 
 ### v1.6.3 (2026-01-27) - Chat History Fix
 
