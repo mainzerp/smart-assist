@@ -807,7 +807,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         # 5. Conversation history from ChatLog (if available)
         if chat_log is not None:
             try:
-                max_history = self._get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
+                max_history = int(self._get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY))
                 
                 # Safely get content from chat_log
                 content = getattr(chat_log, 'content', None)
