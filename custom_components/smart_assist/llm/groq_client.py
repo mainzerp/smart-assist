@@ -108,19 +108,48 @@ class GroqClient:
         self._max_tokens = int(max_tokens)  # Groq requires integer
         self._session: aiohttp.ClientSession | None = None
         self._session_lock = asyncio.Lock()
+        self._session_created_at: float | None = None
         self._metrics = GroqMetrics()
     
+    # Session max age in seconds (renew to prevent stale HTTP connections)
+    SESSION_MAX_AGE_SECONDS = 240  # 4 minutes
+    
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session (thread-safe)."""
+        """Get or create aiohttp session (thread-safe).
+        
+        Sessions are renewed if:
+        - None or closed
+        - Older than SESSION_MAX_AGE_SECONDS to prevent stale connections
+        """
         async with self._session_lock:
-            if self._session is None or self._session.closed:
+            now = time.monotonic()
+            session_expired = (
+                self._session_created_at is not None
+                and (now - self._session_created_at) > self.SESSION_MAX_AGE_SECONDS
+            )
+            
+            if self._session is None or self._session.closed or session_expired:
+                # Close old session if exists
+                if self._session and not self._session.closed:
+                    try:
+                        await self._session.close()
+                    except Exception:
+                        pass
+                
                 self._session = aiohttp.ClientSession(
                     headers={
                         "Authorization": f"Bearer {self._api_key}",
                         "Content-Type": "application/json",
                     },
-                    timeout=aiohttp.ClientTimeout(total=60),
+                    timeout=aiohttp.ClientTimeout(
+                        total=60,
+                        connect=10,
+                        sock_connect=10,
+                        sock_read=30,
+                    ),
                 )
+                self._session_created_at = now
+                _LOGGER.debug("Created new aiohttp session (previous expired: %s)", session_expired)
         return self._session
 
     async def close(self) -> None:
@@ -166,17 +195,35 @@ class GroqClient:
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)
                     
-            except aiohttp.ClientError as err:
-                last_error = GroqError(f"Network error: {err}")
+            except asyncio.TimeoutError as err:
+                last_error = GroqError(f"Request timeout: {err}")
+                _LOGGER.warning(
+                    "Groq request timeout (attempt %d/%d): %s",
+                    attempt + 1, LLM_MAX_RETRIES, err
+                )
                 if attempt < LLM_MAX_RETRIES - 1:
                     delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                    _LOGGER.warning(
-                        "Network error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, LLM_MAX_RETRIES, err, delay
-                    )
+                    _LOGGER.debug("Retrying in %.1fs...", delay)
+                    self._metrics.total_retries += 1
+                    await asyncio.sleep(delay)
+                    
+            except aiohttp.ClientError as err:
+                last_error = GroqError(f"Network error: {err}")
+                _LOGGER.warning(
+                    "Groq network error (attempt %d/%d): %s",
+                    attempt + 1, LLM_MAX_RETRIES, err
+                )
+                if attempt < LLM_MAX_RETRIES - 1:
+                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
+                    _LOGGER.debug("Retrying in %.1fs...", delay)
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)
         
+        # Log final failure with details
+        _LOGGER.error(
+            "Groq API request failed after %d attempts: %s",
+            LLM_MAX_RETRIES, last_error
+        )
         self._metrics.failed_requests += 1
         raise last_error or GroqError("Unknown error after retries")
 

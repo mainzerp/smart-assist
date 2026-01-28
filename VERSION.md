@@ -4,9 +4,28 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.0   | 2026-01-28 |
+| Smart Assist | 1.0.2   | 2026-01-28 |
 
 ## Version History
+
+### v1.0.2 (2026-01-28) - Reliability Improvements
+
+**HTTP Client Reliability Enhancements**
+
+- Added granular timeouts (connect=10s, sock_connect=10s, sock_read=30s)
+- Session auto-renewal after 4 minutes to prevent stale HTTP connections
+- Explicit timeout error handling with separate exception handler
+- Improved error logging: all failures now logged with attempt count
+- Final failure always logged at ERROR level with full context
+
+### v1.0.1 (2026-01-28) - Bugfixes
+
+**Bugfixes**
+
+- Fixed Media Player select_source for devices without SELECT_SOURCE feature
+- Added legacy API key location fallback for config migrations
+- Reduced 401 log level to DEBUG when fetching Groq models (expected behavior)
+- Restored info.md for HACS repository description
 
 ### v1.0.0 (2026-01-28) - Initial Release
 
@@ -78,6 +97,47 @@
 - Home Assistant 2024.1 or newer
 - Python 3.12+
 - Groq API key
+
+---
+
+## Roadmap
+
+### Planned Features
+
+#### v1.1.0 - Context and History
+
+| Feature | Description | Priority |
+| ------- | ----------- | -------- |
+| Entity History Queries | "How was the temperature yesterday?", "When was the light last on?" | High |
+| Multi-Turn Improvements | Better context tracking across messages without repeating entity names | High |
+| Persistent Memory | Long-term memory for user preferences and learned patterns | Medium |
+
+#### v1.2.0 - Reminders and Notifications
+
+| Feature | Description | Priority |
+| ------- | ----------- | -------- |
+| Voice Reminders | "Remind me in 10 minutes to check the oven" with proactive TTS | High |
+| Scheduled Tasks | "Turn off the lights at 11pm" without creating HA automations | Medium |
+| Proactive Notifications | LLM-triggered alerts based on entity state changes | Medium |
+
+#### v1.3.0 - Media Enhancements
+
+| Feature | Description | Priority |
+| ------- | ----------- | -------- |
+| Playlist Support | Spotify/local media playlist control by name | Medium |
+| TTS Announcements | "Announce dinner is ready in all rooms" | Medium |
+| Media Queue | "Add this song to the queue", "What's playing next?" | Low |
+
+#### Future Considerations
+
+| Feature | Description | Effort |
+| ------- | ----------- | ------ |
+| Local LLM Support | Ollama integration as privacy-first alternative to Groq | Medium |
+| Natural Language Automations | "When I come home, turn on the lights" creates HA automation | High |
+| Multimodal Vision | Camera image analysis: "Who is at the door?" | High |
+| Weather-based Suggestions | Proactive hints: "It will rain, should I close the windows?" | Low |
+| Energy Optimization | "How can I save energy?" with consumption analysis | Medium |
+| RAG Integration | Search own documents, manuals, recipes | High |
 
 ---
 
