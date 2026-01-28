@@ -244,6 +244,10 @@ class SmartAssistConversationEntity(ConversationEntity):
             messages, cached_prefix_length = await self._build_messages_for_llm_async("ping", chat_log=None)
             tools = self._tool_registry.get_schemas()
             
+            # Log registered tools for debugging cache issues
+            tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
+            _LOGGER.debug("Cache warming tools (%d): %s", len(tools), tool_names)
+            
             async for _ in self._llm_client.chat_stream(
                 messages=messages,
                 tools=tools,
@@ -291,6 +295,10 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Use async version to include calendar context if enabled
         messages, cached_prefix_length = await self._build_messages_for_llm_async(user_input.text, chat_log)
         tools = self._tool_registry.get_schemas()
+        
+        # Log registered tools for debugging cache issues
+        tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
+        _LOGGER.debug("Request tools (%d): %s", len(tools), tool_names)
         
         _LOGGER.debug(
             "LLM request: messages=%d, tools=%d, cache_prefix=%d",

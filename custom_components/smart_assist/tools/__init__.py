@@ -9,6 +9,7 @@ Tools are loaded dynamically to minimize token usage in API requests.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
@@ -19,6 +20,8 @@ from ..const import CONF_ENABLE_WEB_SEARCH
 
 if TYPE_CHECKING:
     from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _get_config(entry: ConfigEntry, key: str, default: Any = None) -> Any:
@@ -51,6 +54,7 @@ def create_tool_registry(
     from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
     
     registry = ToolRegistry(hass)
+    registered_tools: list[str] = []
     
     # Auto-detect available domains if not provided
     if available_domains is None:
@@ -59,31 +63,52 @@ def create_tool_registry(
             for state in hass.states.async_all()
         }
     
+    _LOGGER.debug(
+        "Tool registry creation: available_domains=%s, web_search_enabled=%s",
+        sorted(available_domains),
+        _get_config(entry, CONF_ENABLE_WEB_SEARCH, True),
+    )
+    
     # Core tools (always available)
     registry.register(GetEntitiesTool(hass))
+    registered_tools.append("get_entities")
     registry.register(GetEntityStateTool(hass))
+    registered_tools.append("get_entity_state")
     registry.register(UnifiedControlTool(hass))  # Handles all entity control including scripts
+    registered_tools.append("control_entity")
     
     # Scene tool (if domain exists) - scripts handled by unified control
     if "scene" in available_domains:
         registry.register(RunSceneTool(hass))
+        registered_tools.append("run_scene")
     
     # Automation trigger (if domain exists)
     if "automation" in available_domains:
         registry.register(TriggerAutomationTool(hass))
+        registered_tools.append("trigger_automation")
     
     # Weather tool (if weather entity exists)
     if "weather" in available_domains:
         registry.register(GetWeatherTool(hass))
+        registered_tools.append("get_weather")
     
     # Calendar tool (if calendar entity exists)
     if "calendar" in available_domains:
         registry.register(GetCalendarEventsTool(hass))
+        registered_tools.append("get_calendar_events")
         registry.register(CreateCalendarEventTool(hass))
+        registered_tools.append("create_calendar_event")
     
     # Web search (if enabled in config - options override data)
     if _get_config(entry, CONF_ENABLE_WEB_SEARCH, True):
         registry.register(WebSearchTool(hass))
+        registered_tools.append("web_search")
+    
+    _LOGGER.debug(
+        "Tool registry created: %d tools registered: %s",
+        len(registered_tools),
+        registered_tools,
+    )
     
     return registry
 
