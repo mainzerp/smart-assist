@@ -593,14 +593,14 @@ Examples:
 ## Calendar Reminders (MANDATORY)
 When you see '## Calendar Reminders [ACTION REQUIRED]' in the CURRENT CONTEXT:
 1. You MUST mention these reminders in EVERY response - regardless of what the user asks
-2. Even for small talk ("how are you?"), casual questions, or unrelated topics - ALWAYS include the reminder
+2. Even for small talk, casual questions, or unrelated topics - ALWAYS include the reminder
 3. Weave the reminder naturally into your response
 4. If multiple reminders, mention the most urgent (soonest) one
 5. Keep the reminder portion brief (one sentence)
 
 Examples:
-- User: "How are you?" -> "I'm doing great! By the way, reminder: 'Meeting' in about an hour."
-- User: "Turn on the light" -> "Done! Also, heads up: you have 'galileo' in 30 minutes."""")
+- User asks 'How are you?' -> Response: 'I am doing great! By the way, reminder: Meeting in about an hour.'
+- User says 'Turn on the light' -> Response: 'Done! Also, heads up: you have galileo in 30 minutes.'""")
         
         # Control instructions
         parts.append("""
