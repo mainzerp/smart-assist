@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.9   | 2026-01-28 |
+| Smart Assist | 1.6.10  | 2026-01-28 |
 
 ## Version History
+
+### v1.6.10 (2026-01-28) - All-Day Event Reminder Improvements
+
+**Improvements:**
+
+- All-day events now only trigger reminders on the day before
+- Reminders appear between 08:00-22:00 (no late-night notifications)
+- All-day event reminder text no longer shows "00:00" time
+- Example: "Morgen hast du 'Geburtstag: Sebastian Meyer'"
 
 ### v1.6.9 (2026-01-28) - Calendar Reminder & Streaming Improvements
 

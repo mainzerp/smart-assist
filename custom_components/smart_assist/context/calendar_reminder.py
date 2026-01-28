@@ -35,6 +35,10 @@ REMINDER_WINDOWS: Final = {
     ReminderStage.HOUR_BEFORE: (timedelta(minutes=10), timedelta(minutes=90)),  # 10min to 90min before
 }
 
+# All-day event reminder: show on the day before during reasonable hours
+# Instead of hours-before, we check if we're on the day before (between 08:00 and 22:00)
+ALL_DAY_REMINDER_HOURS: Final = (8, 22)  # Show reminder between 8 AM and 10 PM on day before
+
 # Human-readable reminder templates per stage
 REMINDER_TEMPLATES: Final = {
     ReminderStage.DAY_BEFORE: "Morgen um {time} hast du '{summary}'",
@@ -72,6 +76,19 @@ class CalendarReminderTracker:
         """
         key = f"{event.get('summary', '')}_{event.get('start', '')}"
         return hashlib.md5(key.encode()).hexdigest()[:12]
+
+    def _is_all_day_event(self, time_str: str | None) -> bool:
+        """Check if event is an all-day event (date only, no time component).
+
+        Args:
+            time_str: Event start time string.
+
+        Returns:
+            True if all-day event (no 'T' in string = date only).
+        """
+        if not time_str:
+            return False
+        return "T" not in time_str
 
     def _parse_event_time(self, time_str: str | None) -> datetime | None:
         """Parse event time string to datetime.
@@ -112,9 +129,13 @@ class CalendarReminderTracker:
         Returns:
             The active ReminderStage or None if not in any window.
         """
-        event_start = self._parse_event_time(event.get("start"))
+        start_str = event.get("start")
+        event_start = self._parse_event_time(start_str)
         if not event_start:
             return None
+
+        # Check if this is an all-day event (date only, no time)
+        is_all_day = self._is_all_day_event(start_str)
 
         # Make both timezone-aware or naive for comparison
         if event_start.tzinfo is None:
@@ -127,7 +148,24 @@ class CalendarReminderTracker:
         if time_until <= timedelta(0):
             return ReminderStage.PASSED
 
-        # Check each window - order matters (smallest window first)
+        # All-day events: Only remind on the day before during reasonable hours
+        if is_all_day:
+            event_date = event_start.date()
+            now_date = now.date()
+            now_hour = now.hour
+            
+            # Check if we're on the day before the event
+            days_until = (event_date - now_date).days
+            
+            if days_until == 1:  # Tomorrow is the event
+                # Only show reminder during configured hours (default: 8-22)
+                min_hour, max_hour = ALL_DAY_REMINDER_HOURS
+                if min_hour <= now_hour < max_hour:
+                    return ReminderStage.DAY_BEFORE
+            
+            return None  # Not the day before, or outside reminder hours
+
+        # Timed events: Check each window - order matters (smallest window first)
         for stage in [
             ReminderStage.HOUR_BEFORE,
             ReminderStage.HOURS_BEFORE,
@@ -168,19 +206,29 @@ class CalendarReminderTracker:
             return False, ""
 
         # Generate reminder text based on stage
-        event_start = self._parse_event_time(event.get("start"))
+        start_str = event.get("start")
+        event_start = self._parse_event_time(start_str)
         if not event_start:
             return False, ""
 
         summary = event.get("summary", "Termin")
         owner = event.get("owner", "")
+        is_all_day = self._is_all_day_event(start_str)
 
         if current_stage == ReminderStage.DAY_BEFORE:
-            time_str = event_start.strftime("%H:%M")
-            if owner:
-                reminder_text = f"{owner} hat morgen um {time_str} '{summary}'"
+            # All-day events: "Morgen hast du 'Event'" (no time)
+            # Timed events: "Morgen um HH:MM hast du 'Event'"
+            if is_all_day:
+                if owner:
+                    reminder_text = f"{owner} hat morgen '{summary}'"
+                else:
+                    reminder_text = f"Morgen hast du '{summary}'"
             else:
-                reminder_text = f"Morgen um {time_str} hast du '{summary}'"
+                time_str = event_start.strftime("%H:%M")
+                if owner:
+                    reminder_text = f"{owner} hat morgen um {time_str} '{summary}'"
+                else:
+                    reminder_text = f"Morgen um {time_str} hast du '{summary}'"
         elif current_stage == ReminderStage.HOURS_BEFORE:
             # Make both timezone-aware or naive for calculation
             if event_start.tzinfo is None:
