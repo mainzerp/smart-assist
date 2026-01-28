@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.3   | 2026-01-28 |
+| Smart Assist | 1.0.4   | 2026-01-28 |
 
 ## Version History
+
+### v1.0.4 (2026-01-28) - API Key Reconfigure
+
+**New Feature**
+
+- Added reconfigure flow for parent entry to update API keys
+- Go to Settings -> Integrations -> Smart Assist -> Configure to change API keys
+- Both Groq and OpenRouter API keys can be updated without removing the integration
 
 ### v1.0.3 (2026-01-28) - API Key Storage Fix
 

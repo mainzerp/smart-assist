@@ -15,6 +15,18 @@
           "api_key": "OpenRouter API Key",
           "groq_api_key": "Groq API Key"
         }
+      },
+      "reconfigure": {
+        "title": "Update API Keys",
+        "description": "Update your API keys. Leave fields empty to keep existing keys.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}",
+        "data": {
+          "groq_api_key": "New Groq API Key",
+          "api_key": "New OpenRouter API Key"
+        },
+        "data_description": {
+          "groq_api_key": "Enter a new Groq API key or leave empty to keep the current one.",
+          "api_key": "Enter a new OpenRouter API key or leave empty to keep the current one."
+        }
       }
     },
     "error": {

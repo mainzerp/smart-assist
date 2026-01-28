@@ -483,6 +483,63 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Smart Assist: Error in async_step_api_key: %s", e)
             raise
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration of API keys."""
+        errors: dict[str, str] = {}
+        
+        reconfigure_entry = self._get_reconfigure_entry()
+        current_groq_key = reconfigure_entry.data.get(CONF_GROQ_API_KEY, "")
+        current_openrouter_key = reconfigure_entry.data.get(CONF_API_KEY, "")
+        
+        if user_input is not None:
+            new_data = dict(reconfigure_entry.data)
+            
+            # Validate and update Groq API key if provided
+            new_groq_key = user_input.get(CONF_GROQ_API_KEY, "").strip()
+            if new_groq_key:
+                if await validate_groq_api_key(new_groq_key):
+                    new_data[CONF_GROQ_API_KEY] = new_groq_key
+                else:
+                    errors["groq_api_key"] = "invalid_groq_api_key"
+            
+            # Validate and update OpenRouter API key if provided
+            new_openrouter_key = user_input.get(CONF_API_KEY, "").strip()
+            if new_openrouter_key:
+                if await validate_api_key(new_openrouter_key):
+                    new_data[CONF_API_KEY] = new_openrouter_key
+                else:
+                    errors["api_key"] = "invalid_api_key"
+            
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    reconfigure_entry,
+                    data=new_data,
+                )
+        
+        # Show form with optional API key fields
+        # Mask existing keys to show they are configured
+        groq_hint = "(configured)" if current_groq_key else "(not set)"
+        openrouter_hint = "(configured)" if current_openrouter_key else "(not set)"
+        
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_GROQ_API_KEY, default=""): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                ),
+                vol.Optional(CONF_API_KEY, default=""): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                ),
+            }),
+            errors=errors,
+            description_placeholders={
+                "groq_status": groq_hint,
+                "openrouter_status": openrouter_hint,
+            },
+        )
+
 
 # =============================================================================
 # SUBENTRY FLOW HANDLERS
