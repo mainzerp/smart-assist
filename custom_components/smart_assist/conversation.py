@@ -95,7 +95,7 @@ try:
     from .context.calendar_reminder import CalendarReminderTracker
     from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
     from .llm.models import MessageRole, ToolCall
-    from .tools import create_tool_registry
+    from .tools import create_tool_registry, ToolRegistry
     from .utils import clean_for_tts
 except ImportError as e:
     _LOGGER.error("Smart Assist: Failed to import local modules: %s", e)
@@ -206,8 +206,10 @@ class SmartAssistConversationEntity(ConversationEntity):
             exposed_only=get_config(CONF_EXPOSED_ONLY, True),
         )
 
-        # Dynamic tool loading based on available domains
-        self._tool_registry = create_tool_registry(hass, entry)
+        # Tool registry - lazy loaded to ensure all domains are available
+        # Created on first access (after HA startup delay)
+        self._tool_registry: ToolRegistry | None = None
+        self._entry = entry  # Store for lazy loading
 
         # Cache for entity index
         self._cached_entity_index: str | None = None
@@ -218,6 +220,16 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Calendar reminder tracker for staged reminders
         self._calendar_reminder_tracker = CalendarReminderTracker()
+
+    def _get_tool_registry(self) -> ToolRegistry:
+        """Get tool registry, creating it lazily if needed.
+        
+        This ensures the registry is created after HA startup when all
+        domains (scene, automation, etc.) are fully loaded.
+        """
+        if self._tool_registry is None:
+            self._tool_registry = create_tool_registry(self.hass, self._entry)
+        return self._tool_registry
 
     def _get_config(self, key: str, default: Any = None) -> Any:
         """Get config value from subentry data."""
@@ -242,7 +254,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             # Build messages using async version (same path as real requests)
             # This ensures calendar context loading is included in the code path
             messages, cached_prefix_length = await self._build_messages_for_llm_async("ping", chat_log=None)
-            tools = self._tool_registry.get_schemas()
+            tools = self._get_tool_registry().get_schemas()
             
             # Log registered tools for debugging cache issues
             tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
@@ -294,7 +306,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Build messages for LLM (using our own message format with history)
         # Use async version to include calendar context if enabled
         messages, cached_prefix_length = await self._build_messages_for_llm_async(user_input.text, chat_log)
-        tools = self._tool_registry.get_schemas()
+        tools = self._get_tool_registry().get_schemas()
         
         # Log registered tools for debugging cache issues
         tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
@@ -421,7 +433,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             async def execute_tool(tool_call: ToolCall) -> tuple[ToolCall, Any]:
                 """Execute a single tool and return result with metadata."""
                 _LOGGER.debug("Executing tool: %s", tool_call.name)
-                result = await self._tool_registry.execute(
+                result = await self._get_tool_registry().execute(
                     tool_call.name, tool_call.arguments
                 )
                 return (tool_call, result)
@@ -922,7 +934,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
 
             if len(matches) == 1:
                 entity = matches[0]
-                result = await self._tool_registry.execute(
+                result = await self._get_tool_registry().execute(
                     "control",
                     {"entity_id": entity.entity_id, "action": action},
                 )

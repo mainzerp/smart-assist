@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.6   | 2026-01-28 |
+| Smart Assist | 1.7.7   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.7 (2026-01-28) - Tool Registry Fix
+
+**Bug Fixes:**
+
+- Fixed: Tool registry now lazy-loaded on first use instead of at init
+- Ensures all domains (scene, automation) are available when tools are registered
+- Cache warming and real requests now always have identical tool sets
+- Previously: Early init could miss domains not yet loaded at HA startup
 
 ### v1.7.6 (2026-01-28) - UI Simplification
 
