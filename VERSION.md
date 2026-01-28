@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.4   | 2026-01-28 |
+| Smart Assist | 1.7.5   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.5 (2026-01-28) - Cache Hit Rate Sensor
+
+**New Features:**
+
+- New sensor: **Cache Hit Rate** (sensor.smart_assist_cache_hit_rate)
+  - Formula: `cached_tokens / prompt_tokens * 100%`
+  - Shows percentage of input tokens served from cache
+  - Attributes: `cached_tokens`, `prompt_tokens`, `tokens_saved`
+- Added `cached_tokens` tracking to OpenRouter client for consistency
+
+**Sensor Reference:**
+
+| Sensor         | Description                                                                                   |
+| -------------- | --------------------------------------------------------------------------------------------- |
+| Success Rate   | Percentage of API requests that completed without errors (successful_requests / total_requests) |
+| Cache Hit Rate | Percentage of input tokens served from cache (cached_tokens / prompt_tokens)                  |
+| Cache Hits     | Count of requests that had any cache hit                                                      |
 
 ### v1.7.4 (2026-01-28) - Tool Registry Diagnostics
 

@@ -37,6 +37,7 @@ class LLMMetrics:
     total_response_time_ms: float = 0.0
     cache_hits: int = 0
     cache_misses: int = 0
+    cached_tokens: int = 0  # Tokens served from cache
     empty_responses: int = 0  # Streams that returned no content
     stream_timeouts: int = 0  # Streams that timed out waiting for chunks
     
@@ -67,6 +68,7 @@ class LLMMetrics:
             "success_rate": round(self.success_rate, 2),
             "cache_hits": self.cache_hits,
             "cache_misses": self.cache_misses,
+            "cached_tokens": self.cached_tokens,
             "empty_responses": self.empty_responses,
             "stream_timeouts": self.stream_timeouts,
         }

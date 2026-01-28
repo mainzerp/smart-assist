@@ -36,6 +36,7 @@ async def async_setup_entry(
         SmartAssistSuccessRateSensor(hass, entry),
         SmartAssistTokensSensor(hass, entry),
         SmartAssistCacheHitsSensor(hass, entry),
+        SmartAssistCacheHitRateSensor(hass, entry),
     ]
     
     async_add_entities(sensors)
@@ -99,6 +100,7 @@ class SmartAssistSensorBase(SensorEntity):
             "total_response_time_ms": 0.0,
             "cache_hits": 0,
             "cache_misses": 0,
+            "cached_tokens": 0,
             "empty_responses": 0,
             "stream_timeouts": 0,
         }
@@ -117,6 +119,7 @@ class SmartAssistSensorBase(SensorEntity):
                 aggregated["total_response_time_ms"] += metrics.total_response_time_ms
                 aggregated["cache_hits"] += metrics.cache_hits
                 aggregated["cache_misses"] += metrics.cache_misses
+                aggregated["cached_tokens"] += getattr(metrics, "cached_tokens", 0)
                 aggregated["empty_responses"] += getattr(metrics, "empty_responses", 0)
                 aggregated["stream_timeouts"] += getattr(metrics, "stream_timeouts", 0)
         
@@ -283,5 +286,52 @@ class SmartAssistCacheHitsSensor(SmartAssistSensorBase):
             return {
                 "cache_misses": misses,
                 "cache_hit_rate": round(hit_rate, 1),
+            }
+        return {}
+
+
+class SmartAssistCacheHitRateSensor(SmartAssistSensorBase):
+    """Sensor for token-based cache hit rate.
+    
+    Formula: cached_tokens / prompt_tokens * 100%
+    This shows what percentage of input tokens were served from cache.
+    """
+
+    _attr_name = "Cache Hit Rate"
+    _attr_native_unit_of_measurement = "%"
+    _attr_icon = "mdi:speedometer"
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, entry)
+        self._attr_unique_id = f"{entry.entry_id}_cache_hit_rate"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the cache hit rate percentage.
+        
+        Calculated as: cached_tokens / prompt_tokens * 100%
+        """
+        metrics = self._get_metrics()
+        if metrics:
+            cached = metrics.get("cached_tokens", 0)
+            prompt = metrics.get("total_prompt_tokens", 0)
+            if prompt > 0:
+                return round((cached / prompt) * 100, 1)
+            return 0.0
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        metrics = self._get_metrics()
+        if metrics:
+            cached = metrics.get("cached_tokens", 0)
+            prompt = metrics.get("total_prompt_tokens", 0)
+            return {
+                "cached_tokens": cached,
+                "prompt_tokens": prompt,
+                "tokens_saved": cached,  # Cached tokens = tokens not reprocessed
             }
         return {}
