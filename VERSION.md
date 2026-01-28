@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.3   | 2026-01-28 |
+| Smart Assist | 1.7.4   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.4 (2026-01-28) - Tool Registry Diagnostics
+
+**Improvements:**
+
+- Added detailed tool registry logging for cache debugging
+- Logs available domains and web search configuration on registry creation
+- Logs each registered tool name: `Tool registry created: N tools registered: [...]`
+- Logs tool names in cache warming and request handlers for comparison
+- Helps diagnose tool count mismatches that prevent Groq cache hits
+
+**Note:** Groq's prompt caching is automatic and NOT guaranteed. Cache hits depend on:
+
+- Exact prefix matching (system prompt, tools, messages)
+- Request routing to the same server (load-balanced)
+- Cache TTL (2 hours without use)
 
 ### v1.7.3 (2026-01-28) - Cache Stats Logging
 
