@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.2   | 2026-01-28 |
+| Smart Assist | 1.0.3   | 2026-01-28 |
 
 ## Version History
+
+### v1.0.3 (2026-01-28) - API Key Storage Fix
+
+**Bugfix**
+
+- Fixed API key incorrectly being copied to subentry data during reconfigure
+- This caused "Invalid API Key" errors after reconfiguring a conversation agent
+- API keys are now correctly read from parent entry only
 
 ### v1.0.2 (2026-01-28) - Reliability Improvements
 
