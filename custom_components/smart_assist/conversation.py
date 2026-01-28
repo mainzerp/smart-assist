@@ -96,7 +96,7 @@ try:
     from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
     from .llm.models import MessageRole, ToolCall
     from .tools import create_tool_registry, ToolRegistry
-    from .utils import clean_for_tts
+    from .utils import clean_for_tts, get_config_value
 except ImportError as e:
     _LOGGER.error("Smart Assist: Failed to import local modules: %s", e)
     _LOGGER.error("Traceback: %s", traceback.format_exc())
@@ -160,20 +160,20 @@ class SmartAssistConversationEntity(ConversationEntity):
             entry_type=dr.DeviceEntryType.SERVICE,
         )
 
-        # Helper to get config values from subentry
+        # Helper to get config values from subentry using centralized utility
         def get_config(key: str, default: Any = None) -> Any:
             """Get config value from subentry data."""
-            return subentry.data.get(key, default)
+            return get_config_value(subentry, key, default)
 
         # Determine LLM provider and API key
         llm_provider = get_config(CONF_LLM_PROVIDER, DEFAULT_LLM_PROVIDER)
         
         if llm_provider == LLM_PROVIDER_GROQ:
             # Use Groq API key from subentry or main entry
-            api_key = get_config(CONF_GROQ_API_KEY) or entry.data.get(CONF_GROQ_API_KEY, "")
+            api_key = get_config(CONF_GROQ_API_KEY) or get_config_value(entry, CONF_GROQ_API_KEY, "")
         else:
             # Use OpenRouter API key from main entry
-            api_key = entry.data[CONF_API_KEY]
+            api_key = get_config_value(entry, CONF_API_KEY, "")
         
         # Initialize LLM client using factory
         self._llm_client = create_llm_client(

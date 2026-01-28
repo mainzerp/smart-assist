@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 
 from .openrouter_client import LLMMetrics, OpenRouterClient
-from .groq_client import GroqClient, GroqMetrics
-from .models import ChatMessage, ChatResponse, ToolCall
+from .groq_client import GroqClient, GroqError, GroqMetrics
+from .models import ChatMessage, ChatResponse, LLMConfigurationError, LLMError, ToolCall
 
 if TYPE_CHECKING:
     LLMClient = Union[OpenRouterClient, GroqClient]
@@ -15,9 +15,12 @@ __all__ = [
     "LLMMetrics",
     "OpenRouterClient",
     "GroqClient",
+    "GroqError",
     "GroqMetrics",
     "ChatMessage",
     "ChatResponse",
+    "LLMError",
+    "LLMConfigurationError",
     "ToolCall",
     "create_llm_client",
 ]
@@ -43,7 +46,15 @@ def create_llm_client(
     
     Returns:
         OpenRouterClient or GroqClient instance
+    
+    Raises:
+        LLMConfigurationError: If API key is missing or invalid
     """
+    if not api_key:
+        raise LLMConfigurationError(
+            f"API key is required for {provider}. Please configure your API key."
+        )
+    
     if provider == "groq":
         return GroqClient(
             api_key=api_key,

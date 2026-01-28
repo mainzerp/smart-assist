@@ -11,22 +11,20 @@ from typing import Any, AsyncGenerator
 
 import aiohttp
 
-from .models import ChatMessage, ChatResponse, MessageRole, ToolCall
+from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
+from ..const import (
+    GROQ_API_URL,
+    LLM_MAX_RETRIES,
+    LLM_RETRY_BASE_DELAY,
+    LLM_RETRY_MAX_DELAY,
+    LLM_RETRIABLE_STATUS_CODES,
+    LLM_STREAM_CHUNK_TIMEOUT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-# Groq API endpoint
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Retry configuration
-MAX_RETRIES = 3
-RETRY_BASE_DELAY = 1.0
-RETRY_MAX_DELAY = 10.0
-RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
-STREAM_CHUNK_TIMEOUT = 30.0
-
-
-class GroqError(Exception):
+class GroqError(LLMError):
     """Exception for Groq API errors."""
     pass
 
@@ -148,33 +146,33 @@ class GroqClient:
         """Execute API request with exponential backoff retry."""
         last_error: Exception | None = None
         
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(LLM_MAX_RETRIES):
             try:
                 response = await session.post(GROQ_API_URL, json=payload)
                 
-                if response.status == 200 or response.status not in RETRIABLE_STATUS_CODES:
+                if response.status == 200 or response.status not in LLM_RETRIABLE_STATUS_CODES:
                     return response
                 
                 error_text = await response.text()
                 response.close()
-                last_error = GroqError(f"API error: {response.status} - {error_text}")
+                last_error = GroqError(f"API error: {response.status} - {error_text}", response.status)
                 
-                if attempt < MAX_RETRIES - 1:
-                    delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                if attempt < LLM_MAX_RETRIES - 1:
+                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
                         "Groq API error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES, response.status, delay
+                        attempt + 1, LLM_MAX_RETRIES, response.status, delay
                     )
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)
                     
             except aiohttp.ClientError as err:
                 last_error = GroqError(f"Network error: {err}")
-                if attempt < MAX_RETRIES - 1:
-                    delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                if attempt < LLM_MAX_RETRIES - 1:
+                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
                         "Network error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES, err, delay
+                        attempt + 1, LLM_MAX_RETRIES, err, delay
                     )
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)

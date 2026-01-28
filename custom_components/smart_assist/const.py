@@ -85,6 +85,13 @@ OPENROUTER_API_URL: Final = "https://openrouter.ai/api/v1/chat/completions"
 # Groq API (direct)
 GROQ_API_URL: Final = "https://api.groq.com/openai/v1/chat/completions"
 
+# LLM API Configuration
+LLM_MAX_RETRIES: Final = 3
+LLM_RETRY_BASE_DELAY: Final = 1.0  # seconds
+LLM_RETRY_MAX_DELAY: Final = 10.0  # seconds
+LLM_STREAM_CHUNK_TIMEOUT: Final = 30.0  # seconds
+LLM_RETRIABLE_STATUS_CODES: Final = frozenset({429, 500, 502, 503, 504})
+
 # LLM Provider types
 LLM_PROVIDER_OPENROUTER: Final = "openrouter"
 LLM_PROVIDER_GROQ: Final = "groq"

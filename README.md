@@ -4,25 +4,43 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Release](https://img.shields.io/github/release/mainzerp/smart-assist.svg)](https://github.com/mainzerp/smart-assist/releases)
 
-**Fast, LLM-powered smart home assistant for Home Assistant with Prompt Caching.**
+**Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Control your smart home with natural language. Access 200+ AI models via OpenRouter including Claude, GPT-4, Gemini, Llama, and more. **Prompt Caching reduces response times by up to 85%.**
+Control your smart home with natural language. Uses **Groq API** for ultra-fast inference with automatic prompt caching, achieving **~90% cache hit rates** and response times under 500ms.
 
 ## Features
 
-- **Calendar Integration**: Query and create calendar events with proactive reminders
-- **Prompt Caching**: Up to 85% faster responses and reduced costs (Anthropic, OpenAI, Groq, Google)
-- **AI Task Platform**: Use LLM in automations via `ai_task.generate_data` service
+### Core Features
+
+- **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
 - **Natural Language Control**: Talk to your smart home naturally
-- **OpenRouter Integration**: Access to 200+ AI models via single API
-- **Provider Selection**: Choose specific providers for optimal caching support
-- **Unified Control Tool**: Single efficient tool for all entity types
+- **Unified Control Tool**: Single efficient tool for all entity types (lights, switches, climate, covers, media players, fans)
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently for faster responses
-- **Full Streaming**: Real-time token streaming even during tool execution
+- **Full Streaming**: Real-time token streaming to TTS, even during tool execution
+
+### Calendar Integration
+
+- **Read Events**: Query upcoming events from all calendars
+- **Create Events**: Create timed or all-day events with fuzzy calendar matching
+- **Proactive Reminders**: Staged context injection (24h, 4h, 1h before events)
+
+### AI Task Platform
+
+- **Automation Integration**: Use LLM in automations via `ai_task.generate_data` service
+- **Background Tasks**: Summarize data, generate reports without user interaction
+- **Full Tool Support**: All tools available in automation context
+
+### Performance
+
+- **Automatic Prompt Caching**: ~90% cache hit rate with Groq
 - **Cache Warming**: Optional periodic cache refresh for instant responses
 - **Metrics/Telemetry**: Track token usage, response times, cache hit rates
-- **Debug Logging**: UI toggle for verbose logging in Home Assistant logs
+
+### Additional Features
+
+- **Web Search**: DuckDuckGo integration for real-time information
 - **Multi-Language**: Supports any language (auto-detect from HA or custom)
+- **Debug Logging**: Detailed logging for troubleshooting
 
 ## Installation
 
@@ -46,9 +64,8 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 2. Click **Add Integration**
 3. Search for "Smart Assist"
 4. Follow the setup wizard:
-   - Enter your OpenRouter API key ([get one here](https://openrouter.ai/keys))
-   - Select your preferred LLM model
-   - Choose a provider (required for prompt caching)
+   - Enter your Groq API key ([get one here](https://console.groq.com/keys))
+   - Select your preferred model
    - Configure behavior and caching settings
 
 ## Configuration Options
@@ -57,8 +74,7 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| Model | Any OpenRouter model ID | GPT-OSS 120B |
-| Provider | Specific provider for routing | Groq |
+| Model | Groq model ID | openai/gpt-oss-120b |
 | Temperature | Response creativity (0-1) | 0.5 |
 | Max Tokens | Maximum response length | 500 |
 
@@ -66,20 +82,20 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| Language | Response language (empty = auto-detect from HA, or any language like "French", "es-ES") | Auto |
+| Language | Response language (empty = auto-detect from HA) | Auto |
 | Exposed Only | Use only exposed entities | true |
 | Confirm Critical | Confirm locks/alarms before action | true |
 | Max History | Conversation history length | 10 |
 | Web Search | Enable DuckDuckGo search | true |
+| Calendar Context | Inject proactive calendar reminders | false |
 
 ### Caching Settings
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
 | Prompt Caching | Enable prompt caching | true |
-| Extended TTL | 1 hour cache (provider-dependent) | false |
 | Cache Warming | Periodic cache refresh | false |
-| Refresh Interval | Cache refresh interval (min) | 4 |
+| Refresh Interval | Cache refresh interval (minutes) | 4 |
 
 ### Advanced Settings
 
@@ -89,42 +105,38 @@ Control your smart home with natural language. Access 200+ AI models via OpenRou
 | Ask Follow-up | Assistant asks clarifying questions | true |
 | Debug Logging | Enable verbose logging | false |
 | System Prompt | Custom instructions for assistant | - |
-| Task System Prompt | Custom instructions for AI tasks | - |
-| Task Prompt Caching | Enable caching for AI tasks | false |
-| Task Cache Warming | Enable warming for AI tasks | false |
 
 ## Prompt Caching
 
-Smart Assist supports OpenRouter's prompt caching to reduce latency and costs. The system prompt, entity index, and tools are cached and reused across requests.
+Smart Assist uses Groq's **automatic prompt caching** to reduce latency and costs.
 
-### Provider Selection for Caching
+### How It Works
 
-**Important**: To use prompt caching, you must select a specific provider (not "Automatic").
+1. **Prefix Matching**: Groq caches the prefix of your prompt (system prompt, tools, entity index)
+2. **Automatic**: No configuration needed - caching happens automatically
+3. **2-Hour TTL**: Cached data expires after 2 hours without use
+4. **~90% Hit Rate**: Typical cache hit rates in production
 
-See the [OpenRouter Prompt Caching documentation](https://openrouter.ai/docs/guides/best-practices/prompt-caching) for:
+### Cache Statistics
 
-- List of providers that support prompt caching
-- Cache TTL information per provider
-- Cost savings details
+The integration provides sensors for monitoring cache performance:
 
-When you select a model, Smart Assist shows only providers that offer that model. Select a caching-compatible provider from this list if you want to use prompt caching.
+| Sensor | Description |
+| ------ | ----------- |
+| Cache Hit Rate | Percentage of tokens served from cache |
+| Cache Hits | Count of requests with cache hits |
+| Response Time | Average LLM response time |
+| Token Usage | Total tokens consumed |
 
 ### Cache Warming
 
-Enable cache warming to periodically refresh the cache with a minimal request. This keeps the cache "warm" for instant responses but incurs additional API costs (~1 request per interval).
+Enable cache warming to keep the cache "warm" for instant responses. This sends periodic minimal requests to prevent cache expiration.
 
-**Cost Example:**
+**Cost**: Minimal (~1 request per interval, ~$0.01/day with 10-minute interval)
 
-- Model: GPT-OSS 120B (Groq)
-- Static prompt size: ~3,500 tokens
-- Refresh interval: 10 minutes (default)
-- Daily cost: **~1 cent** (~144 warming requests/day)
+## AI Task Platform (Automations)
 
-Note: Actual costs depend on your model, provider, and refresh interval.
-
-## AI Task Platform
-
-Smart Assist registers as an `ai_task` platform, enabling LLM usage in automations:
+Smart Assist registers as an `ai_task` platform for use in automations:
 
 ```yaml
 service: ai_task.generate_data
@@ -135,15 +147,11 @@ data:
   instructions: "Summarize all lights that are currently on"
 ```
 
-**Features:**
-- Full tool support (entity queries, control, scenes, web search)
-- Parallel tool execution for multi-entity commands
-- Separate configurable system prompt for task-oriented responses
-
 **Configuration:**
+
 - **Task System Prompt**: Custom instructions for background tasks
 - **Task Prompt Caching**: Disabled by default (tasks are not time-critical)
-- **Task Cache Warming**: Disabled by default (tasks are not time-critical)
+- **Task Cache Warming**: Disabled by default
 
 ## Tools
 
@@ -153,28 +161,63 @@ Smart Assist provides these tools to the LLM:
 | ---- | ----------- |
 | `get_entities` | Query available entities by domain, area, or name |
 | `get_entity_state` | Get detailed entity state with attributes |
-| `control` | Unified control for all entity types |
+| `control` | Unified control for lights, switches, climate, covers, media players, fans |
 | `run_scene` | Activate scenes |
 | `trigger_automation` | Trigger automations |
 | `get_calendar_events` | Query upcoming calendar events |
-| `create_calendar_event` | Create new calendar events |
+| `create_calendar_event` | Create new calendar events (fuzzy calendar matching) |
 | `get_weather` | Current weather information |
 | `web_search` | DuckDuckGo web search |
+
+## Supported Models
+
+Groq models with prompt caching support:
+
+| Model | Description |
+| ----- | ----------- |
+| `openai/gpt-oss-120b` | GPT-OSS 120B - Recommended |
+| `openai/gpt-oss-20b` | GPT-OSS 20B - Faster, smaller |
+| `llama-3.3-70b-versatile` | Llama 3.3 70B |
+| `moonshotai/kimi-k2-instruct-0905` | Kimi K2 |
+
+See [Groq Models](https://console.groq.com/docs/models) for the full list.
 
 ## Requirements
 
 - Home Assistant 2024.1 or newer
 - Python 3.12+
-- OpenRouter API key
+- Groq API key ([get one here](https://console.groq.com/keys))
 
 ## Troubleshooting
 
-Enable debug logging in the Advanced settings to see detailed logs in Home Assistant. This logs:
+### Enable Debug Logging
 
-- Message processing details
-- LLM request/response information
-- Tool execution and results
+Enable debug logging in Advanced settings to see:
+
+- Message structure per LLM iteration
+- Cache hit/miss statistics
+- Tool execution details
 - Entity control actions
+
+### Common Issues
+
+**Low cache hit rate?**
+
+- Groq uses load-balanced servers with separate caches
+- Cache hits are not 100% guaranteed but typically ~90%
+- Ensure consistent tool usage across requests
+
+**Slow responses?**
+
+- Check cache hit rate in sensors
+- Enable cache warming for consistent performance
+- Verify Groq API status
+
+## Version History
+
+See [VERSION.md](VERSION.md) for detailed changelog.
+
+**Current Version**: 1.0.0
 
 ## License
 

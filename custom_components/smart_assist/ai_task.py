@@ -45,6 +45,7 @@ from .context.entity_manager import EntityManager
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
+from .utils import get_config_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,10 +103,10 @@ class SmartAssistAITask(AITaskEntity):
             entry_type=dr.DeviceEntryType.SERVICE,
         )
         
-        # Helper to get config values from subentry
+        # Helper to get config values from subentry using centralized utility
         def get_config(key: str, default: Any = None) -> Any:
             """Get config value from subentry data."""
-            return subentry.data.get(key, default)
+            return get_config_value(subentry, key, default)
         
         self._get_config = get_config
         
@@ -114,10 +115,10 @@ class SmartAssistAITask(AITaskEntity):
         
         if llm_provider == LLM_PROVIDER_GROQ:
             # Use Groq API key from subentry or main entry
-            api_key = get_config(CONF_GROQ_API_KEY) or config_entry.data.get(CONF_GROQ_API_KEY, "")
+            api_key = get_config(CONF_GROQ_API_KEY) or get_config_value(config_entry, CONF_GROQ_API_KEY, "")
         else:
             # Use OpenRouter API key from main entry
-            api_key = config_entry.data.get(CONF_API_KEY)
+            api_key = get_config_value(config_entry, CONF_API_KEY, "")
         
         # Initialize LLM client using factory
         self._llm_client = create_llm_client(

@@ -8,6 +8,29 @@ from enum import Enum
 from typing import Any
 
 
+class LLMError(Exception):
+    """Base exception for LLM-related errors.
+    
+    Use this for API errors, network issues, rate limiting, etc.
+    Subclasses can be created for provider-specific errors.
+    """
+    
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        """Initialize LLM error.
+        
+        Args:
+            message: Error description
+            status_code: Optional HTTP status code from the API
+        """
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class LLMConfigurationError(LLMError):
+    """Error for LLM configuration issues (missing API key, invalid model, etc.)."""
+    pass
+
+
 class MessageRole(str, Enum):
     """Message role in conversation."""
 

@@ -1,10 +1,47 @@
 """Utility functions for Smart Assist integration."""
 
+from __future__ import annotations
+
 import logging
 import re
-from typing import Final
+from typing import Any, Final, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def get_config_value(
+    source: ConfigEntry | ConfigSubentry | dict[str, Any],
+    key: str,
+    default: Any = None,
+) -> Any:
+    """Get config value from entry, subentry, or dict.
+    
+    For ConfigEntry: checks options first, then data, then default.
+    For ConfigSubentry/dict: checks data/dict directly, then default.
+    
+    Args:
+        source: ConfigEntry, ConfigSubentry, or dict to read from
+        key: Configuration key to look up
+        default: Default value if key not found
+    
+    Returns:
+        The configuration value or default
+    """
+    if hasattr(source, "options") and hasattr(source, "data"):
+        # ConfigEntry: check options first (user overrides)
+        if key in source.options:
+            return source.options[key]
+        return source.data.get(key, default)
+    elif hasattr(source, "data"):
+        # ConfigSubentry: check data
+        return source.data.get(key, default)
+    elif isinstance(source, dict):
+        # Plain dict
+        return source.get(key, default)
+    return default
 
 # Logger names for Smart Assist modules
 SMART_ASSIST_LOGGERS: Final = (
