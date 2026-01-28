@@ -379,7 +379,9 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         while iteration < max_iterations:
             iteration += 1
-            _LOGGER.debug("[USER-REQUEST] LLM iteration %d", iteration)
+            # Log message structure for cache debugging
+            msg_summary = [f"{i}:{m.role.value}:{len(m.content)}c" for i, m in enumerate(working_messages)]
+            _LOGGER.debug("[USER-REQUEST] LLM iteration %d, messages: %s", iteration, msg_summary)
             
             # Create delta stream and consume it through ChatLog
             iteration_content = ""

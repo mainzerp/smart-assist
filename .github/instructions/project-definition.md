@@ -2,16 +2,22 @@
 
 ## Project Overview
 
-A Home Assistant custom integration that connects LLMs (via OpenRouter) with Home Assistant to create an intelligent smart home assistant capable of answering questions about the smart home environment and controlling devices.
+A Home Assistant custom integration that connects LLMs (via Groq) with Home Assistant to create an intelligent smart home assistant capable of answering questions about the smart home environment and controlling devices.
 
-## Openrouter API
+**Primary Provider**: Groq (direct API with automatic prompt caching)  
+**Fallback Provider**: OpenRouter (currently deprioritized, code preserved for compatibility)
 
-https://openrouter.ai/docs/guides/guides/usage-accounting
+## Groq Docs
+
+https://console.groq.com/docs/overview
+https://console.groq.com/docs/api-reference/chat/create
+
+## OpenRouter Docs (Reference)
+
 https://openrouter.ai/docs/api/reference/overview
 https://openrouter.ai/docs/guides/best-practices/prompt-caching
-https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request
 
-**Version**: 1.6.13  
+**Version**: 1.7.9  
 **Last Updated**: January 28, 2026
 
 ## Core Requirements
@@ -19,7 +25,7 @@ https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request
 | Requirement | Description | Status |
 | ----------- | ----------- | ------ |
 | Assist Pipeline | Full integration with HA Assist Pipeline (conversation platform) | Done |
-| LLM Provider | OpenRouter with provider selection | Done |
+| LLM Provider | Groq API (direct) with automatic prompt caching | Done |
 | Entity Access | Only exposed entities | Done |
 | Tools | Unified control tool with efficient usage | Done |
 | Web Search | DuckDuckGo integration (ddgs) | Done |
@@ -54,8 +60,9 @@ custom_components/smart_assist/
         de.json           # German translations
     llm/
         __init__.py
-        client.py         # OpenRouter API client with streaming, retry & metrics
-        models.py         # ChatMessage, StreamChunk models
+        groq_client.py        # Groq API client (primary) with caching & metrics
+        openrouter_client.py  # OpenRouter API client (fallback/legacy)
+        models.py             # ChatMessage, StreamChunk models
     tools/
         __init__.py       # ToolRegistry with dynamic loading
         base.py           # BaseTool interface
@@ -89,12 +96,12 @@ custom_components/smart_assist/
 |  |           |                                                    |  |
 |  |           v                                                    |  |
 |  |  +------------------+                                         |  |
-|  |  |   LLM Client     |--------> OpenRouter API                 |  |
-|  |  |   (Streaming)    |          - Provider routing             |  |
-|  |  |                  |          - Prompt caching               |  |
-|  |  |  - Retry logic   |          - Extended TTL                 |  |
+|  |  |   LLM Client     |--------> Groq API (Primary)             |  |
+|  |  |   (Streaming)    |          - Automatic prompt caching     |  |
+|  |  |                  |          - 2-hour cache TTL             |  |
+|  |  |  - Retry logic   |          - ~95% cache hit rate          |  |
 |  |  |  - Metrics       |                                         |  |
-|  |  |  - cache_control |                                         |  |
+|  |  |  - Cache stats   |                                         |  |
 |  |  +--------+---------+                                         |  |
 |  |           |                                                    |  |
 |  |           v                                                    |  |
@@ -155,9 +162,11 @@ OpenRouter supports prompt caching for compatible models. The cache works on the
 
 | Provider | Caching Type | TTL | Implementation |
 |----------|--------------|-----|----------------|
-| Anthropic | Explicit | 5 min (default) / 1 hour (extended) | `cache_control: {type: "ephemeral", ttl: "1h"}` |
+| **Groq** | **Automatic** | **2 hours** | **No special handling - prefix matching** |
+| Anthropic | Explicit | 5 min / 1 hour | `cache_control: {type: "ephemeral"}` |
 | OpenAI | Automatic | ~1 hour | No special handling needed |
-| Google | Implicit | 3-5 min | No special handling needed |
+
+**Note**: Groq is the primary provider. Caching is automatic based on prefix matching. Not 100% guaranteed due to load-balanced servers, but typically achieves ~95% cache hit rate.
 
 ### 3. Cache Warming
 
@@ -253,14 +262,13 @@ The `control` tool auto-detects domain from entity_id and supports:
 
 ```
 Main Entry:
-  - OpenRouter API Key (validated)
+  - Groq API Key (validated)
 
 Subentry (Conversation Agent / AI Task):
   Step 1: Model Selection
-    - Model (any OpenRouter model ID or custom)
+    - Model (Groq models: llama-3.3-70b-versatile, etc.)
   
   Step 2: Settings
-    - Provider Selection (for guaranteed caching)
     - Temperature (0.0 - 1.0)
     - Max Tokens
     - Language (empty = auto-detect from HA, or any language text)
@@ -281,9 +289,9 @@ Subentry (Conversation Agent / AI Task):
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `api_key` | string | - | OpenRouter API key |
-| `model` | string | openai/gpt-oss-120b | LLM model |
-| `provider` | string | groq | Provider for routing |
+| `api_key` | string | - | Groq API key |
+| `model` | string | llama-3.3-70b-versatile | LLM model |
+| `provider` | string | groq | LLM provider (groq = primary) |
 | `temperature` | float | 0.5 | Response creativity |
 | `max_tokens` | int | 500 | Max response length |
 | `language` | string | "" (auto) | Response language (empty = auto-detect from HA) |
@@ -330,9 +338,9 @@ Subentry (Conversation Agent / AI Task):
 |-----------|------------|
 | Runtime | Python 3.12+ |
 | Framework | Home Assistant Custom Integration |
-| LLM API | OpenRouter (aiohttp) |
+| LLM API | Groq (primary), OpenRouter (legacy/fallback) |
 | Web Search | ddgs (DuckDuckGo) |
-| Caching | In-memory with hash-based invalidation |
+| Caching | Automatic (Groq), In-memory entity index |
 | Async | asyncio, aiohttp |
 
 ### Testing
@@ -376,10 +384,10 @@ ruff format custom_components/smart_assist --check
   - Background tasks without user interaction (e.g., "Summarize today's events")
   - Separate configurable system prompt for task-oriented responses
   - Full tool support with parallel execution
-- [ ] **Additional LLM Providers**: Direct API access bypassing OpenRouter
-  - Anthropic, OpenAI, Google APIs directly for lower latency
-  - Local LLM support (Ollama, llama.cpp)
-  - Provider failover and load balancing
+- [x] **Direct LLM Provider**: Groq API with automatic caching (v1.7.0)
+  - Groq as primary provider with ~95% cache hit rate
+  - OpenRouter preserved for backwards compatibility
+  - Future: Local LLM support (Ollama, llama.cpp)
 - [ ] **Scheduled Actions**: Time-based command execution via LLM
   - "Turn off lights in 30 minutes"
   - Integration with HA's built-in scheduler
