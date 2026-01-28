@@ -255,6 +255,9 @@ async def fetch_groq_models(api_key: str) -> list[dict[str, str]]:
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as response:
+                if response.status == 401:
+                    _LOGGER.debug("Groq API key not valid or not set, using fallback models")
+                    return _get_groq_fallback_models()
                 if response.status != 200:
                     _LOGGER.warning("Failed to fetch models from Groq: %s", response.status)
                     return _get_groq_fallback_models()
