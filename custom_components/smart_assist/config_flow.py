@@ -531,7 +531,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         errors: dict[str, str] = {}
         
         if user_input is not None:
-            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_GROQ)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
             if not errors:
@@ -541,24 +541,20 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
         
-        # Build LLM provider options based on available keys
-        llm_provider_options = []
-        if has_openrouter_key:
-            llm_provider_options.append(
-                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
-            )
+        # Currently only Groq is exposed in UI (OpenRouter code kept for backwards compatibility)
+        # If Groq key exists, go directly to model selection
         if has_groq_key:
-            llm_provider_options.append(
-                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
-            )
-        
-        # Default to first available provider
-        default_provider = llm_provider_options[0]["value"] if llm_provider_options else LLM_PROVIDER_OPENROUTER
-        
-        # If only one provider is available, skip to model selection
-        if len(llm_provider_options) == 1:
-            self._data[CONF_LLM_PROVIDER] = default_provider
+            self._data[CONF_LLM_PROVIDER] = LLM_PROVIDER_GROQ
             return await self.async_step_model()
+        
+        # No API key configured - this shouldn't happen as main config requires Groq key
+        # Fall back to showing form (edge case)
+        llm_provider_options = [
+            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+        ]
+        
+        # Default to Groq
+        default_provider = LLM_PROVIDER_GROQ
         
         schema_dict = {
             vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(
@@ -733,8 +729,8 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         # Check if Groq API key is already configured
         has_groq_key = bool(self._get_groq_api_key())
         
+        # Currently only Groq is exposed in UI
         llm_provider_options = [
-            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
             {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
         ]
         
@@ -898,7 +894,7 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         errors: dict[str, str] = {}
         
         if user_input is not None:
-            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_GROQ)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
             if not errors:
@@ -908,24 +904,18 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
         
-        # Build LLM provider options based on available keys
-        llm_provider_options = []
-        if has_openrouter_key:
-            llm_provider_options.append(
-                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
-            )
+        # Currently only Groq is exposed in UI (OpenRouter code kept for backwards compatibility)
+        # If Groq key exists, go directly to model selection
         if has_groq_key:
-            llm_provider_options.append(
-                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
-            )
-        
-        # Default to first available provider
-        default_provider = llm_provider_options[0]["value"] if llm_provider_options else LLM_PROVIDER_OPENROUTER
-        
-        # If only one provider is available, skip to model selection
-        if len(llm_provider_options) == 1:
-            self._data[CONF_LLM_PROVIDER] = default_provider
+            self._data[CONF_LLM_PROVIDER] = LLM_PROVIDER_GROQ
             return await self.async_step_model()
+        
+        # No API key configured - show form (edge case)
+        llm_provider_options = [
+            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+        ]
+        
+        default_provider = LLM_PROVIDER_GROQ
         
         schema_dict: dict[Any, Any] = {
             vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(

@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.5   | 2026-01-28 |
+| Smart Assist | 1.7.6   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.6 (2026-01-28) - UI Simplification
+
+**Changes:**
+
+- Removed OpenRouter from UI (Groq-only for new configurations)
+- OpenRouter code preserved for backwards compatibility with existing configs
+- Simplified config flow: No provider selection step needed
+- Subentry flows (Agent/Task) skip directly to model selection
+
+**Note:** Existing OpenRouter configurations continue to work. This change
+only affects the UI for new configurations.
 
 ### v1.7.5 (2026-01-28) - Cache Hit Rate Sensor
 
