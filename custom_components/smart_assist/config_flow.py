@@ -497,7 +497,14 @@ class SmartAssistSubentryFlowHandler(ConfigSubentryFlow):
     
     def _get_groq_api_key(self) -> str:
         """Get Groq API key from parent config entry."""
-        return self._get_entry().data.get(CONF_GROQ_API_KEY, "")
+        entry = self._get_entry()
+        groq_key = entry.data.get(CONF_GROQ_API_KEY, "")
+        if not groq_key:
+            # Fallback: try old API key location for backwards compatibility
+            groq_key = entry.data.get(CONF_API_KEY, "")
+            if groq_key:
+                _LOGGER.debug("Using legacy API key location for Groq")
+        return groq_key
     
     async def _fetch_models(self, llm_provider: str = LLM_PROVIDER_OPENROUTER) -> list[dict[str, str]]:
         """Fetch available models based on LLM provider."""
