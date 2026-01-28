@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.2   | 2026-01-28 |
+| Smart Assist | 1.7.3   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.3 (2026-01-28) - Cache Stats Logging
+
+**Improvements:**
+
+- Added detailed cache statistics logging for Groq API
+- New log line: `Groq cache stats: cached_tokens=X, prompt_tokens=Y, cache_hit=True/False`
+- Helps monitor and debug prompt caching effectiveness
 
 ### v1.7.2 (2026-01-28) - Config Flow Fixes
 
