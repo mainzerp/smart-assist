@@ -4,9 +4,20 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.8   | 2026-01-27 |
+| Smart Assist | 1.6.9   | 2026-01-28 |
 
 ## Version History
+
+### v1.6.9 (2026-01-28) - Calendar Reminder & Streaming Improvements
+
+**Improvements:**
+
+- Strengthened calendar reminder instruction in system prompt
+- LLM now MUST mention calendar reminders in every response (including small talk)
+- Added explicit examples for different conversation types
+- Added `[ACTION REQUIRED]` marker to calendar context for better LLM attention
+- Improved empty stream response detection and automatic retry
+- New metrics: `empty_responses` and `stream_timeouts` for monitoring
 
 ### v1.6.8 (2026-01-27) - Extended Reminder Window
 

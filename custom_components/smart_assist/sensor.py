@@ -99,6 +99,8 @@ class SmartAssistSensorBase(SensorEntity):
             "total_response_time_ms": 0.0,
             "cache_hits": 0,
             "cache_misses": 0,
+            "empty_responses": 0,
+            "stream_timeouts": 0,
         }
         
         for agent_info in agents.values():
@@ -115,6 +117,8 @@ class SmartAssistSensorBase(SensorEntity):
                 aggregated["total_response_time_ms"] += metrics.total_response_time_ms
                 aggregated["cache_hits"] += metrics.cache_hits
                 aggregated["cache_misses"] += metrics.cache_misses
+                aggregated["empty_responses"] += getattr(metrics, "empty_responses", 0)
+                aggregated["stream_timeouts"] += getattr(metrics, "stream_timeouts", 0)
         
         # Calculate derived metrics
         if aggregated["successful_requests"] > 0:
@@ -185,6 +189,8 @@ class SmartAssistRequestCountSensor(SmartAssistSensorBase):
                 "successful": metrics.get("successful_requests", 0),
                 "failed": metrics.get("failed_requests", 0),
                 "retries": metrics.get("total_retries", 0),
+                "empty_responses": metrics.get("empty_responses", 0),
+                "stream_timeouts": metrics.get("stream_timeouts", 0),
             }
         return {}
 

@@ -590,8 +590,17 @@ Examples:
         calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
         if calendar_enabled:
             parts.append("""
-## Calendar Reminders
-If you see a 'Calendar Reminders' section in the CURRENT CONTEXT, briefly mention the upcoming event(s) naturally in your response. For example: "By the way, you have 'Meeting' in about an hour." Keep it casual and non-intrusive.""")
+## Calendar Reminders (MANDATORY)
+When you see '## Calendar Reminders [ACTION REQUIRED]' in the CURRENT CONTEXT:
+1. You MUST mention these reminders in EVERY response - regardless of what the user asks
+2. Even for small talk ("how are you?"), casual questions, or unrelated topics - ALWAYS include the reminder
+3. Weave the reminder naturally into your response
+4. If multiple reminders, mention the most urgent (soonest) one
+5. Keep the reminder portion brief (one sentence)
+
+Examples:
+- User: "How are you?" -> "I'm doing great! By the way, reminder: 'Meeting' in about an hour."
+- User: "Turn on the light" -> "Done! Also, heads up: you have 'galileo' in 30 minutes."""")
         
         # Control instructions
         parts.append("""
@@ -729,7 +738,9 @@ Only exposed entities are available. Entities not listed in the index cannot be 
             if not reminders:
                 return ""
             
-            return "\n## Calendar Reminders\n" + "\n".join(f"- {r}" for r in reminders)
+            # Format with emphasis markers for LLM attention
+            reminder_text = "\n".join(f"- {r}" for r in reminders)
+            return f"\n## Calendar Reminders [ACTION REQUIRED]\n{reminder_text}"
             
         except Exception as err:
             _LOGGER.warning("Failed to get calendar context: %s", err)
@@ -799,8 +810,10 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         
         relevant_states = self._entity_manager.get_relevant_entity_states(user_text)
         
-        # Build context content with optional calendar reminders
-        context_parts = [f"[CURRENT CONTEXT]\n{time_context}", relevant_states]
+        # Build context content with optional calendar reminders at the end
+        context_parts = [f"[CURRENT CONTEXT]\n{time_context}"]
+        if relevant_states:
+            context_parts.append(relevant_states)
         if calendar_context:
             _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
             context_parts.append(calendar_context)
