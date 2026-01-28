@@ -168,6 +168,35 @@ OpenRouter supports prompt caching for compatible models. The cache works on the
 
 **Note**: Groq is the primary provider. Caching is automatic based on prefix matching. Not 100% guaranteed due to load-balanced servers, but typically achieves ~95% cache hit rate.
 
+### CRITICAL: Prompt Construction Order for Caching
+
+When modifying prompt construction, **ALWAYS maintain the static-to-dynamic order**:
+
+```
+STATIC  (cached, identical across requests)
+  1. Technical System Prompt (tool schemas, rules)
+  2. User System Prompt (personality, language)
+  3. Entity Index (list of available entities)
+  4. Calendar Context (upcoming events - semi-static)
+  
+DYNAMIC (changes every request, never cached)
+  5. Entity States (current values)
+  6. Conversation History
+  7. User Message
+```
+
+**Why this matters:**
+- LLM providers cache based on **prefix matching**
+- If dynamic content appears BEFORE static content, the cache is invalidated
+- Even a single character difference in the prefix breaks caching
+- Cache misses = higher latency + higher cost
+
+**Rules for changes:**
+1. New static context (e.g., room descriptions) goes AFTER Entity Index, BEFORE Entity States
+2. New dynamic context (e.g., current time) goes AFTER Entity Index
+3. Never inject timestamps, random IDs, or changing values in the static prefix
+4. Test cache hit rate after changes (target: >90%)
+
 ### 3. Cache Warming
 
 Optional periodic refresh to keep cache warm:
