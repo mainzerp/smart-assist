@@ -397,8 +397,8 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
         _LOGGER.info("Smart Assist: async_step_user called with input: %s", user_input is not None)
 
         # Check if already configured - only one instance allowed
-        await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured()
+        if self._async_current_entries():
+            return self.async_abort(reason="already_configured")
 
         if user_input is not None:
             self._data[CONF_LLM_PROVIDER] = user_input[CONF_LLM_PROVIDER]
