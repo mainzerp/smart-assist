@@ -7,8 +7,10 @@ DOMAIN: Final = "smart_assist"
 
 # Configuration keys
 CONF_API_KEY: Final = "api_key"
+CONF_GROQ_API_KEY: Final = "groq_api_key"
+CONF_LLM_PROVIDER: Final = "llm_provider"  # "openrouter" or "groq"
 CONF_MODEL: Final = "model"
-CONF_PROVIDER: Final = "provider"
+CONF_PROVIDER: Final = "provider"  # OpenRouter routing provider (auto, anthropic, etc.)
 CONF_TEMPERATURE: Final = "temperature"
 CONF_MAX_TOKENS: Final = "max_tokens"
 CONF_LANGUAGE: Final = "language"
@@ -33,6 +35,7 @@ CONF_CALENDAR_CONTEXT: Final = "calendar_context"
 # Default values
 DEFAULT_MODEL: Final = "openai/gpt-oss-120b"
 DEFAULT_PROVIDER: Final = "groq"
+DEFAULT_LLM_PROVIDER: Final = "openrouter"  # Use OpenRouter by default for backwards compatibility
 DEFAULT_TEMPERATURE: Final = 0.5
 DEFAULT_MAX_TOKENS: Final = 500
 DEFAULT_MAX_HISTORY: Final = 10
@@ -78,6 +81,17 @@ LOCALE_TO_LANGUAGE: Final = {
 
 # OpenRouter API
 OPENROUTER_API_URL: Final = "https://openrouter.ai/api/v1/chat/completions"
+
+# Groq API (direct)
+GROQ_API_URL: Final = "https://api.groq.com/openai/v1/chat/completions"
+
+# LLM Provider types
+LLM_PROVIDER_OPENROUTER: Final = "openrouter"
+LLM_PROVIDER_GROQ: Final = "groq"
+LLM_PROVIDERS: Final = {
+    LLM_PROVIDER_OPENROUTER: "OpenRouter (All Models)",
+    LLM_PROVIDER_GROQ: "Groq (Direct, Ultra Fast)",
+}
 
 # Model prefixes that support prompt caching
 # Used for automatic detection - user can use any model with these prefixes

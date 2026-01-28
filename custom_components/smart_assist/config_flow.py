@@ -61,7 +61,9 @@ try:
         CONF_ENABLE_QUICK_ACTIONS,
         CONF_ENABLE_WEB_SEARCH,
         CONF_EXPOSED_ONLY,
+        CONF_GROQ_API_KEY,
         CONF_LANGUAGE,
+        CONF_LLM_PROVIDER,
         CONF_MAX_HISTORY,
         CONF_MAX_TOKENS,
         CONF_MODEL,
@@ -80,6 +82,7 @@ try:
         DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_EXPOSED_ONLY,
+        DEFAULT_LLM_PROVIDER,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
         DEFAULT_MODEL,
@@ -90,6 +93,10 @@ try:
         DEFAULT_TEMPERATURE,
         DEFAULT_USER_SYSTEM_PROMPT,
         DOMAIN,
+        GROQ_API_URL,
+        LLM_PROVIDER_GROQ,
+        LLM_PROVIDER_OPENROUTER,
+        LLM_PROVIDERS,
         OPENROUTER_API_URL,
         PROVIDERS,
         supports_prompt_caching,
@@ -209,6 +216,80 @@ async def validate_api_key(api_key: str) -> bool:
                 return response.status == 200
     except (aiohttp.ClientError, TimeoutError):
         return False
+
+
+async def validate_groq_api_key(api_key: str) -> bool:
+    """Validate the Groq API key."""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.groq.com/openai/v1/models",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as response:
+                return response.status == 200
+    except (aiohttp.ClientError, TimeoutError):
+        return False
+
+
+async def fetch_groq_models(api_key: str) -> list[dict[str, str]]:
+    """Fetch available models from Groq API.
+    
+    Returns list of {"value": model_id, "label": display_name} dicts.
+    Falls back to default models on error.
+    """
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.groq.com/openai/v1/models",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as response:
+                if response.status != 200:
+                    _LOGGER.warning("Failed to fetch models from Groq: %s", response.status)
+                    return _get_groq_fallback_models()
+                
+                data = await response.json()
+                models = data.get("data", [])
+                
+                if not models:
+                    return _get_groq_fallback_models()
+                
+                # Sort by model id and format for selector
+                model_options = []
+                for model in sorted(models, key=lambda m: m.get("id", "")):
+                    model_id = model.get("id", "")
+                    # Skip non-chat models (e.g., whisper, embeddings)
+                    if "whisper" in model_id.lower() or "embed" in model_id.lower():
+                        continue
+                    label = f"{model_id}"
+                    model_options.append({"value": model_id, "label": label})
+                
+                _LOGGER.debug("Fetched %d models from Groq", len(model_options))
+                return model_options if model_options else _get_groq_fallback_models()
+                
+    except (aiohttp.ClientError, TimeoutError, Exception) as err:
+        _LOGGER.warning("Error fetching models from Groq: %s", err)
+        return _get_groq_fallback_models()
+
+
+def _get_groq_fallback_models() -> list[dict[str, str]]:
+    """Get fallback Groq model list when API is unavailable."""
+    return [
+        {"value": "llama-3.3-70b-versatile", "label": "llama-3.3-70b-versatile"},
+        {"value": "openai/gpt-oss-120b", "label": "openai/gpt-oss-120b"},
+        {"value": "openai/gpt-oss-20b", "label": "openai/gpt-oss-20b"},
+    ]
 
 
 async def fetch_openrouter_models(api_key: str) -> list[dict[str, str]]:
@@ -355,15 +436,21 @@ class SmartAssistSubentryFlowHandler(ConfigSubentryFlow):
     """Base class for Smart Assist subentry flows."""
     
     def _get_api_key(self) -> str:
-        """Get API key from parent config entry."""
+        """Get OpenRouter API key from parent config entry."""
         return self._get_entry().data.get(CONF_API_KEY, "")
     
-    async def _fetch_models(self) -> list[dict[str, str]]:
-        """Fetch available models from OpenRouter."""
+    def _get_groq_api_key(self) -> str:
+        """Get Groq API key from parent config entry."""
+        return self._get_entry().data.get(CONF_GROQ_API_KEY, "")
+    
+    async def _fetch_models(self, llm_provider: str = LLM_PROVIDER_OPENROUTER) -> list[dict[str, str]]:
+        """Fetch available models based on LLM provider."""
+        if llm_provider == LLM_PROVIDER_GROQ:
+            return await fetch_groq_models(self._get_groq_api_key())
         return await fetch_openrouter_models(self._get_api_key())
     
     async def _fetch_providers(self, model_id: str) -> list[dict[str, str]]:
-        """Fetch available providers for a model."""
+        """Fetch available providers for a model (OpenRouter only)."""
         return await fetch_model_providers(self._get_api_key(), model_id)
 
 
@@ -371,11 +458,10 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     """Handle subentry flow for Conversation Agents.
     
     Flow steps:
-    1. user: Model selection only (so we can fetch providers in next step)
-    2. settings: Provider + temperature + max_tokens + all behavior settings
-    3. prompt: System prompt customization
-    
-    Two-step approach allows dynamic provider loading after model is selected.
+    1. user: LLM Provider selection (OpenRouter or Groq) + Groq API key if needed
+    2. model: Model selection based on provider
+    3. settings: Provider routing (OpenRouter only) + all behavior settings
+    4. prompt: System prompt customization
     """
     
     def __init__(self) -> None:
@@ -388,18 +474,78 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle first step - model selection only."""
-        if user_input is not None:
-            self._data.update(user_input)
-            # Now go to settings step where we can fetch providers for the selected model
-            return await self.async_step_settings()
+        """Handle first step - LLM Provider selection."""
+        errors: dict[str, str] = {}
         
-        # Fetch models
-        if self._available_models is None:
-            self._available_models = await self._fetch_models()
+        if user_input is not None:
+            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+            self._data[CONF_LLM_PROVIDER] = llm_provider
+            
+            # If Groq selected, validate the API key
+            if llm_provider == LLM_PROVIDER_GROQ:
+                groq_key = user_input.get(CONF_GROQ_API_KEY, "")
+                if groq_key:
+                    # Validate Groq API key
+                    if await validate_groq_api_key(groq_key):
+                        self._data[CONF_GROQ_API_KEY] = groq_key
+                    else:
+                        errors["base"] = "invalid_groq_api_key"
+                else:
+                    # Check if we have a stored Groq key
+                    stored_key = self._get_groq_api_key()
+                    if stored_key:
+                        self._data[CONF_GROQ_API_KEY] = stored_key
+                    else:
+                        errors["base"] = "groq_api_key_required"
+            
+            if not errors:
+                return await self.async_step_model()
+        
+        # Check if Groq API key is already configured
+        has_groq_key = bool(self._get_groq_api_key())
+        
+        # Build LLM provider options
+        llm_provider_options = [
+            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
+            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
+        ]
+        
+        schema_dict = {
+            vol.Required(CONF_LLM_PROVIDER, default=DEFAULT_LLM_PROVIDER): SelectSelector(
+                SelectSelectorConfig(
+                    options=llm_provider_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        }
+        
+        # Add Groq API key field if not already configured
+        if not has_groq_key:
+            schema_dict[vol.Optional(CONF_GROQ_API_KEY, default="")] = TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )
         
         return self.async_show_form(
             step_id="user",
+            data_schema=vol.Schema(schema_dict),
+            errors=errors,
+        )
+
+    async def async_step_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle model selection step."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_settings()
+        
+        # Fetch models based on selected LLM provider
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+        if self._available_models is None:
+            self._available_models = await self._fetch_models(llm_provider)
+        
+        return self.async_show_form(
+            step_id="model",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_MODEL, default=DEFAULT_MODEL): SelectSelector(
@@ -421,90 +567,55 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             self._data.update(user_input)
             return await self.async_step_prompt()
         
-        # Fetch providers for the selected model (now we know the model!)
-        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(model_id)
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+        
+        # Build settings schema - provider routing only for OpenRouter
+        schema_dict: dict[Any, Any] = {}
+        
+        if llm_provider == LLM_PROVIDER_OPENROUTER:
+            # Fetch providers for the selected model (OpenRouter only)
+            model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+            if self._available_providers is None:
+                self._available_providers = await self._fetch_providers(model_id)
+            
+            schema_dict[vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER)] = SelectSelector(
+                SelectSelectorConfig(
+                    options=self._available_providers,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            )
+        
+        # Common settings for both providers
+        schema_dict.update({
+            vol.Required(CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE): NumberSelector(
+                NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS): NumberSelector(
+                NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_CONFIRM_CRITICAL, default=DEFAULT_CONFIRM_CRITICAL): BooleanSelector(),
+            vol.Required(CONF_MAX_HISTORY, default=DEFAULT_MAX_HISTORY): NumberSelector(
+                NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_ENABLE_WEB_SEARCH, default=True): BooleanSelector(),
+            vol.Required(CONF_ENABLE_PROMPT_CACHING, default=True): BooleanSelector(),
+            vol.Required(CONF_CACHE_TTL_EXTENDED, default=DEFAULT_CACHE_TTL_EXTENDED): BooleanSelector(),
+            vol.Required(CONF_ENABLE_CACHE_WARMING, default=DEFAULT_ENABLE_CACHE_WARMING): BooleanSelector(),
+            vol.Required(CONF_CACHE_REFRESH_INTERVAL, default=DEFAULT_CACHE_REFRESH_INTERVAL): NumberSelector(
+                NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
+            ),
+            vol.Required(CONF_CLEAN_RESPONSES, default=DEFAULT_CLEAN_RESPONSES): BooleanSelector(),
+            vol.Required(CONF_ASK_FOLLOWUP, default=DEFAULT_ASK_FOLLOWUP): BooleanSelector(),
+            vol.Required(CONF_CALENDAR_CONTEXT, default=DEFAULT_CALENDAR_CONTEXT): BooleanSelector(),
+        })
         
         return self.async_show_form(
             step_id="settings",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
-                        SelectSelectorConfig(
-                            options=self._available_providers,
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=0.0,
-                            max=1.0,
-                            step=0.1,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=100,
-                            max=4000,
-                            step=100,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                    vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
-                        TextSelectorConfig(
-                            type=TextSelectorType.TEXT,
-                        )
-                    ),
-                    vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
-                    vol.Required(CONF_CONFIRM_CRITICAL, default=DEFAULT_CONFIRM_CRITICAL): BooleanSelector(),
-                    vol.Required(
-                        CONF_MAX_HISTORY, default=DEFAULT_MAX_HISTORY
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=1,
-                            max=20,
-                            step=1,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                    vol.Required(CONF_ENABLE_WEB_SEARCH, default=True): BooleanSelector(),
-                    vol.Required(
-                        CONF_ENABLE_PROMPT_CACHING, default=True
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_CACHE_TTL_EXTENDED, default=DEFAULT_CACHE_TTL_EXTENDED
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_ENABLE_CACHE_WARMING, default=DEFAULT_ENABLE_CACHE_WARMING
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_CACHE_REFRESH_INTERVAL, default=DEFAULT_CACHE_REFRESH_INTERVAL
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=1,
-                            max=55,
-                            step=1,
-                            unit_of_measurement="min",
-                            mode=NumberSelectorMode.BOX,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_CLEAN_RESPONSES, default=DEFAULT_CLEAN_RESPONSES
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_ASK_FOLLOWUP, default=DEFAULT_ASK_FOLLOWUP
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_CALENDAR_CONTEXT, default=DEFAULT_CALENDAR_CONTEXT
-                    ): BooleanSelector(),
-                }
-            ),
+            data_schema=vol.Schema(schema_dict),
         )
 
     async def async_step_prompt(
@@ -543,20 +654,82 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle reconfiguration step 1 - model selection."""
+        """Handle reconfiguration step 1 - LLM provider selection."""
         # Pre-fill with existing values on first call
         if not self._data:
             self._data = dict(self._get_reconfigure_subentry().data)
         
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+            self._data[CONF_LLM_PROVIDER] = llm_provider
+            
+            # If Groq selected, validate the API key if provided
+            if llm_provider == LLM_PROVIDER_GROQ:
+                groq_key = user_input.get(CONF_GROQ_API_KEY, "")
+                if groq_key:
+                    if await validate_groq_api_key(groq_key):
+                        self._data[CONF_GROQ_API_KEY] = groq_key
+                    else:
+                        errors["base"] = "invalid_groq_api_key"
+                else:
+                    stored_key = self._get_groq_api_key()
+                    if stored_key:
+                        self._data[CONF_GROQ_API_KEY] = stored_key
+                    else:
+                        errors["base"] = "groq_api_key_required"
+            
+            if not errors:
+                # Reset models so they get refetched for new provider
+                self._available_models = None
+                self._available_providers = None
+                return await self.async_step_reconfigure_model()
+        
+        # Check if Groq API key is already configured
+        has_groq_key = bool(self._get_groq_api_key())
+        
+        llm_provider_options = [
+            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
+            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
+        ]
+        
+        schema_dict: dict[Any, Any] = {
+            vol.Required(CONF_LLM_PROVIDER): SelectSelector(
+                SelectSelectorConfig(
+                    options=llm_provider_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        }
+        
+        if not has_groq_key:
+            schema_dict[vol.Optional(CONF_GROQ_API_KEY, default="")] = TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )
+        
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(schema_dict),
+                self._data,
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration step 2 - model selection."""
         if user_input is not None:
             self._data[CONF_MODEL] = user_input[CONF_MODEL]
-            # Reset providers so they get refetched for new model
             self._available_providers = None
             return await self.async_step_reconfigure_settings()
         
-        # Fetch models for dropdown
+        # Fetch models for dropdown based on LLM provider
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
         if self._available_models is None:
-            self._available_models = await self._fetch_models()
+            self._available_models = await self._fetch_models(llm_provider)
         
         # Ensure current model is in the list
         model_options = list(self._available_models)
@@ -566,7 +739,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
         
         return self.async_show_form(
-            step_id="reconfigure",
+            step_id="reconfigure_model",
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(
                     {
@@ -586,7 +759,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_reconfigure_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle reconfiguration step 2 - provider and all settings."""
+        """Handle reconfiguration step 3 - provider routing and all settings."""
         if user_input is not None:
             self._data.update(user_input)
             return self.async_update_and_abort(
@@ -595,64 +768,64 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 data=self._data,
             )
         
-        # Fetch providers for the selected model
-        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(model_id)
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
         
-        # Ensure current provider is in the list
-        provider_options = list(self._available_providers)
-        current_provider = self._data.get(CONF_PROVIDER, DEFAULT_PROVIDER)
-        provider_values = [p["value"] for p in provider_options]
-        if current_provider not in provider_values:
-            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
+        schema_dict: dict[Any, Any] = {}
+        
+        # Provider routing only for OpenRouter
+        if llm_provider == LLM_PROVIDER_OPENROUTER:
+            model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+            if self._available_providers is None:
+                self._available_providers = await self._fetch_providers(model_id)
+            
+            provider_options = list(self._available_providers)
+            current_provider = self._data.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+            provider_values = [p["value"] for p in provider_options]
+            if current_provider not in provider_values:
+                provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
+            
+            schema_dict[vol.Required(CONF_PROVIDER)] = SelectSelector(
+                SelectSelectorConfig(
+                    options=provider_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            )
+        
+        # Common settings
+        schema_dict.update({
+            vol.Required(CONF_TEMPERATURE): NumberSelector(
+                NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_MAX_TOKENS): NumberSelector(
+                NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Optional(CONF_LANGUAGE): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_CONFIRM_CRITICAL): BooleanSelector(),
+            vol.Required(CONF_MAX_HISTORY): NumberSelector(
+                NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_ENABLE_WEB_SEARCH): BooleanSelector(),
+            vol.Required(CONF_ENABLE_PROMPT_CACHING): BooleanSelector(),
+            vol.Required(CONF_CACHE_TTL_EXTENDED): BooleanSelector(),
+            vol.Required(CONF_ENABLE_CACHE_WARMING): BooleanSelector(),
+            vol.Required(CONF_CACHE_REFRESH_INTERVAL): NumberSelector(
+                NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
+            ),
+            vol.Required(CONF_CLEAN_RESPONSES): BooleanSelector(),
+            vol.Required(CONF_ASK_FOLLOWUP): BooleanSelector(),
+            vol.Required(CONF_CALENDAR_CONTEXT): BooleanSelector(),
+            vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+            ),
+        })
         
         return self.async_show_form(
             step_id="reconfigure_settings",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(
-                    {
-                        vol.Required(CONF_PROVIDER): SelectSelector(
-                            SelectSelectorConfig(
-                                options=provider_options,
-                                mode=SelectSelectorMode.DROPDOWN,
-                            )
-                        ),
-                        vol.Required(CONF_TEMPERATURE): NumberSelector(
-                            NumberSelectorConfig(
-                                min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER
-                            )
-                        ),
-                        vol.Required(CONF_MAX_TOKENS): NumberSelector(
-                            NumberSelectorConfig(
-                                min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
-                            )
-                        ),
-                        vol.Optional(CONF_LANGUAGE): TextSelector(
-                            TextSelectorConfig(
-                                type=TextSelectorType.TEXT,
-                            )
-                        ),
-                        vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
-                        vol.Required(CONF_CONFIRM_CRITICAL): BooleanSelector(),
-                        vol.Required(CONF_MAX_HISTORY): NumberSelector(
-                            NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
-                        ),
-                        vol.Required(CONF_ENABLE_WEB_SEARCH): BooleanSelector(),
-                        vol.Required(CONF_ENABLE_PROMPT_CACHING): BooleanSelector(),
-                        vol.Required(CONF_CACHE_TTL_EXTENDED): BooleanSelector(),
-                        vol.Required(CONF_ENABLE_CACHE_WARMING): BooleanSelector(),
-                        vol.Required(CONF_CACHE_REFRESH_INTERVAL): NumberSelector(
-                            NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
-                        ),
-                        vol.Required(CONF_CLEAN_RESPONSES): BooleanSelector(),
-                        vol.Required(CONF_ASK_FOLLOWUP): BooleanSelector(),
-                        vol.Required(CONF_CALENDAR_CONTEXT): BooleanSelector(),
-                        vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
-                            TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
-                        ),
-                    }
-                ),
+                vol.Schema(schema_dict),
                 self._data,
             ),
         )
@@ -662,10 +835,9 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
     """Handle subentry flow for AI Tasks.
     
     Flow steps:
-    1. user: Model selection only (so we can fetch providers in next step)
-    2. settings: Provider + temperature + all other settings
-    
-    Two-step approach allows dynamic provider loading after model is selected.
+    1. user: LLM Provider selection (OpenRouter or Groq) + Groq API key if needed
+    2. model: Model selection based on provider
+    3. settings: Provider routing (OpenRouter only) + all other settings
     """
     
     def __init__(self) -> None:
@@ -678,18 +850,71 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle first step - model selection only."""
-        if user_input is not None:
-            self._data.update(user_input)
-            # Now go to settings step where we can fetch providers for the selected model
-            return await self.async_step_settings()
+        """Handle first step - LLM Provider selection."""
+        errors: dict[str, str] = {}
         
-        # Fetch models
-        if self._available_models is None:
-            self._available_models = await self._fetch_models()
+        if user_input is not None:
+            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+            self._data[CONF_LLM_PROVIDER] = llm_provider
+            
+            if llm_provider == LLM_PROVIDER_GROQ:
+                groq_key = user_input.get(CONF_GROQ_API_KEY, "")
+                if groq_key:
+                    if await validate_groq_api_key(groq_key):
+                        self._data[CONF_GROQ_API_KEY] = groq_key
+                    else:
+                        errors["base"] = "invalid_groq_api_key"
+                else:
+                    stored_key = self._get_groq_api_key()
+                    if stored_key:
+                        self._data[CONF_GROQ_API_KEY] = stored_key
+                    else:
+                        errors["base"] = "groq_api_key_required"
+            
+            if not errors:
+                return await self.async_step_model()
+        
+        has_groq_key = bool(self._get_groq_api_key())
+        
+        llm_provider_options = [
+            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
+            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
+        ]
+        
+        schema_dict: dict[Any, Any] = {
+            vol.Required(CONF_LLM_PROVIDER, default=DEFAULT_LLM_PROVIDER): SelectSelector(
+                SelectSelectorConfig(
+                    options=llm_provider_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        }
+        
+        if not has_groq_key:
+            schema_dict[vol.Optional(CONF_GROQ_API_KEY, default="")] = TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )
         
         return self.async_show_form(
             step_id="user",
+            data_schema=vol.Schema(schema_dict),
+            errors=errors,
+        )
+
+    async def async_step_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle model selection step."""
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_settings()
+        
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+        if self._available_models is None:
+            self._available_models = await self._fetch_models(llm_provider)
+        
+        return self.async_show_form(
+            step_id="model",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_MODEL, default=DEFAULT_MODEL): SelectSelector(
@@ -720,84 +945,120 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                 data=self._data,
             )
         
-        # Fetch providers for the selected model (now we know the model!)
-        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(model_id)
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+        
+        schema_dict: dict[Any, Any] = {}
+        
+        if llm_provider == LLM_PROVIDER_OPENROUTER:
+            model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+            if self._available_providers is None:
+                self._available_providers = await self._fetch_providers(model_id)
+            
+            schema_dict[vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER)] = SelectSelector(
+                SelectSelectorConfig(
+                    options=self._available_providers,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            )
+        
+        schema_dict.update({
+            vol.Required(CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE): NumberSelector(
+                NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS): NumberSelector(
+                NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+            ),
+            vol.Required(CONF_TASK_ENABLE_PROMPT_CACHING, default=DEFAULT_TASK_ENABLE_PROMPT_CACHING): BooleanSelector(),
+            vol.Required(CONF_TASK_ENABLE_CACHE_WARMING, default=DEFAULT_TASK_ENABLE_CACHE_WARMING): BooleanSelector(),
+        })
         
         return self.async_show_form(
             step_id="settings",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_PROVIDER, default=DEFAULT_PROVIDER): SelectSelector(
-                        SelectSelectorConfig(
-                            options=self._available_providers,
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=0.0,
-                            max=1.0,
-                            step=0.1,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS
-                    ): NumberSelector(
-                        NumberSelectorConfig(
-                            min=100,
-                            max=4000,
-                            step=100,
-                            mode=NumberSelectorMode.SLIDER,
-                        )
-                    ),
-                    vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
-                        TextSelectorConfig(
-                            type=TextSelectorType.TEXT,
-                        )
-                    ),
-                    vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
-                    vol.Required(
-                        CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT
-                    ): TextSelector(
-                        TextSelectorConfig(
-                            type=TextSelectorType.TEXT,
-                            multiline=True,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_TASK_ENABLE_PROMPT_CACHING, default=DEFAULT_TASK_ENABLE_PROMPT_CACHING
-                    ): BooleanSelector(),
-                    vol.Required(
-                        CONF_TASK_ENABLE_CACHE_WARMING, default=DEFAULT_TASK_ENABLE_CACHE_WARMING
-                    ): BooleanSelector(),
-                }
-            ),
+            data_schema=vol.Schema(schema_dict),
         )
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle reconfiguration step 1 - model selection."""
-        # Pre-fill with existing values on first call
+        """Handle reconfiguration step 1 - LLM provider selection."""
         if not self._data:
             self._data = dict(self._get_reconfigure_subentry().data)
         
+        errors: dict[str, str] = {}
+        
+        if user_input is not None:
+            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+            self._data[CONF_LLM_PROVIDER] = llm_provider
+            
+            if llm_provider == LLM_PROVIDER_GROQ:
+                groq_key = user_input.get(CONF_GROQ_API_KEY, "")
+                if groq_key:
+                    if await validate_groq_api_key(groq_key):
+                        self._data[CONF_GROQ_API_KEY] = groq_key
+                    else:
+                        errors["base"] = "invalid_groq_api_key"
+                else:
+                    stored_key = self._get_groq_api_key()
+                    if stored_key:
+                        self._data[CONF_GROQ_API_KEY] = stored_key
+                    else:
+                        errors["base"] = "groq_api_key_required"
+            
+            if not errors:
+                self._available_models = None
+                self._available_providers = None
+                return await self.async_step_reconfigure_model()
+        
+        has_groq_key = bool(self._get_groq_api_key())
+        
+        llm_provider_options = [
+            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
+            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
+        ]
+        
+        schema_dict: dict[Any, Any] = {
+            vol.Required(CONF_LLM_PROVIDER): SelectSelector(
+                SelectSelectorConfig(
+                    options=llm_provider_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        }
+        
+        if not has_groq_key:
+            schema_dict[vol.Optional(CONF_GROQ_API_KEY, default="")] = TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            )
+        
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(schema_dict),
+                self._data,
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Handle reconfiguration step 2 - model selection."""
         if user_input is not None:
             self._data[CONF_MODEL] = user_input[CONF_MODEL]
-            # Reset providers so they get refetched for new model
             self._available_providers = None
             return await self.async_step_reconfigure_settings()
         
-        # Fetch models for dropdown
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
         if self._available_models is None:
-            self._available_models = await self._fetch_models()
+            self._available_models = await self._fetch_models(llm_provider)
         
-        # Ensure current model is in the list
         model_options = list(self._available_models)
         current_model = self._data.get(CONF_MODEL, DEFAULT_MODEL)
         model_ids = [m["value"] for m in model_options]
@@ -805,7 +1066,7 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             model_options.insert(0, {"value": current_model, "label": f"{current_model} (current)"})
         
         return self.async_show_form(
-            step_id="reconfigure",
+            step_id="reconfigure_model",
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(
                     {
@@ -825,7 +1086,7 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
     async def async_step_reconfigure_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Handle reconfiguration step 2 - provider and all settings."""
+        """Handle reconfiguration step 3 - provider routing and all settings."""
         if user_input is not None:
             self._data.update(user_input)
             return self.async_update_and_abort(
@@ -834,52 +1095,50 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                 data=self._data,
             )
         
-        # Fetch providers for the selected model
-        model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
-        if self._available_providers is None:
-            self._available_providers = await self._fetch_providers(model_id)
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
         
-        # Ensure current provider is in the list
-        provider_options = list(self._available_providers)
-        current_provider = self._data.get(CONF_PROVIDER, DEFAULT_PROVIDER)
-        provider_values = [p["value"] for p in provider_options]
-        if current_provider not in provider_values:
-            provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
+        schema_dict: dict[Any, Any] = {}
+        
+        if llm_provider == LLM_PROVIDER_OPENROUTER:
+            model_id = self._data.get(CONF_MODEL, DEFAULT_MODEL)
+            if self._available_providers is None:
+                self._available_providers = await self._fetch_providers(model_id)
+            
+            provider_options = list(self._available_providers)
+            current_provider = self._data.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+            provider_values = [p["value"] for p in provider_options]
+            if current_provider not in provider_values:
+                provider_options.insert(0, {"value": current_provider, "label": f"{current_provider} (current)"})
+            
+            schema_dict[vol.Required(CONF_PROVIDER)] = SelectSelector(
+                SelectSelectorConfig(
+                    options=provider_options,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            )
+        
+        schema_dict.update({
+            vol.Required(CONF_TEMPERATURE): NumberSelector(
+                NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_MAX_TOKENS): NumberSelector(
+                NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Optional(CONF_LANGUAGE): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_TASK_SYSTEM_PROMPT): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+            ),
+            vol.Required(CONF_TASK_ENABLE_PROMPT_CACHING): BooleanSelector(),
+            vol.Required(CONF_TASK_ENABLE_CACHE_WARMING): BooleanSelector(),
+        })
         
         return self.async_show_form(
             step_id="reconfigure_settings",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(
-                    {
-                        vol.Required(CONF_PROVIDER): SelectSelector(
-                            SelectSelectorConfig(
-                                options=provider_options,
-                                mode=SelectSelectorMode.DROPDOWN,
-                            )
-                        ),
-                        vol.Required(CONF_TEMPERATURE): NumberSelector(
-                            NumberSelectorConfig(
-                                min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER
-                            )
-                        ),
-                        vol.Required(CONF_MAX_TOKENS): NumberSelector(
-                            NumberSelectorConfig(
-                                min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER
-                            )
-                        ),
-                        vol.Optional(CONF_LANGUAGE): TextSelector(
-                            TextSelectorConfig(
-                                type=TextSelectorType.TEXT,
-                            )
-                        ),
-                        vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
-                        vol.Required(CONF_TASK_SYSTEM_PROMPT): TextSelector(
-                            TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
-                        ),
-                        vol.Required(CONF_TASK_ENABLE_PROMPT_CACHING): BooleanSelector(),
-                        vol.Required(CONF_TASK_ENABLE_CACHE_WARMING): BooleanSelector(),
-                    }
-                ),
+                vol.Schema(schema_dict),
                 self._data,
             ),
         )

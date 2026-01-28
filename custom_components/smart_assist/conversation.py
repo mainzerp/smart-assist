@@ -67,7 +67,9 @@ try:
         CONF_ENABLE_PROMPT_CACHING,
         CONF_ENABLE_QUICK_ACTIONS,
         CONF_EXPOSED_ONLY,
+        CONF_GROQ_API_KEY,
         CONF_LANGUAGE,
+        CONF_LLM_PROVIDER,
         CONF_MAX_HISTORY,
         CONF_MAX_TOKENS,
         CONF_MODEL,
@@ -78,6 +80,7 @@ try:
         DEFAULT_CACHE_TTL_EXTENDED,
         DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
+        DEFAULT_LLM_PROVIDER,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
         DEFAULT_MODEL,
@@ -85,11 +88,12 @@ try:
         DEFAULT_TEMPERATURE,
         DEFAULT_USER_SYSTEM_PROMPT,
         DOMAIN,
+        LLM_PROVIDER_GROQ,
         LOCALE_TO_LANGUAGE,
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
-    from .llm import ChatMessage, OpenRouterClient
+    from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
     from .llm.models import MessageRole, ToolCall
     from .tools import create_tool_registry
     from .utils import clean_for_tts
@@ -161,16 +165,31 @@ class SmartAssistConversationEntity(ConversationEntity):
             """Get config value from subentry data."""
             return subentry.data.get(key, default)
 
-        # Initialize LLM client (API key from main entry, settings from subentry)
-        self._llm_client = OpenRouterClient(
-            api_key=entry.data[CONF_API_KEY],
+        # Determine LLM provider and API key
+        llm_provider = get_config(CONF_LLM_PROVIDER, DEFAULT_LLM_PROVIDER)
+        
+        if llm_provider == LLM_PROVIDER_GROQ:
+            # Use Groq API key from subentry or main entry
+            api_key = get_config(CONF_GROQ_API_KEY) or entry.data.get(CONF_GROQ_API_KEY, "")
+        else:
+            # Use OpenRouter API key from main entry
+            api_key = entry.data[CONF_API_KEY]
+        
+        # Initialize LLM client using factory
+        self._llm_client = create_llm_client(
+            provider=llm_provider,
+            api_key=api_key,
             model=get_config(CONF_MODEL, DEFAULT_MODEL),
-            provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
             temperature=get_config(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
             max_tokens=get_config(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
-            enable_caching=get_config(CONF_ENABLE_PROMPT_CACHING, True),
-            cache_ttl_extended=get_config(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED),
+            openrouter_provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
         )
+        
+        # For OpenRouterClient, set additional caching options
+        if hasattr(self._llm_client, 'enable_caching'):
+            self._llm_client._enable_caching = get_config(CONF_ENABLE_PROMPT_CACHING, True)
+        if hasattr(self._llm_client, '_cache_ttl_extended'):
+            self._llm_client._cache_ttl_extended = get_config(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED)
         
         # Store LLM client reference for sensors to access metrics
         hass.data.setdefault(DOMAIN, {})

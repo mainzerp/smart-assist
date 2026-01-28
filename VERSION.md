@@ -4,9 +4,38 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.13  | 2026-01-28 |
+| Smart Assist | 1.7.0   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.0 (2026-01-28) - Direct Groq API Integration
+
+**Major Feature:**
+
+- Direct Groq API integration for ultra-fast inference without OpenRouter middleware
+- LLM Provider selection per agent/task: OpenRouter (all models) or Groq (direct)
+- Groq API endpoint: `https://api.groq.com/openai/v1/chat/completions`
+- Separate Groq API key configuration for direct access
+
+**New Components:**
+
+- `GroqClient`: New client class for direct Groq API communication
+- `create_llm_client()`: Factory function for provider-agnostic client creation
+- Config flow: LLM Provider selection step before model selection
+- Provider routing field now only shown for OpenRouter (Groq has single provider)
+
+**Benefits:**
+
+- Lower latency: Direct connection eliminates OpenRouter overhead (~50-100ms)
+- More consistent caching: No provider routing variability
+- Full API control: Direct access to Groq features
+- Backwards compatible: Existing OpenRouter configurations continue to work
+
+**Configuration:**
+
+- OpenRouter: Uses existing OpenRouter API key from main config
+- Groq: Requires separate Groq API key (get at console.groq.com)
+- Provider selection is per-agent/per-task (not global)
 
 ### v1.6.13 (2026-01-28) - Provider-Specific Caching Fix
 

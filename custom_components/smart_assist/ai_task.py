@@ -21,13 +21,16 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from .const import (
     CONF_API_KEY,
     CONF_EXPOSED_ONLY,
+    CONF_GROQ_API_KEY,
     CONF_LANGUAGE,
+    CONF_LLM_PROVIDER,
     CONF_MAX_TOKENS,
     CONF_MODEL,
     CONF_PROVIDER,
     CONF_TASK_ENABLE_PROMPT_CACHING,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
+    DEFAULT_LLM_PROVIDER,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
@@ -35,10 +38,11 @@ from .const import (
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DOMAIN,
+    LLM_PROVIDER_GROQ,
     LOCALE_TO_LANGUAGE,
 )
 from .context.entity_manager import EntityManager
-from .llm import OpenRouterClient
+from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
 
@@ -105,15 +109,29 @@ class SmartAssistAITask(AITaskEntity):
         
         self._get_config = get_config
         
-        # Initialize LLM client (API key from main entry, settings from subentry)
-        self._llm_client = OpenRouterClient(
-            api_key=config_entry.data.get(CONF_API_KEY),
+        # Determine LLM provider and API key
+        llm_provider = get_config(CONF_LLM_PROVIDER, DEFAULT_LLM_PROVIDER)
+        
+        if llm_provider == LLM_PROVIDER_GROQ:
+            # Use Groq API key from subentry or main entry
+            api_key = get_config(CONF_GROQ_API_KEY) or config_entry.data.get(CONF_GROQ_API_KEY, "")
+        else:
+            # Use OpenRouter API key from main entry
+            api_key = config_entry.data.get(CONF_API_KEY)
+        
+        # Initialize LLM client using factory
+        self._llm_client = create_llm_client(
+            provider=llm_provider,
+            api_key=api_key,
             model=get_config(CONF_MODEL, DEFAULT_MODEL),
-            provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
             temperature=get_config(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
             max_tokens=get_config(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
-            enable_caching=get_config(CONF_TASK_ENABLE_PROMPT_CACHING, DEFAULT_TASK_ENABLE_PROMPT_CACHING),
+            openrouter_provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
         )
+        
+        # For OpenRouterClient, set additional caching options
+        if hasattr(self._llm_client, '_enable_caching'):
+            self._llm_client._enable_caching = get_config(CONF_TASK_ENABLE_PROMPT_CACHING, DEFAULT_TASK_ENABLE_PROMPT_CACHING)
         
         # Initialize entity manager for context
         self._entity_manager = EntityManager(

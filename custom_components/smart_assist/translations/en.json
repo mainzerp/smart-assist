@@ -11,6 +11,8 @@
     },
     "error": {
       "invalid_api_key": "Invalid API key. Please check and try again.",
+      "invalid_groq_api_key": "Invalid Groq API key. Please check and try again.",
+      "groq_api_key_required": "Groq API key is required for Groq provider.",
       "cannot_connect": "Cannot connect to OpenRouter API.",
       "unknown": "An unexpected error occurred."
     },
@@ -41,20 +43,32 @@
       },
       "step": {
         "user": {
+          "title": "LLM Provider Selection",
+          "description": "Select the LLM provider for this conversation agent.\n\n**OpenRouter**: Access to all models (Claude, GPT-4, Llama, etc.) via a unified API.\n**Groq**: Direct connection for ultra-fast inference with automatic caching.",
+          "data": {
+            "llm_provider": "LLM Provider",
+            "groq_api_key": "Groq API Key"
+          },
+          "data_description": {
+            "llm_provider": "Select OpenRouter for model variety or Groq for fastest inference.",
+            "groq_api_key": "Enter your Groq API key (get one at console.groq.com)."
+          }
+        },
+        "model": {
           "title": "Model Selection",
-          "description": "Select the AI model for this conversation agent.\n\nAfter selecting a model, you can choose a specific provider in the next step.",
+          "description": "Select the AI model for this conversation agent.",
           "data": {
             "model": "Model"
           },
           "data_description": {
-            "model": "Select an OpenRouter model or enter a custom model ID."
+            "model": "Select a model or enter a custom model ID."
           }
         },
         "settings": {
           "title": "Agent Settings",
           "description": "Configure provider and behavior settings for this conversation agent.",
           "data": {
-            "provider": "Provider",
+            "provider": "Provider Routing",
             "temperature": "Temperature (0 = precise, 1 = creative)",
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
@@ -71,7 +85,7 @@
             "calendar_context": "Proactive calendar reminders"
           },
           "data_description": {
-            "provider": "Select a specific provider or use 'Automatic' for best price routing.",
+            "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
             "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
             "max_tokens": "Maximum number of tokens in the response.",
             "language": "Leave empty for auto-detect (uses HA language). Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
@@ -94,8 +108,16 @@
           }
         },
         "reconfigure": {
+          "title": "Reconfigure Agent - LLM Provider",
+          "description": "Select the LLM provider for this agent.\n\nAfter confirming, you can update model and other settings.",
+          "data": {
+            "llm_provider": "LLM Provider",
+            "groq_api_key": "Groq API Key"
+          }
+        },
+        "reconfigure_model": {
           "title": "Reconfigure Agent - Model",
-          "description": "Select a new model for this agent.\n\nAfter confirming, you can update provider and other settings.",
+          "description": "Select a new model for this agent.",
           "data": {
             "model": "Model"
           }
@@ -104,7 +126,7 @@
           "title": "Reconfigure Agent - Settings",
           "description": "Update provider and behavior settings for this conversation agent.",
           "data": {
-            "provider": "Provider",
+            "provider": "Provider Routing",
             "temperature": "Temperature",
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
@@ -135,20 +157,32 @@
       },
       "step": {
         "user": {
+          "title": "LLM Provider Selection",
+          "description": "Select the LLM provider for this AI task.\n\n**OpenRouter**: Access to all models via a unified API.\n**Groq**: Direct connection for ultra-fast inference.",
+          "data": {
+            "llm_provider": "LLM Provider",
+            "groq_api_key": "Groq API Key"
+          },
+          "data_description": {
+            "llm_provider": "Select OpenRouter for model variety or Groq for fastest inference.",
+            "groq_api_key": "Enter your Groq API key (get one at console.groq.com)."
+          }
+        },
+        "model": {
           "title": "Model Selection",
-          "description": "Select the AI model for this task.\n\nAfter selecting a model, you can choose a specific provider in the next step.",
+          "description": "Select the AI model for this task.",
           "data": {
             "model": "Model"
           },
           "data_description": {
-            "model": "Select an OpenRouter model or enter a custom model ID."
+            "model": "Select a model or enter a custom model ID."
           }
         },
         "settings": {
           "title": "Task Settings",
           "description": "Configure provider and other settings for this AI task.",
           "data": {
-            "provider": "Provider",
+            "provider": "Provider Routing",
             "temperature": "Temperature (0 = precise, 1 = creative)",
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
@@ -158,7 +192,7 @@
             "task_enable_cache_warming": "Enable cache warming"
           },
           "data_description": {
-            "provider": "Select a specific provider or use 'Automatic' for best price routing.",
+            "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
             "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
             "max_tokens": "Maximum number of tokens in the response.",
             "language": "Leave empty for auto-detect (uses HA language). Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
@@ -168,8 +202,16 @@
           }
         },
         "reconfigure": {
+          "title": "Reconfigure Task - LLM Provider",
+          "description": "Select the LLM provider for this task.\n\nAfter confirming, you can update model and other settings.",
+          "data": {
+            "llm_provider": "LLM Provider",
+            "groq_api_key": "Groq API Key"
+          }
+        },
+        "reconfigure_model": {
           "title": "Reconfigure Task - Model",
-          "description": "Select a new model for this AI task.\n\nAfter confirming, you can update provider and other settings.",
+          "description": "Select a new model for this AI task.",
           "data": {
             "model": "Model"
           }
@@ -178,7 +220,7 @@
           "title": "Reconfigure Task - Settings",
           "description": "Update provider and behavior settings for this AI task.",
           "data": {
-            "provider": "Provider",
+            "provider": "Provider Routing",
             "temperature": "Temperature",
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
