@@ -380,11 +380,19 @@ class UnifiedControlTool(BaseTool):
             results.append(f"volume={volume}%")
         
         if source is not None:
-            await self._hass.services.async_call(
-                "media_player", "select_source",
-                {ATTR_ENTITY_ID: entity_id, "source": source}, blocking=True
-            )
-            results.append(f"source={source}")
+            # Check if entity supports select_source before calling
+            state = self._hass.states.get(entity_id)
+            supported_features = state.attributes.get("supported_features", 0) if state else 0
+            # SUPPORT_SELECT_SOURCE = 2048 (MediaPlayerEntityFeature.SELECT_SOURCE)
+            if supported_features & 2048:
+                await self._hass.services.async_call(
+                    "media_player", "select_source",
+                    {ATTR_ENTITY_ID: entity_id, "source": source}, blocking=True
+                )
+                results.append(f"source={source}")
+            else:
+                _LOGGER.debug("Entity %s does not support select_source, skipping", entity_id)
+                results.append(f"source={source} (not supported)")
         
         if not results:
             return ToolResult(success=False, message="No media action specified.")
