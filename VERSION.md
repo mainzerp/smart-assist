@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.11  | 2026-01-28 |
+| Smart Assist | 1.6.12  | 2026-01-28 |
 
 ## Version History
+
+### v1.6.12 (2026-01-28) - Cache-Optimized Message Order
+
+**Improvements:**
+
+- Reordered message structure for optimal prompt caching with Groq/OpenRouter
+- Static content (system prompt, user prompt, entity index) now forms consistent prefix
+- Dynamic content (time, states, calendar) moved to user message at the end
+- History placed after static prefix, before dynamic context
+- Enables automatic cache hits on Groq (GPT-OSS models) without manual cache_control
 
 ### v1.6.11 (2026-01-28) - Prompt Optimization & Dynamic Caching
 

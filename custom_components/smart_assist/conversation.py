@@ -746,6 +746,13 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
     def _build_messages_for_llm(self, user_text: str, chat_log: ChatLog | None = None, calendar_context: str = "") -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request.
         
+        Message order optimized for prompt caching (static prefix first):
+        1. System prompt (static/cached)
+        2. User system prompt (static/cached)  
+        3. Entity index (static/cached - changes only when entities change)
+        4. Conversation history (dynamic)
+        5. Current context + user message (dynamic - time, states, calendar)
+        
         Args:
             user_text: The current user message
             chat_log: Optional ChatLog containing conversation history
@@ -794,29 +801,8 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             )
             cached_prefix_length += 1
 
-        # 4. Current context (dynamic - NOT cached) - includes time and relevant states
-        from datetime import datetime
-        now = datetime.now()
-        time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
-        
-        relevant_states = self._entity_manager.get_relevant_entity_states(user_text)
-        
-        # Build context content with optional calendar reminders at the end
-        context_parts = [f"[CURRENT CONTEXT]\n{time_context}"]
-        if relevant_states:
-            context_parts.append(relevant_states)
-        if calendar_context:
-            _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
-            context_parts.append(calendar_context)
-        
-        messages.append(
-            ChatMessage(
-                role=MessageRole.SYSTEM,
-                content="\n\n".join(filter(None, context_parts)),
-            )
-        )
-
-        # 5. Conversation history from ChatLog (if available)
+        # 4. Conversation history from ChatLog (if available)
+        # Placed BEFORE dynamic context to maximize cache prefix length
         if chat_log is not None:
             try:
                 max_history = int(self._get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY))
@@ -848,8 +834,27 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
                 _LOGGER.warning("Failed to process chat history: %s", err)
                 # Continue without history - don't fail the request
 
-        # 6. Current user message
-        messages.append(ChatMessage(role=MessageRole.USER, content=user_text))
+        # 5. Current context (dynamic - NOT cached) + user message
+        # Combined into single user message to keep dynamic content at the end
+        from datetime import datetime
+        now = datetime.now()
+        time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
+        
+        relevant_states = self._entity_manager.get_relevant_entity_states(user_text)
+        
+        # Build context prefix for user message
+        context_parts = [f"[Context: {time_context}]"]
+        if relevant_states:
+            context_parts.append(f"[States: {relevant_states}]")
+        if calendar_context:
+            _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
+            context_parts.append(calendar_context)
+        
+        # Combine context with user message
+        context_prefix = " ".join(context_parts)
+        user_message_with_context = f"{context_prefix}\n\nUser: {user_text}"
+        
+        messages.append(ChatMessage(role=MessageRole.USER, content=user_message_with_context))
 
         return messages, cached_prefix_length
 
