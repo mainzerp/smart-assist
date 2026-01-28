@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.8   | 2026-01-28 |
+| Smart Assist | 1.7.9   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.9 (2026-01-28) - Code Cleanup
+
+**Refactoring:**
+
+- Renamed `llm/client.py` to `llm/openrouter_client.py` for consistent naming
+- Client files now follow unified naming convention:
+  - `openrouter_client.py` - OpenRouterClient
+  - `groq_client.py` - GroqClient
+- Updated imports in `llm/__init__.py`
 
 ### v1.7.8 (2026-01-28) - Improved Logging
 

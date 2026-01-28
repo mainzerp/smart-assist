@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from .client import LLMMetrics, OpenRouterClient
+from .openrouter_client import LLMMetrics, OpenRouterClient
 from .groq_client import GroqClient, GroqMetrics
 from .models import ChatMessage, ChatResponse, ToolCall
 
