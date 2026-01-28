@@ -107,7 +107,7 @@ class GroqClient:
         self._api_key = api_key
         self._model = model
         self._temperature = temperature
-        self._max_tokens = max_tokens
+        self._max_tokens = int(max_tokens)  # Groq requires integer
         self._session: aiohttp.ClientSession | None = None
         self._session_lock = asyncio.Lock()
         self._metrics = GroqMetrics()
@@ -206,7 +206,7 @@ class GroqClient:
             "model": self._model,
             "messages": self._build_messages(messages),
             "temperature": self._temperature,
-            "max_completion_tokens": self._max_tokens,
+            "max_tokens": self._max_tokens,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -289,7 +289,7 @@ class GroqClient:
             "model": self._model,
             "messages": self._build_messages(messages),
             "temperature": self._temperature,
-            "max_completion_tokens": self._max_tokens,
+            "max_tokens": self._max_tokens,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -430,7 +430,7 @@ class GroqClient:
             "model": self._model,
             "messages": self._build_messages(messages),
             "temperature": self._temperature,
-            "max_completion_tokens": self._max_tokens,
+            "max_tokens": self._max_tokens,
         }
 
         if tools:
