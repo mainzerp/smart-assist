@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.7   | 2026-01-28 |
+| Smart Assist | 1.7.8   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.8 (2026-01-28) - Improved Logging
+
+**Improvements:**
+
+- Added clear log prefixes to distinguish request types:
+  - `[CACHE-WARMING]` for cache warm-up requests
+  - `[USER-REQUEST]` for actual user messages
+- Easier to identify request flow in Home Assistant logs
 
 ### v1.7.7 (2026-01-28) - Tool Registry Fix
 
