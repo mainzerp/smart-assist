@@ -214,12 +214,15 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         This pre-populates the LLM provider's cache with the system prompt
         and entity index, reducing latency and cost for subsequent requests.
+        
+        Uses the same code path as real requests to ensure identical prefix.
         """
         _LOGGER.debug("Warming prompt cache...")
         
         try:
-            # Build messages (this populates entity index and returns cached_prefix_length)
-            messages, cached_prefix_length = self._build_messages_for_llm("ping")
+            # Build messages using async version (same path as real requests)
+            # This ensures calendar context loading is included in the code path
+            messages, cached_prefix_length = await self._build_messages_for_llm_async("ping", chat_log=None)
             tools = self._tool_registry.get_schemas()
             
             async for _ in self._llm_client.chat_stream(

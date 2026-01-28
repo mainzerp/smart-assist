@@ -360,7 +360,33 @@ class OpenRouterClient:
                 "only": [self._provider],  # Strictly use only this provider
             }
 
+        # Debug: Log message structure for cache analysis
+        import hashlib
+        msg_summary = []
+        prefix_content = []
+        for i, msg in enumerate(payload["messages"]):
+            role = msg.get("role", "?")
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                content_len = len(content)
+                content_text = content
+            elif isinstance(content, list):
+                content_len = sum(len(c.get("text", "")) for c in content if isinstance(c, dict))
+                content_text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+            else:
+                content_len = 0
+                content_text = ""
+            msg_summary.append(f"{i}:{role}:{content_len}chars")
+            # Collect first 3 messages for prefix hash
+            if i < 3:
+                prefix_content.append(f"{role}:{content_text}")
+        
+        # Hash the prefix (messages + tools) to detect changes
+        prefix_hash = hashlib.md5("|||".join(prefix_content).encode()).hexdigest()[:8]
+        tools_hash = hashlib.md5(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
+        
         _LOGGER.debug("Sending streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
+        _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
         
         self._metrics.total_requests += 1
         start_time = time.monotonic()
@@ -501,7 +527,33 @@ class OpenRouterClient:
                 "only": [self._provider],  # Strictly use only this provider
             }
 
+        # Debug: Log message structure for cache analysis
+        import hashlib
+        msg_summary = []
+        prefix_content = []
+        for i, msg in enumerate(payload["messages"]):
+            role = msg.get("role", "?")
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                content_len = len(content)
+                content_text = content
+            elif isinstance(content, list):
+                content_len = sum(len(c.get("text", "")) for c in content if isinstance(c, dict))
+                content_text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+            else:
+                content_len = 0
+                content_text = ""
+            msg_summary.append(f"{i}:{role}:{content_len}chars")
+            # Collect first 3 messages for prefix hash
+            if i < 3:
+                prefix_content.append(f"{role}:{content_text}")
+        
+        # Hash the prefix (messages + tools) to detect changes
+        prefix_hash = hashlib.md5("|||".join(prefix_content).encode()).hexdigest()[:8]
+        tools_hash = hashlib.md5(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
+        
         _LOGGER.debug("Sending full streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
+        _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
 
         self._metrics.total_requests += 1
         start_time = time.monotonic()
