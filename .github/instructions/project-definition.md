@@ -197,7 +197,36 @@ DYNAMIC (changes between requests, breaks cache if in prefix)
 3. Never inject timestamps, random IDs, or changing values in the static prefix (items 1-3)
 4. Test cache hit rate after changes (target: >90%)
 
-### 3. Cache Warming
+### 3. Persistent Memory Architecture (Planned v1.1.0)
+
+Long-term memory for user preferences, learned patterns, and named entities.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  PROMPT STRUCTURE WITH MEMORY                               │
+├─────────────────────────────────────────────────────────────┤
+│  1. Technical System Prompt    │ STATIC (cached)            │
+│  2. User System Prompt         │ STATIC (cached)            │
+│  3. Entity Index               │ STATIC (cached)            │
+├─────────────────────────────────────────────────────────────┤
+│  4. Memory Section (~50-100 tokens)                         │
+│     - User preferences: "evening_lighting: dim"             │
+│     - Learned patterns: "Licht = Stehlampe (learned)"       │
+│     - Named entities: "Anna = wife"                         │
+│     - Custom commands: "Schlafenszeit = all lights off"     │
+│     (semi-static, rarely changes, preserves prefix cache)   │
+├─────────────────────────────────────────────────────────────┤
+│  5. Calendar Context           │ DYNAMIC                    │
+│  6. Entity States              │ DYNAMIC                    │
+│  7. Conversation History       │ DYNAMIC                    │
+│  8. User Message               │ DYNAMIC                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Storage**: Home Assistant Storage (`.storage/smart_assist/memory.json`)
+**Update Triggers**: LLM recognizes preferences/corrections and calls `save_memory` tool
+
+### 4. Cache Warming
 
 Optional periodic refresh to keep cache warm:
 
@@ -215,7 +244,7 @@ cache_refresh_interval: int = 4    # Minutes (1-55)
 
 **Cost consideration**: Each warming request costs ~0.001-0.003 USD depending on model.
 
-### 4. Entity Index Caching
+### 5. Entity Index Caching
 
 ```python
 # Entity Index is invalidated when:

@@ -110,7 +110,7 @@
 | ------- | ----------- | -------- |
 | Entity History Queries | "How was the temperature yesterday?", "When was the light last on?" | High |
 | Multi-Turn Improvements | Hybrid approach: ConversationContextTracker + automatic System Prompt injection. Tracks recent entities/rooms after tool calls, injects context for pronoun resolution ("make it brighter" -> understands last light). No new tools needed, minimal token overhead. | High |
-| Persistent Memory | Long-term memory for user preferences and learned patterns | Medium |
+| Persistent Memory | Hybrid injection: Memory section (~50-100 tokens) injected AFTER Entity Index, BEFORE dynamic content. Stored in HA Storage (`.storage/smart_assist`). Contains: user preferences ("dim evening lighting"), learned patterns, named entities ("Anna=wife"). Rarely changes, preserves cache for static prefix. LLM recognizes and saves new preferences automatically. | Medium |
 
 #### v1.2.0 - Reminders and Notifications
 
