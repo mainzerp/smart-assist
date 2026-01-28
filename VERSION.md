@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.1   | 2026-01-28 |
+| Smart Assist | 1.7.2   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.2 (2026-01-28) - Config Flow Fixes
+
+**Bug Fixes:**
+
+- Fixed: Synced strings.json with translations (fixes missing placeholder errors)
+- Fixed: "Dienst hinzufuegen" now properly aborts with "already configured" message
+- Improved duplicate configuration check using `_async_current_entries()`
 
 ### v1.7.1 (2026-01-28) - Groq API Bugfixes
 
@@ -14,7 +22,7 @@
 
 - Fixed: Groq API requires `max_tokens` as integer, not `max_completion_tokens`
 - Fixed: Two-step config flow - first select provider, then enter API key
-- Fixed: Prevent duplicate Smart Assist configuration ("Dienst hinzufuegen" now aborts if already configured)
+- Fixed: Prevent duplicate Smart Assist configuration
 - Subentry flows now only show providers with configured API keys
 - If only one provider is configured, provider selection step is skipped
 
