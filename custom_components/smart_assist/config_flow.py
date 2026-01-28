@@ -359,10 +359,9 @@ def _get_fallback_models() -> list[dict[str, str]]:
 class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Smart Assist.
     
-    This handles initial API key setup. Users can choose between:
-    - OpenRouter: Unified API for multiple LLM providers
-    - Groq: Direct connection for ultra-fast inference
-    - Both: Configure both API keys for flexibility per service
+    Two-step flow:
+    1. Select LLM Provider (OpenRouter or Groq)
+    2. Enter the API key for the selected provider
     
     After setup, users can add Conversation Agents and AI Tasks via subentries.
     """
@@ -394,73 +393,87 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the API configuration step.
-        
-        Users can configure OpenRouter, Groq, or both API keys.
-        At least one API key is required.
-        """
+        """Handle step 1 - LLM Provider selection."""
         _LOGGER.info("Smart Assist: async_step_user called with input: %s", user_input is not None)
+
+        if user_input is not None:
+            self._data[CONF_LLM_PROVIDER] = user_input[CONF_LLM_PROVIDER]
+            return await self.async_step_api_key()
+
+        # Build provider options
+        llm_provider_options = [
+            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
+            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
+        ]
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_LLM_PROVIDER, default=LLM_PROVIDER_GROQ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=llm_provider_options,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_api_key(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle step 2 - API key entry for selected provider."""
         errors: dict[str, str] = {}
+        llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
 
         try:
             if user_input is not None:
-                openrouter_key = user_input.get(CONF_API_KEY, "").strip()
-                groq_key = user_input.get(CONF_GROQ_API_KEY, "").strip()
-                
-                _LOGGER.info("Smart Assist: Validating API keys...")
-                
-                # At least one API key must be provided
-                if not openrouter_key and not groq_key:
-                    errors["base"] = "no_api_key"
-                else:
-                    valid_keys = False
-                    
-                    # Validate OpenRouter key if provided
-                    if openrouter_key:
-                        if await validate_api_key(openrouter_key):
-                            self._data[CONF_API_KEY] = openrouter_key
-                            valid_keys = True
-                            _LOGGER.info("Smart Assist: OpenRouter API key valid")
-                        else:
-                            errors["base"] = "invalid_api_key"
-                    
-                    # Validate Groq key if provided
-                    if groq_key and "base" not in errors:
-                        if await validate_groq_api_key(groq_key):
-                            self._data[CONF_GROQ_API_KEY] = groq_key
-                            valid_keys = True
-                            _LOGGER.info("Smart Assist: Groq API key valid")
-                        else:
-                            errors["base"] = "invalid_groq_api_key"
-                    
-                    if valid_keys and "base" not in errors:
-                        _LOGGER.info("Smart Assist: Creating entry with API keys")
+                if llm_provider == LLM_PROVIDER_GROQ:
+                    api_key = user_input.get(CONF_GROQ_API_KEY, "").strip()
+                    if await validate_groq_api_key(api_key):
+                        self._data[CONF_GROQ_API_KEY] = api_key
+                        _LOGGER.info("Smart Assist: Groq API key valid, creating entry")
                         return self.async_create_entry(
                             title="Smart Assist",
                             data=self._data,
                         )
+                    errors["base"] = "invalid_groq_api_key"
+                else:
+                    api_key = user_input.get(CONF_API_KEY, "").strip()
+                    if await validate_api_key(api_key):
+                        self._data[CONF_API_KEY] = api_key
+                        _LOGGER.info("Smart Assist: OpenRouter API key valid, creating entry")
+                        return self.async_create_entry(
+                            title="Smart Assist",
+                            data=self._data,
+                        )
+                    errors["base"] = "invalid_api_key"
 
-            _LOGGER.info("Smart Assist: Showing user form")
+            # Show appropriate API key field based on selected provider
+            if llm_provider == LLM_PROVIDER_GROQ:
+                schema = vol.Schema({
+                    vol.Required(CONF_GROQ_API_KEY): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                })
+                placeholders = {"docs_url": "https://console.groq.com/keys"}
+            else:
+                schema = vol.Schema({
+                    vol.Required(CONF_API_KEY): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                })
+                placeholders = {"docs_url": "https://openrouter.ai/keys"}
+
             return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema(
-                    {
-                        vol.Optional(CONF_API_KEY, default=""): TextSelector(
-                            TextSelectorConfig(type=TextSelectorType.PASSWORD)
-                        ),
-                        vol.Optional(CONF_GROQ_API_KEY, default=""): TextSelector(
-                            TextSelectorConfig(type=TextSelectorType.PASSWORD)
-                        ),
-                    }
-                ),
+                step_id="api_key",
+                data_schema=schema,
                 errors=errors,
-                description_placeholders={
-                    "openrouter_url": "https://openrouter.ai/keys",
-                    "groq_url": "https://console.groq.com/keys",
-                },
+                description_placeholders=placeholders,
             )
         except Exception as e:
-            _LOGGER.exception("Smart Assist: Error in async_step_user: %s", e)
+            _LOGGER.exception("Smart Assist: Error in async_step_api_key: %s", e)
             raise
 
 

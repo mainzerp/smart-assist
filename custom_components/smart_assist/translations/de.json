@@ -2,15 +2,18 @@
   "config": {
     "step": {
       "user": {
-        "title": "API Konfiguration",
-        "description": "Konfiguriere deine LLM API Keys. Mindestens ein API Key ist erforderlich.\n\n**OpenRouter** ({openrouter_url}): Zugang zu allen Modellen (Claude, GPT-4, Llama, etc.)\n**Groq** ({groq_url}): Ultraschnelle Inferenz mit automatischem Caching\n\nDu kannst beide konfigurieren fuer maximale Flexibilitaet.",
+        "title": "LLM Anbieter waehlen",
+        "description": "Waehle deinen bevorzugten LLM Anbieter.\n\n**Groq**: Ultraschnelle Inferenz mit automatischem Caching (empfohlen)\n**OpenRouter**: Zugang zu allen Modellen (Claude, GPT-4, Llama, etc.)",
         "data": {
-          "api_key": "OpenRouter API Key (optional)",
-          "groq_api_key": "Groq API Key (optional)"
-        },
-        "data_description": {
-          "api_key": "Hole deinen Key auf openrouter.ai/keys",
-          "groq_api_key": "Hole deinen Key auf console.groq.com/keys"
+          "llm_provider": "LLM Anbieter"
+        }
+      },
+      "api_key": {
+        "title": "API Key",
+        "description": "Gib deinen API Key ein. Du kannst einen bei {docs_url} erstellen.",
+        "data": {
+          "api_key": "OpenRouter API Key",
+          "groq_api_key": "Groq API Key"
         }
       }
     },
