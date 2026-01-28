@@ -2,11 +2,20 @@
 
 ## Current Version
 
-| Component    | Version | Date       |
-| ------------ | ------- | ---------- |
-| Smart Assist | 1.7.9   | 2026-01-28 |
+| Component    | Version  | Date       |
+| ------------ | -------- | ---------- |
+| Smart Assist | 1.7.10   | 2026-01-28 |
 
 ## Version History
+
+### v1.7.10 (2026-01-28) - Cache Debugging
+
+**Improvements:**
+
+- Added detailed message structure logging for cache debugging
+- Shows role and content length for each message in LLM iterations
+- Helps diagnose prompt caching behavior with tool calls
+- Updated project-definition.md: Groq as primary provider, OpenRouter deprioritized
 
 ### v1.7.9 (2026-01-28) - Code Cleanup
 
