@@ -248,7 +248,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         Uses the same code path as real requests to ensure identical prefix.
         """
-        _LOGGER.debug("Warming prompt cache...")
+        _LOGGER.debug("[CACHE-WARMING] Starting prompt cache warm-up...")
         
         try:
             # Build messages using async version (same path as real requests)
@@ -258,7 +258,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             
             # Log registered tools for debugging cache issues
             tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
-            _LOGGER.debug("Cache warming tools (%d): %s", len(tools), tool_names)
+            _LOGGER.debug("[CACHE-WARMING] Tools (%d): %s", len(tools), tool_names)
             
             async for _ in self._llm_client.chat_stream(
                 messages=messages,
@@ -267,10 +267,10 @@ class SmartAssistConversationEntity(ConversationEntity):
             ):
                 pass  # Discard the response
             
-            _LOGGER.info("Prompt cache warmed successfully (cached_prefix=%d)", cached_prefix_length)
+            _LOGGER.info("[CACHE-WARMING] Completed successfully (prefix=%d tokens)", cached_prefix_length)
             
         except Exception as err:
-            _LOGGER.warning("Failed to warm prompt cache: %s", err)
+            _LOGGER.warning("[CACHE-WARMING] Failed: %s", err)
 
     async def _async_handle_message(
         self,
@@ -283,7 +283,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         The assistant pipeline can start TTS synthesis before the full response is ready.
         """
         _LOGGER.debug(
-            "Processing message: user_id=%s, text_length=%d, language=%s",
+            "[USER-REQUEST] New message: user_id=%s, text_length=%d, language=%s",
             user_input.conversation_id,
             len(user_input.text),
             user_input.language,
@@ -310,10 +310,10 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Log registered tools for debugging cache issues
         tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
-        _LOGGER.debug("Request tools (%d): %s", len(tools), tool_names)
+        _LOGGER.debug("[USER-REQUEST] Tools (%d): %s", len(tools), tool_names)
         
         _LOGGER.debug(
-            "LLM request: messages=%d, tools=%d, cache_prefix=%d",
+            "[USER-REQUEST] Sending to LLM: messages=%d, tools=%d, cache_prefix=%d",
             len(messages),
             len(tools),
             cached_prefix_length,
@@ -379,7 +379,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         while iteration < max_iterations:
             iteration += 1
-            _LOGGER.debug("Streaming iteration %d", iteration)
+            _LOGGER.debug("[USER-REQUEST] LLM iteration %d", iteration)
             
             # Create delta stream and consume it through ChatLog
             iteration_content = ""
@@ -414,11 +414,11 @@ class SmartAssistConversationEntity(ConversationEntity):
             
             # If no tool calls, we're done
             if not tool_calls:
-                _LOGGER.debug("No tool calls, streaming complete (iteration %d)", iteration)
+                _LOGGER.debug("[USER-REQUEST] Complete (iteration %d, no tool calls)", iteration)
                 return final_content
             
             # Execute tool calls and add results to messages for next iteration
-            _LOGGER.debug("Executing %d tool calls", len(tool_calls))
+            _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(tool_calls))
             
             # Add assistant message with tool calls to working messages
             working_messages.append(
