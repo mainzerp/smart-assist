@@ -177,9 +177,9 @@ STATIC  (cached, identical across requests)
   1. Technical System Prompt (tool schemas, rules)
   2. User System Prompt (personality, language)
   3. Entity Index (list of available entities)
-  4. Calendar Context (upcoming events - semi-static)
   
-DYNAMIC (changes every request, never cached)
+DYNAMIC (changes between requests, breaks cache if in prefix)
+  4. Calendar Context (upcoming events, reminders)
   5. Entity States (current values)
   6. Conversation History
   7. User Message
@@ -192,9 +192,9 @@ DYNAMIC (changes every request, never cached)
 - Cache misses = higher latency + higher cost
 
 **Rules for changes:**
-1. New static context (e.g., room descriptions) goes AFTER Entity Index, BEFORE Entity States
+1. New static context (e.g., room descriptions) goes AFTER Entity Index, BEFORE Calendar Context
 2. New dynamic context (e.g., current time) goes AFTER Entity Index
-3. Never inject timestamps, random IDs, or changing values in the static prefix
+3. Never inject timestamps, random IDs, or changing values in the static prefix (items 1-3)
 4. Test cache hit rate after changes (target: >90%)
 
 ### 3. Cache Warming
