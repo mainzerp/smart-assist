@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.10  | 2026-01-28 |
+| Smart Assist | 1.6.11  | 2026-01-28 |
 
 ## Version History
+
+### v1.6.11 (2026-01-28) - Prompt Optimization & Dynamic Caching
+
+**Improvements:**
+
+- Optimized system prompt: ~50% token reduction
+- Dynamic cached_prefix_length calculation (no longer hard-coded)
+- Enhanced default user system prompt with Smart Assist identity
+- Added explicit tool usage rule: "ALWAYS use tools - never guess"
+- Added response format guidelines (1-2 sentences for actions)
+- Shortened AWAIT_RESPONSE instruction from 20 to 4 lines
+- Shortened calendar reminder instruction from 10 to 3 lines
 
 ### v1.6.10 (2026-01-28) - All-Day Event Reminder Improvements
 

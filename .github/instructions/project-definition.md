@@ -4,7 +4,7 @@
 
 A Home Assistant custom integration that connects LLMs (via OpenRouter) with Home Assistant to create an intelligent smart home assistant capable of answering questions about the smart home environment and controlling devices.
 
-**Version**: 1.6.10  
+**Version**: 1.6.11  
 **Last Updated**: January 28, 2026
 
 ## Core Requirements

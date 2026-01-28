@@ -218,10 +218,9 @@ class SmartAssistConversationEntity(ConversationEntity):
         _LOGGER.debug("Warming prompt cache...")
         
         try:
-            # Build messages (this populates entity index)
-            messages = self._build_messages_for_llm("ping")
+            # Build messages (this populates entity index and returns cached_prefix_length)
+            messages, cached_prefix_length = self._build_messages_for_llm("ping")
             tools = self._tool_registry.get_schemas()
-            cached_prefix_length = 3  # system + user prompt + entity index
             
             async for _ in self._llm_client.chat_stream(
                 messages=messages,
@@ -230,7 +229,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             ):
                 pass  # Discard the response
             
-            _LOGGER.info("Prompt cache warmed successfully")
+            _LOGGER.info("Prompt cache warmed successfully (cached_prefix=%d)", cached_prefix_length)
             
         except Exception as err:
             _LOGGER.warning("Failed to warm prompt cache: %s", err)
@@ -268,9 +267,8 @@ class SmartAssistConversationEntity(ConversationEntity):
 
         # Build messages for LLM (using our own message format with history)
         # Use async version to include calendar context if enabled
-        messages = await self._build_messages_for_llm_async(user_input.text, chat_log)
+        messages, cached_prefix_length = await self._build_messages_for_llm_async(user_input.text, chat_log)
         tools = self._tool_registry.get_schemas()
-        cached_prefix_length = 3 if self._get_config(CONF_ENABLE_PROMPT_CACHING, True) else 0
         
         _LOGGER.debug(
             "LLM request: messages=%d, tools=%d, cache_prefix=%d",
@@ -537,95 +535,77 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         parts = []
         
-        # Base prompt with language instruction
-        parts.append(f"You are a Home Assistant smart home controller. {language_instruction} Be concise and helpful.")
+        # Base prompt - minimal, role defined in user prompt
+        parts.append(f"You are a smart home assistant. {language_instruction}")
+        
+        # Response format guidelines
+        parts.append("""
+## Response Format
+- Keep responses brief (1-2 sentences for actions, 2-3 for information)
+- Confirm actions concisely: "Light is on." not "I have successfully turned on the light for you."
+- ALWAYS use tools to check states - never guess or assume values""")
         
         # Response rules with conversation continuation marker
         if ask_followup:
             parts.append("""
-## Response Rules
-- Confirm actions taken briefly
-- Offer follow-up assistance intelligently:
-  - YES: If the task is ambiguous, could have follow-ups, or user might need more help
-  - NO: If the action is complete and self-contained (e.g., "light is on")
-- Vary the phrasing naturally when offering help
-- If uncertain about entity, ask for clarification
-- Never assume entity states - use tools to check
+## Follow-up Behavior
+- Offer follow-up only when useful (ambiguous request, multiple options)
+- Do NOT offer follow-up for simple completed actions
 
-## Conversation Continuation Signal (CRITICAL)
-IMPORTANT: You MUST add [AWAIT_RESPONSE] at the very END of your message whenever you:
-1. Ask a question (e.g., "Would you like...?", "Should I...?", "Which one...?")
-2. Offer a choice
-3. Expect any user response
-
-This marker is REQUIRED for the microphone to stay open. Without it, the user cannot respond!
-
-Examples:
-- "The light is now on." (no marker - statement, no response expected)
-- "I found 3 lights. Which one? [AWAIT_RESPONSE]" (marker - question)
-- "Here's the info. Want me to go deeper? [AWAIT_RESPONSE]" (marker - offer)""")
+## Conversation Signal [CRITICAL]
+Add [AWAIT_RESPONSE] at the END of your message when you ask a question or offer a choice.
+Without this marker, the microphone closes and user cannot respond.
+Example: "Which light - living room or bedroom? [AWAIT_RESPONSE]" """)
         else:
             parts.append("""
 ## Response Rules
-- Confirm actions taken briefly and concisely
-- Do NOT ask follow-up questions or offer further assistance
-- Keep responses short and action-focused
-- If uncertain about entity, ask for clarification
-- Never assume entity states - use tools to check""")
+- Do NOT ask follow-up questions
+- Keep responses action-focused
+- If uncertain about entity, ask for clarification""")
         
         # Entity lookup strategy
         if caching_enabled:
             parts.append("""
-## Entity Lookup Strategy
-1. FIRST: Check the ENTITY INDEX (if provided) to find entity_ids
-2. ONLY if entity not found in index: Use get_entities tool with domain filter
-3. Use get_entity_state to check current state before taking action""")
+## Entity Lookup
+1. Check ENTITY INDEX first to find entity_ids
+2. Only use get_entities tool if not found in index
+3. Use get_entity_state before actions to verify current state""")
         else:
             parts.append("""
 ## Entity Lookup
-- Use get_entities tool with domain filter to find entities
-- Use get_entity_state to check current state before taking action""")
+- Use get_entities with domain filter to find entities
+- Use get_entity_state before actions to verify current state""")
         
-        # Calendar reminders instruction (if enabled)
+        # Calendar reminders instruction (if enabled) - compact version
         calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
         if calendar_enabled:
             parts.append("""
-## Calendar Reminders (MANDATORY)
-When you see '## Calendar Reminders [ACTION REQUIRED]' in the CURRENT CONTEXT:
-1. You MUST mention these reminders in EVERY response - regardless of what the user asks
-2. Even for small talk, casual questions, or unrelated topics - ALWAYS include the reminder
-3. Weave the reminder naturally into your response
-4. If multiple reminders, mention the most urgent (soonest) one
-5. Keep the reminder portion brief (one sentence)
-
-Examples:
-- User asks 'How are you?' -> Response: 'I am doing great! By the way, reminder: Meeting in about an hour.'
-- User says 'Turn on the light' -> Response: 'Done! Also, heads up: you have galileo in 30 minutes.'""")
+## Calendar Reminders [MANDATORY]
+When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
+- ALWAYS mention the reminder in your response (even for small talk)
+- Keep it brief: "Heads up: Meeting in 1 hour. [your response]" """)
         
-        # Control instructions
+        # Control instructions - compact
         parts.append("""
 ## Entity Control
-- Use the 'control' tool for all entity types (lights, climate, covers, media, scripts)
-- Domain is auto-detected from entity_id (e.g., light.living_room -> light domain)
-- Use action appropriate to domain (turn_on/off for all, brightness for lights, etc.)""")
+Use 'control' tool for all entities. Domain auto-detected from entity_id.""")
         
         # Critical actions confirmation
         if confirm_critical:
             parts.append("""
 ## Critical Actions
-IMPORTANT: Before locking doors, arming alarms, or disabling security devices, ALWAYS ask for user confirmation first!""")
+Ask for confirmation before: locking doors, arming alarms, disabling security.""")
         
         # Exposed only notice
         if exposed_only:
             parts.append("""
 ## Notice
-Only exposed entities are available. Entities not listed in the index cannot be controlled.""")
+Only exposed entities are available.""")
         
-        # Error handling
+        # Error handling - compact
         parts.append("""
-## Error Handling
-- If an action fails, explain why and suggest alternatives
-- If entity not found, suggest similar entities from the index""")
+## Errors
+If action fails or entity not found, explain briefly and suggest alternatives.""")
         
         # Cache the built prompt for subsequent calls
         self._cached_system_prompt = "\n".join(parts)
@@ -746,12 +726,15 @@ Only exposed entities are available. Entities not listed in the index cannot be 
             _LOGGER.warning("Failed to get calendar context: %s", err)
             return ""
 
-    async def _build_messages_for_llm_async(self, user_text: str, chat_log: ChatLog | None = None) -> list[ChatMessage]:
+    async def _build_messages_for_llm_async(self, user_text: str, chat_log: ChatLog | None = None) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request (async version with calendar context).
         
         Args:
             user_text: The current user message
             chat_log: Optional ChatLog containing conversation history
+            
+        Returns:
+            Tuple of (messages, cached_prefix_length)
         """
         # Get calendar context asynchronously
         calendar_context = await self._get_calendar_context()
@@ -760,22 +743,28 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         # Build base messages synchronously
         return self._build_messages_for_llm(user_text, chat_log, calendar_context)
 
-    def _build_messages_for_llm(self, user_text: str, chat_log: ChatLog | None = None, calendar_context: str = "") -> list[ChatMessage]:
+    def _build_messages_for_llm(self, user_text: str, chat_log: ChatLog | None = None, calendar_context: str = "") -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request.
         
         Args:
             user_text: The current user message
             chat_log: Optional ChatLog containing conversation history
+            
+        Returns:
+            Tuple of (messages, cached_prefix_length) where cached_prefix_length
+            is the number of static messages that should be cached.
         """
         messages: list[ChatMessage] = []
+        cached_prefix_length = 0  # Track how many messages are static/cacheable
 
         # 1. Technical system prompt (cached)
         system_prompt = self._build_system_prompt()
         messages.append(
             ChatMessage(role=MessageRole.SYSTEM, content=system_prompt)
         )
+        cached_prefix_length += 1
 
-        # 2. User system prompt (cached)
+        # 2. User system prompt (cached - optional)
         user_prompt = self._get_config(
             CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT
         )
@@ -783,8 +772,9 @@ Only exposed entities are available. Entities not listed in the index cannot be 
             messages.append(
                 ChatMessage(role=MessageRole.SYSTEM, content=user_prompt)
             )
+            cached_prefix_length += 1
 
-        # 3. Entity index (only if caching is enabled)
+        # 3. Entity index (cached - only if caching is enabled)
         caching_enabled = self._get_config(CONF_ENABLE_PROMPT_CACHING, True)
         
         if caching_enabled:
@@ -802,8 +792,9 @@ Only exposed entities are available. Entities not listed in the index cannot be 
                     content=f"[ENTITY INDEX]\nUse this index first to find entity IDs. Only use get_entities tool if entity not found here.\n{self._cached_entity_index}",
                 )
             )
+            cached_prefix_length += 1
 
-        # 4. Current context (dynamic) - includes time and relevant states
+        # 4. Current context (dynamic - NOT cached) - includes time and relevant states
         from datetime import datetime
         now = datetime.now()
         time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
@@ -860,7 +851,7 @@ Only exposed entities are available. Entities not listed in the index cannot be 
         # 6. Current user message
         messages.append(ChatMessage(role=MessageRole.USER, content=user_text))
 
-        return messages
+        return messages, cached_prefix_length
 
     async def _try_quick_action(self, text: str) -> str | None:
         """Try to handle simple commands without LLM.
