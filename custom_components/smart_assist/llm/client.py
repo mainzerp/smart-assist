@@ -220,14 +220,27 @@ class OpenRouterClient:
     ) -> list[dict[str, Any]]:
         """Build messages list for API request.
         
-        For Anthropic prompt caching, cache_control must be in the text content part,
-        not at the message level. OpenRouter handles the format transformation.
+        For Anthropic/Gemini prompt caching, cache_control must be in the text content part.
+        For Groq and other providers, caching is automatic and no cache_control is needed.
+        Adding cache_control to non-supporting providers may break caching.
         See: https://openrouter.ai/docs/prompt-caching
         """
         result = []
+        
+        # Only add cache_control for providers that require explicit caching
+        # Groq, OpenAI, DeepSeek use automatic caching - no cache_control needed
+        requires_explicit_caching = (
+            self._model.startswith("anthropic/") or 
+            self._model.startswith("google/")
+        )
+        
         for i, msg in enumerate(messages):
-            # Check if this message should have caching enabled
-            should_cache = self._enable_caching and i < cached_prefix_length
+            # Check if this message should have caching enabled (only for Anthropic/Gemini)
+            should_cache = (
+                self._enable_caching and 
+                requires_explicit_caching and 
+                i < cached_prefix_length
+            )
             
             if should_cache and msg.role.value in ("system", "user"):
                 # Build cache_control object

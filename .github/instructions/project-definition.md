@@ -4,7 +4,14 @@
 
 A Home Assistant custom integration that connects LLMs (via OpenRouter) with Home Assistant to create an intelligent smart home assistant capable of answering questions about the smart home environment and controlling devices.
 
-**Version**: 1.6.12  
+## Openrouter API
+
+https://openrouter.ai/docs/guides/guides/usage-accounting
+https://openrouter.ai/docs/api/reference/overview
+https://openrouter.ai/docs/guides/best-practices/prompt-caching
+https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request
+
+**Version**: 1.6.13  
 **Last Updated**: January 28, 2026
 
 ## Core Requirements

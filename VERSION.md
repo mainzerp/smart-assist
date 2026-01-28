@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.12  | 2026-01-28 |
+| Smart Assist | 1.6.13  | 2026-01-28 |
 
 ## Version History
+
+### v1.6.13 (2026-01-28) - Provider-Specific Caching Fix
+
+**Improvements:**
+
+- Fixed: cache_control now only added for Anthropic and Google/Gemini models
+- Groq, OpenAI, and DeepSeek use automatic caching without cache_control
+- Previously, adding cache_control to Groq requests broke prefix matching
+- Message structure now uses simple string content for auto-caching providers
+- Expected to fix 0 cached_tokens issue with Groq GPT-OSS models
 
 ### v1.6.12 (2026-01-28) - Cache-Optimized Message Order
 
