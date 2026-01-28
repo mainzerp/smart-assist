@@ -249,6 +249,11 @@ class GroqClient:
                                 # Check for cached tokens
                                 prompt_details = usage.get("prompt_tokens_details", {})
                                 cached = prompt_details.get("cached_tokens", 0)
+                                prompt_tokens = usage.get("prompt_tokens", 0)
+                                _LOGGER.debug(
+                                    "Groq cache stats: cached_tokens=%d, prompt_tokens=%d, cache_hit=%s",
+                                    cached, prompt_tokens, cached > 0
+                                )
                                 if cached > 0:
                                     self._metrics.cache_hits += 1
                                     self._metrics.cached_tokens += cached
@@ -355,6 +360,11 @@ class GroqClient:
                             
                             prompt_details = usage.get("prompt_tokens_details", {})
                             cached = prompt_details.get("cached_tokens", 0)
+                            prompt_tokens = usage.get("prompt_tokens", 0)
+                            _LOGGER.debug(
+                                "Groq cache stats: cached_tokens=%d, prompt_tokens=%d, cache_hit=%s",
+                                cached, prompt_tokens, cached > 0
+                            )
                             if cached > 0:
                                 self._metrics.cache_hits += 1
                                 self._metrics.cached_tokens += cached
@@ -462,6 +472,11 @@ class GroqClient:
                     
                     prompt_details = usage.get("prompt_tokens_details", {})
                     cached = prompt_details.get("cached_tokens", 0)
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                    _LOGGER.debug(
+                        "Groq cache stats: cached_tokens=%d, prompt_tokens=%d, cache_hit=%s",
+                        cached, prompt_tokens, cached > 0
+                    )
                     if cached > 0:
                         self._metrics.cache_hits += 1
                         self._metrics.cached_tokens += cached
