@@ -109,7 +109,7 @@
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
 | Entity History Queries | "How was the temperature yesterday?", "When was the light last on?" | High |
-| Multi-Turn Improvements | Better context tracking across messages without repeating entity names | High |
+| Multi-Turn Improvements | Hybrid approach: ConversationContextTracker + automatic System Prompt injection. Tracks recent entities/rooms after tool calls, injects context for pronoun resolution ("make it brighter" -> understands last light). No new tools needed, minimal token overhead. | High |
 | Persistent Memory | Long-term memory for user preferences and learned patterns | Medium |
 
 #### v1.2.0 - Reminders and Notifications
