@@ -359,8 +359,12 @@ def _get_fallback_models() -> list[dict[str, str]]:
 class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Smart Assist.
     
-    This handles initial API key setup. After setup, users can add
-    Conversation Agents and AI Tasks via subentries.
+    This handles initial API key setup. Users can choose between:
+    - OpenRouter: Unified API for multiple LLM providers
+    - Groq: Direct connection for ultra-fast inference
+    - Both: Configure both API keys for flexibility per service
+    
+    After setup, users can add Conversation Agents and AI Tasks via subentries.
     """
 
     VERSION = 1
@@ -390,38 +394,70 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the API configuration step."""
+        """Handle the API configuration step.
+        
+        Users can configure OpenRouter, Groq, or both API keys.
+        At least one API key is required.
+        """
         _LOGGER.info("Smart Assist: async_step_user called with input: %s", user_input is not None)
         errors: dict[str, str] = {}
 
         try:
             if user_input is not None:
-                _LOGGER.info("Smart Assist: Validating API key...")
-                # Validate API key
-                if await validate_api_key(user_input[CONF_API_KEY]):
-                    _LOGGER.info("Smart Assist: API key valid, creating entry")
-                    self._data.update(user_input)
+                openrouter_key = user_input.get(CONF_API_KEY, "").strip()
+                groq_key = user_input.get(CONF_GROQ_API_KEY, "").strip()
+                
+                _LOGGER.info("Smart Assist: Validating API keys...")
+                
+                # At least one API key must be provided
+                if not openrouter_key and not groq_key:
+                    errors["base"] = "no_api_key"
+                else:
+                    valid_keys = False
                     
-                    # Create the config entry with just the API key
-                    return self.async_create_entry(
-                        title="Smart Assist",
-                        data=self._data,
-                    )
-                _LOGGER.warning("Smart Assist: API key validation failed")
-                errors["base"] = "invalid_api_key"
+                    # Validate OpenRouter key if provided
+                    if openrouter_key:
+                        if await validate_api_key(openrouter_key):
+                            self._data[CONF_API_KEY] = openrouter_key
+                            valid_keys = True
+                            _LOGGER.info("Smart Assist: OpenRouter API key valid")
+                        else:
+                            errors["base"] = "invalid_api_key"
+                    
+                    # Validate Groq key if provided
+                    if groq_key and "base" not in errors:
+                        if await validate_groq_api_key(groq_key):
+                            self._data[CONF_GROQ_API_KEY] = groq_key
+                            valid_keys = True
+                            _LOGGER.info("Smart Assist: Groq API key valid")
+                        else:
+                            errors["base"] = "invalid_groq_api_key"
+                    
+                    if valid_keys and "base" not in errors:
+                        _LOGGER.info("Smart Assist: Creating entry with API keys")
+                        return self.async_create_entry(
+                            title="Smart Assist",
+                            data=self._data,
+                        )
 
             _LOGGER.info("Smart Assist: Showing user form")
             return self.async_show_form(
                 step_id="user",
                 data_schema=vol.Schema(
                     {
-                        vol.Required(CONF_API_KEY): TextSelector(
+                        vol.Optional(CONF_API_KEY, default=""): TextSelector(
+                            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                        ),
+                        vol.Optional(CONF_GROQ_API_KEY, default=""): TextSelector(
                             TextSelectorConfig(type=TextSelectorType.PASSWORD)
                         ),
                     }
                 ),
                 errors=errors,
-                description_placeholders={"docs_url": "https://openrouter.ai/keys"},
+                description_placeholders={
+                    "openrouter_url": "https://openrouter.ai/keys",
+                    "groq_url": "https://console.groq.com/keys",
+                },
             )
         except Exception as e:
             _LOGGER.exception("Smart Assist: Error in async_step_user: %s", e)
@@ -458,7 +494,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     """Handle subentry flow for Conversation Agents.
     
     Flow steps:
-    1. user: LLM Provider selection (OpenRouter or Groq) + Groq API key if needed
+    1. user: LLM Provider selection (based on configured keys)
     2. model: Model selection based on provider
     3. settings: Provider routing (OpenRouter only) + all behavior settings
     4. prompt: System prompt customization
@@ -481,49 +517,40 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
-            # If Groq selected, validate the API key
-            if llm_provider == LLM_PROVIDER_GROQ:
-                groq_key = user_input.get(CONF_GROQ_API_KEY, "")
-                if groq_key:
-                    # Validate Groq API key
-                    if await validate_groq_api_key(groq_key):
-                        self._data[CONF_GROQ_API_KEY] = groq_key
-                    else:
-                        errors["base"] = "invalid_groq_api_key"
-                else:
-                    # Check if we have a stored Groq key
-                    stored_key = self._get_groq_api_key()
-                    if stored_key:
-                        self._data[CONF_GROQ_API_KEY] = stored_key
-                    else:
-                        errors["base"] = "groq_api_key_required"
-            
             if not errors:
                 return await self.async_step_model()
         
-        # Check if Groq API key is already configured
+        # Check which API keys are already configured
+        has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
         
-        # Build LLM provider options
-        llm_provider_options = [
-            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
-            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
-        ]
+        # Build LLM provider options based on available keys
+        llm_provider_options = []
+        if has_openrouter_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        if has_groq_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+            )
+        
+        # Default to first available provider
+        default_provider = llm_provider_options[0]["value"] if llm_provider_options else LLM_PROVIDER_OPENROUTER
+        
+        # If only one provider is available, skip to model selection
+        if len(llm_provider_options) == 1:
+            self._data[CONF_LLM_PROVIDER] = default_provider
+            return await self.async_step_model()
         
         schema_dict = {
-            vol.Required(CONF_LLM_PROVIDER, default=DEFAULT_LLM_PROVIDER): SelectSelector(
+            vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(
                 SelectSelectorConfig(
                     options=llm_provider_options,
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
         }
-        
-        # Add Groq API key field if not already configured
-        if not has_groq_key:
-            schema_dict[vol.Optional(CONF_GROQ_API_KEY, default="")] = TextSelector(
-                TextSelectorConfig(type=TextSelectorType.PASSWORD)
-            )
         
         return self.async_show_form(
             step_id="user",
@@ -835,7 +862,7 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
     """Handle subentry flow for AI Tasks.
     
     Flow steps:
-    1. user: LLM Provider selection (OpenRouter or Groq) + Groq API key if needed
+    1. user: LLM Provider selection (based on configured keys)
     2. model: Model selection based on provider
     3. settings: Provider routing (OpenRouter only) + all other settings
     """
@@ -857,43 +884,40 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
-            if llm_provider == LLM_PROVIDER_GROQ:
-                groq_key = user_input.get(CONF_GROQ_API_KEY, "")
-                if groq_key:
-                    if await validate_groq_api_key(groq_key):
-                        self._data[CONF_GROQ_API_KEY] = groq_key
-                    else:
-                        errors["base"] = "invalid_groq_api_key"
-                else:
-                    stored_key = self._get_groq_api_key()
-                    if stored_key:
-                        self._data[CONF_GROQ_API_KEY] = stored_key
-                    else:
-                        errors["base"] = "groq_api_key_required"
-            
             if not errors:
                 return await self.async_step_model()
         
+        # Check which API keys are already configured
+        has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
         
-        llm_provider_options = [
-            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
-            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
-        ]
+        # Build LLM provider options based on available keys
+        llm_provider_options = []
+        if has_openrouter_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        if has_groq_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+            )
+        
+        # Default to first available provider
+        default_provider = llm_provider_options[0]["value"] if llm_provider_options else LLM_PROVIDER_OPENROUTER
+        
+        # If only one provider is available, skip to model selection
+        if len(llm_provider_options) == 1:
+            self._data[CONF_LLM_PROVIDER] = default_provider
+            return await self.async_step_model()
         
         schema_dict: dict[Any, Any] = {
-            vol.Required(CONF_LLM_PROVIDER, default=DEFAULT_LLM_PROVIDER): SelectSelector(
+            vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(
                 SelectSelectorConfig(
                     options=llm_provider_options,
                     mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
         }
-        
-        if not has_groq_key:
-            schema_dict[vol.Optional(CONF_GROQ_API_KEY, default="")] = TextSelector(
-                TextSelectorConfig(type=TextSelectorType.PASSWORD)
-            )
         
         return self.async_show_form(
             step_id="user",

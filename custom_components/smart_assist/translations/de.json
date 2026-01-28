@@ -2,18 +2,24 @@
   "config": {
     "step": {
       "user": {
-        "title": "OpenRouter API Konfiguration",
-        "description": "Gib deinen OpenRouter API Key ein. Du kannst einen Key bei {docs_url} erstellen.\n\nNach der Einrichtung kannst du Konversations-Agenten oder AI Tasks ueber das Integrationsmenü hinzufuegen.",
+        "title": "API Konfiguration",
+        "description": "Konfiguriere deine LLM API Keys. Mindestens ein API Key ist erforderlich.\n\n**OpenRouter** ({openrouter_url}): Zugang zu allen Modellen (Claude, GPT-4, Llama, etc.)\n**Groq** ({groq_url}): Ultraschnelle Inferenz mit automatischem Caching\n\nDu kannst beide konfigurieren fuer maximale Flexibilitaet.",
         "data": {
-          "api_key": "API Key"
+          "api_key": "OpenRouter API Key (optional)",
+          "groq_api_key": "Groq API Key (optional)"
+        },
+        "data_description": {
+          "api_key": "Hole deinen Key auf openrouter.ai/keys",
+          "groq_api_key": "Hole deinen Key auf console.groq.com/keys"
         }
       }
     },
     "error": {
-      "invalid_api_key": "Ungueltiger API Key. Bitte ueberpruefen und erneut versuchen.",
+      "invalid_api_key": "Ungueltiger OpenRouter API Key. Bitte ueberpruefen und erneut versuchen.",
       "invalid_groq_api_key": "Ungueltiger Groq API Key. Bitte ueberpruefen und erneut versuchen.",
       "groq_api_key_required": "Groq API Key wird fuer den Groq Provider benoetigt.",
-      "cannot_connect": "Verbindung zur OpenRouter API nicht moeglich.",
+      "no_api_key": "Mindestens ein API Key (OpenRouter oder Groq) ist erforderlich.",
+      "cannot_connect": "Verbindung zur API nicht moeglich.",
       "unknown": "Ein unerwarteter Fehler ist aufgetreten."
     },
     "abort": {
