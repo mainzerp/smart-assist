@@ -708,6 +708,9 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         # Pre-fill with existing values on first call
         if not self._data:
             self._data = dict(self._get_reconfigure_subentry().data)
+            # Remove any API keys from subentry data - they should only be in parent entry
+            self._data.pop(CONF_GROQ_API_KEY, None)
+            self._data.pop(CONF_API_KEY, None)
         
         errors: dict[str, str] = {}
         
@@ -715,19 +718,17 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
-            # If Groq selected, validate the API key if provided
+            # If Groq selected, validate the API key if provided (but don't store in subentry)
             if llm_provider == LLM_PROVIDER_GROQ:
                 groq_key = user_input.get(CONF_GROQ_API_KEY, "")
                 if groq_key:
-                    if await validate_groq_api_key(groq_key):
-                        self._data[CONF_GROQ_API_KEY] = groq_key
-                    else:
+                    if not await validate_groq_api_key(groq_key):
                         errors["base"] = "invalid_groq_api_key"
+                    # Note: New API key would need parent entry update, not supported in subentry reconfigure
+                    # For now, just validate and continue - the parent entry key is used
                 else:
                     stored_key = self._get_groq_api_key()
-                    if stored_key:
-                        self._data[CONF_GROQ_API_KEY] = stored_key
-                    else:
+                    if not stored_key:
                         errors["base"] = "groq_api_key_required"
             
             if not errors:
@@ -1031,6 +1032,9 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         """Handle reconfiguration step 1 - LLM provider selection."""
         if not self._data:
             self._data = dict(self._get_reconfigure_subentry().data)
+            # Remove any API keys from subentry data - they should only be in parent entry
+            self._data.pop(CONF_GROQ_API_KEY, None)
+            self._data.pop(CONF_API_KEY, None)
         
         errors: dict[str, str] = {}
         
@@ -1038,18 +1042,16 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
+            # If Groq selected, validate the API key if provided (but don't store in subentry)
             if llm_provider == LLM_PROVIDER_GROQ:
                 groq_key = user_input.get(CONF_GROQ_API_KEY, "")
                 if groq_key:
-                    if await validate_groq_api_key(groq_key):
-                        self._data[CONF_GROQ_API_KEY] = groq_key
-                    else:
+                    if not await validate_groq_api_key(groq_key):
                         errors["base"] = "invalid_groq_api_key"
+                    # Note: New API key would need parent entry update, not supported in subentry reconfigure
                 else:
                     stored_key = self._get_groq_api_key()
-                    if stored_key:
-                        self._data[CONF_GROQ_API_KEY] = stored_key
-                    else:
+                    if not stored_key:
                         errors["base"] = "groq_api_key_required"
             
             if not errors:
