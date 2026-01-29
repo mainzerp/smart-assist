@@ -264,6 +264,7 @@ class GroqClient:
         
         self._metrics.total_requests += 1
         start_time = time.monotonic()
+        usage_processed = False  # Flag to prevent double-counting usage
 
         try:
             async with await self._execute_with_retry(session, payload) as response:
@@ -285,8 +286,9 @@ class GroqClient:
                         try:
                             data = json.loads(data_str)
                             
-                            # Extract usage info
-                            if usage := data.get("usage"):
+                            # Extract usage info (only once per request)
+                            if not usage_processed and (usage := data.get("usage")):
+                                usage_processed = True
                                 _LOGGER.debug("Got usage in stream: %s", usage)
                                 self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                                 self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
@@ -352,6 +354,7 @@ class GroqClient:
 
         self._metrics.total_requests += 1
         start_time = time.monotonic()
+        usage_processed = False  # Flag to prevent double-counting usage
 
         # Track tool calls being built
         pending_tool_calls: dict[int, dict[str, Any]] = {}
@@ -397,8 +400,9 @@ class GroqClient:
                     try:
                         data = json.loads(data_str)
                         
-                        # Extract usage info
-                        if usage := data.get("usage"):
+                        # Extract usage info (only once per request)
+                        if not usage_processed and (usage := data.get("usage")):
+                            usage_processed = True
                             _LOGGER.debug("Got usage in full stream: %s", usage)
                             self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                             self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)

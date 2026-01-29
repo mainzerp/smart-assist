@@ -269,6 +269,12 @@ class SmartAssistConversationEntity(ConversationEntity):
             
             _LOGGER.info("[CACHE-WARMING] Completed successfully (prefix=%d tokens)", cached_prefix_length)
             
+            # Send dispatcher signal to update sensors with new metrics
+            async_dispatcher_send(
+                self.hass,
+                f"{DOMAIN}_metrics_updated_{self._subentry.subentry_id}",
+            )
+            
         except Exception as err:
             _LOGGER.warning("[CACHE-WARMING] Failed: %s", err)
 

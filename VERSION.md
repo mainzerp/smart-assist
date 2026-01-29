@@ -4,9 +4,15 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.7   | 2026-01-29 |
+| Smart Assist | 1.0.8   | 2026-01-29 |
 
 ## Version History
+
+### v1.0.8 (2026-01-29) - Cache Warming Sensor Update Fix
+
+- Fixed sensors not updating after cache warming (missing dispatcher signal)
+- Fixed Groq client double-counting usage metrics (usage sent twice in stream)
+- Cache warming requests now correctly contribute to all metric sensors
 
 ### v1.0.7 (2026-01-29) - Cached Tokens Tracking Fix
 
