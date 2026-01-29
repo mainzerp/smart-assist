@@ -601,8 +601,7 @@ Call the 'await_response' tool when you expect user input:
 - Requesting confirmation for critical actions
 - Proactively offering further help
 
-WITHOUT calling await_response, the microphone closes and user cannot respond.
-NEVER add text markers like [Done] or [No action needed] - use tools only.""")
+WITHOUT calling await_response, the microphone closes and user cannot respond.""")
         else:
             parts.append("""
 ## Response Rules
