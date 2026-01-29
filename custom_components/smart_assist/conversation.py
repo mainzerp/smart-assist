@@ -957,10 +957,10 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         intent_response = intent.IntentResponse(language=user_input.language)
         intent_response.async_set_speech(response_text)
         
-        # Signal sensors to update their state
+        # Signal sensors to update their state (per subentry)
         async_dispatcher_send(
             self.hass,
-            f"{DOMAIN}_metrics_updated_{self._entry.entry_id}",
+            f"{DOMAIN}_metrics_updated_{self._subentry.subentry_id}",
         )
         
         return ConversationResult(

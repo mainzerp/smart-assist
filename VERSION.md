@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.4   | 2026-01-28 |
+| Smart Assist | 1.0.5   | 2026-01-29 |
 
 ## Version History
+
+### v1.0.5 (2026-01-29) - Per-Agent Metrics
+
+**Improvements**
+
+- **Per-Agent Sensors**: Metrics are now tracked per Conversation Agent and AI Task instead of aggregated
+  - Each agent/task now has its own set of sensors (response time, requests, tokens, cache hits, etc.)
+  - Sensors are grouped under the respective device in Home Assistant
+- **Average Cached Tokens Sensor**: New sensor showing average cached tokens per request
+  - Formula: `cached_tokens / successful_requests`
+  - Helps track caching efficiency per agent
+- **Cache Warming Status Sensor**: New sensor for agents with cache warming enabled
+  - Shows warming status: "active", "warming", "inactive"
+  - Attributes: last_warmup, next_warmup, warmup_count, warmup_failures, interval_minutes
+- **AI Task Metrics**: AI Task entities now also have their own metric sensors
+  - Average Response Time, Total Requests, Success Rate, Total Tokens
+- Cache warming now tracks success/failure counts and timestamps
+- Dispatcher signals changed from entry-level to subentry-level for better isolation
 
 ### v1.0.4 (2026-01-28) - API Key Reconfigure
 

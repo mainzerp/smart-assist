@@ -1,8 +1,9 @@
-"""Sensor platform for Smart Assist metrics."""
+"""Sensor platform for Smart Assist metrics - Per Agent/Task Sensors."""
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -10,18 +11,24 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import (
+    CONF_ENABLE_CACHE_WARMING,
+    DEFAULT_ENABLE_CACHE_WARMING,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-# Signal name for metrics updates
+# Signal names for metrics updates (per subentry)
 SIGNAL_METRICS_UPDATED = f"{DOMAIN}_metrics_updated"
+SIGNAL_CACHE_WARMING_UPDATED = f"{DOMAIN}_cache_warming_updated"
 
 
 async def async_setup_entry(
@@ -29,44 +36,97 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Smart Assist sensors from a config entry."""
-    sensors = [
-        SmartAssistResponseTimeSensor(hass, entry),
-        SmartAssistRequestCountSensor(hass, entry),
-        SmartAssistSuccessRateSensor(hass, entry),
-        SmartAssistTokensSensor(hass, entry),
-        SmartAssistCacheHitsSensor(hass, entry),
-        SmartAssistCacheHitRateSensor(hass, entry),
+    """Set up Smart Assist sensors from config entry subentries.
+    
+    Creates sensors for each Conversation Agent and AI Task subentry.
+    """
+    sensors: list[SensorEntity] = []
+    
+    for subentry_id, subentry in entry.subentries.items():
+        if subentry.subentry_type == "conversation":
+            # Create conversation agent sensors
+            sensors.extend(_create_agent_sensors(hass, entry, subentry))
+        elif subentry.subentry_type == "ai_task":
+            # Create AI task sensors
+            sensors.extend(_create_task_sensors(hass, entry, subentry))
+    
+    if sensors:
+        async_add_entities(sensors)
+
+
+def _create_agent_sensors(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    subentry: ConfigSubentry,
+) -> list[SensorEntity]:
+    """Create sensors for a conversation agent subentry."""
+    sensors: list[SensorEntity] = [
+        AgentResponseTimeSensor(hass, entry, subentry),
+        AgentRequestCountSensor(hass, entry, subentry),
+        AgentSuccessRateSensor(hass, entry, subentry),
+        AgentTokensSensor(hass, entry, subentry),
+        AgentCacheHitsSensor(hass, entry, subentry),
+        AgentCacheHitRateSensor(hass, entry, subentry),
+        AgentAverageCachedTokensSensor(hass, entry, subentry),
     ]
     
-    async_add_entities(sensors)
+    # Add cache warming sensor if warming is enabled
+    if subentry.data.get(CONF_ENABLE_CACHE_WARMING, DEFAULT_ENABLE_CACHE_WARMING):
+        sensors.append(AgentCacheWarmingSensor(hass, entry, subentry))
+    
+    return sensors
 
 
-class SmartAssistSensorBase(SensorEntity):
-    """Base class for Smart Assist sensors."""
+def _create_task_sensors(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    subentry: ConfigSubentry,
+) -> list[SensorEntity]:
+    """Create sensors for an AI task subentry."""
+    return [
+        TaskResponseTimeSensor(hass, entry, subentry),
+        TaskRequestCountSensor(hass, entry, subentry),
+        TaskSuccessRateSensor(hass, entry, subentry),
+        TaskTokensSensor(hass, entry, subentry),
+    ]
+
+
+class SmartAssistSubentrySensorBase(SensorEntity):
+    """Base class for Smart Assist subentry-level sensors."""
 
     _attr_has_entity_name = True
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_should_poll = False  # We use signals instead of polling
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+        entity_type: str = "conversation",
+    ) -> None:
         """Initialize the sensor."""
         self.hass = hass
         self._entry = entry
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Smart Assist",
-            "manufacturer": "Smart Assist",
-            "model": "Conversation Agent",
-            "entry_type": "service",
-        }
+        self._subentry = subentry
+        self._subentry_id = subentry.subentry_id
+        self._entity_type = entity_type
+        
+        # Device info links sensor to the subentry's device
+        self._attr_device_info = dr.DeviceInfo(
+            identifiers={(DOMAIN, subentry.subentry_id)},
+            name=subentry.title,
+            manufacturer="Smart Assist",
+            model="Conversation Agent" if entity_type == "conversation" else "AI Task",
+            entry_type=dr.DeviceEntryType.SERVICE,
+        )
 
     async def async_added_to_hass(self) -> None:
         """Register signal listener when added to hass."""
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
-                f"{SIGNAL_METRICS_UPDATED}_{self._entry.entry_id}",
+                f"{SIGNAL_METRICS_UPDATED}_{self._subentry_id}",
                 self._handle_metrics_update,
             )
         )
@@ -76,111 +136,81 @@ class SmartAssistSensorBase(SensorEntity):
         """Handle metrics update signal."""
         self.async_write_ha_state()
 
-    def _get_metrics(self) -> dict[str, Any] | None:
-        """Get aggregated metrics from all conversation agents.
-        
-        With the subentry architecture, each agent has its own LLM client.
-        This method aggregates metrics from all agents.
-        """
+    def _get_metrics(self) -> Any | None:
+        """Get metrics from the LLM client for this subentry."""
         domain_data = self.hass.data.get(DOMAIN, {})
         entry_data = domain_data.get(self._entry.entry_id, {})
-        agents = entry_data.get("agents", {})
         
-        if not agents:
-            return None
-        
-        # Aggregate metrics from all agents
-        aggregated = {
-            "total_requests": 0,
-            "successful_requests": 0,
-            "failed_requests": 0,
-            "total_retries": 0,
-            "total_prompt_tokens": 0,
-            "total_completion_tokens": 0,
-            "total_response_time_ms": 0.0,
-            "cache_hits": 0,
-            "cache_misses": 0,
-            "cached_tokens": 0,
-            "empty_responses": 0,
-            "stream_timeouts": 0,
-        }
-        
-        for agent_info in agents.values():
+        # Check in agents (conversation) or tasks (ai_task)
+        if self._entity_type == "conversation":
+            agents = entry_data.get("agents", {})
+            agent_info = agents.get(self._subentry_id, {})
             llm_client = agent_info.get("llm_client")
-            if llm_client and hasattr(llm_client, "metrics"):
-                # Access metrics object directly (not to_dict) to get raw values
-                metrics = llm_client.metrics
-                aggregated["total_requests"] += metrics.total_requests
-                aggregated["successful_requests"] += metrics.successful_requests
-                aggregated["failed_requests"] += metrics.failed_requests
-                aggregated["total_retries"] += metrics.total_retries
-                aggregated["total_prompt_tokens"] += metrics.total_prompt_tokens
-                aggregated["total_completion_tokens"] += metrics.total_completion_tokens
-                aggregated["total_response_time_ms"] += metrics.total_response_time_ms
-                aggregated["cache_hits"] += metrics.cache_hits
-                aggregated["cache_misses"] += metrics.cache_misses
-                aggregated["cached_tokens"] += getattr(metrics, "cached_tokens", 0)
-                aggregated["empty_responses"] += getattr(metrics, "empty_responses", 0)
-                aggregated["stream_timeouts"] += getattr(metrics, "stream_timeouts", 0)
-        
-        # Calculate derived metrics
-        if aggregated["successful_requests"] > 0:
-            aggregated["average_response_time_ms"] = (
-                aggregated["total_response_time_ms"] / aggregated["successful_requests"]
-            )
         else:
-            aggregated["average_response_time_ms"] = 0.0
+            tasks = entry_data.get("tasks", {})
+            task_info = tasks.get(self._subentry_id, {})
+            llm_client = task_info.get("llm_client")
         
-        if aggregated["total_requests"] > 0:
-            aggregated["success_rate"] = (
-                aggregated["successful_requests"] / aggregated["total_requests"]
-            ) * 100
-        else:
-            aggregated["success_rate"] = 100.0
-        
-        return aggregated
+        if llm_client and hasattr(llm_client, "metrics"):
+            return llm_client.metrics
+        return None
 
 
-class SmartAssistResponseTimeSensor(SmartAssistSensorBase):
-    """Sensor for average response time."""
+# =============================================================================
+# Conversation Agent Sensors
+# =============================================================================
+
+
+class AgentResponseTimeSensor(SmartAssistSubentrySensorBase):
+    """Sensor for average response time of a conversation agent."""
 
     _attr_name = "Average Response Time"
     _attr_native_unit_of_measurement = "ms"
     _attr_icon = "mdi:timer-outline"
     _attr_suggested_display_precision = 0
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, entry)
-        self._attr_unique_id = f"{entry.entry_id}_response_time"
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_response_time"
 
     @property
     def native_value(self) -> float | None:
         """Return the average response time."""
         metrics = self._get_metrics()
         if metrics:
-            return metrics.get("average_response_time_ms", 0)
+            return getattr(metrics, "average_response_time_ms", 0)
         return None
 
 
-class SmartAssistRequestCountSensor(SmartAssistSensorBase):
-    """Sensor for total request count."""
+class AgentRequestCountSensor(SmartAssistSubentrySensorBase):
+    """Sensor for total request count of a conversation agent."""
 
     _attr_name = "Total Requests"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:counter"
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, entry)
-        self._attr_unique_id = f"{entry.entry_id}_total_requests"
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_total_requests"
 
     @property
     def native_value(self) -> int | None:
         """Return the total request count."""
         metrics = self._get_metrics()
         if metrics:
-            return metrics.get("total_requests", 0)
+            return getattr(metrics, "total_requests", 0)
         return None
 
     @property
@@ -189,56 +219,66 @@ class SmartAssistRequestCountSensor(SmartAssistSensorBase):
         metrics = self._get_metrics()
         if metrics:
             return {
-                "successful": metrics.get("successful_requests", 0),
-                "failed": metrics.get("failed_requests", 0),
-                "retries": metrics.get("total_retries", 0),
-                "empty_responses": metrics.get("empty_responses", 0),
-                "stream_timeouts": metrics.get("stream_timeouts", 0),
+                "successful": getattr(metrics, "successful_requests", 0),
+                "failed": getattr(metrics, "failed_requests", 0),
+                "retries": getattr(metrics, "total_retries", 0),
+                "empty_responses": getattr(metrics, "empty_responses", 0),
+                "stream_timeouts": getattr(metrics, "stream_timeouts", 0),
             }
         return {}
 
 
-class SmartAssistSuccessRateSensor(SmartAssistSensorBase):
-    """Sensor for success rate."""
+class AgentSuccessRateSensor(SmartAssistSubentrySensorBase):
+    """Sensor for success rate of a conversation agent."""
 
     _attr_name = "Success Rate"
     _attr_native_unit_of_measurement = "%"
     _attr_icon = "mdi:check-circle-outline"
     _attr_suggested_display_precision = 1
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, entry)
-        self._attr_unique_id = f"{entry.entry_id}_success_rate"
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_success_rate"
 
     @property
     def native_value(self) -> float | None:
         """Return the success rate."""
         metrics = self._get_metrics()
         if metrics:
-            return metrics.get("success_rate", 100.0)
+            return getattr(metrics, "success_rate", 100.0)
         return None
 
 
-class SmartAssistTokensSensor(SmartAssistSensorBase):
-    """Sensor for total tokens used."""
+class AgentTokensSensor(SmartAssistSubentrySensorBase):
+    """Sensor for total tokens used by a conversation agent."""
 
     _attr_name = "Total Tokens"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:file-document-outline"
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, entry)
-        self._attr_unique_id = f"{entry.entry_id}_total_tokens"
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_total_tokens"
 
     @property
     def native_value(self) -> int | None:
         """Return the total tokens used."""
         metrics = self._get_metrics()
         if metrics:
-            prompt = metrics.get("total_prompt_tokens", 0)
-            completion = metrics.get("total_completion_tokens", 0)
+            prompt = getattr(metrics, "total_prompt_tokens", 0)
+            completion = getattr(metrics, "total_completion_tokens", 0)
             return prompt + completion
         return None
 
@@ -248,30 +288,35 @@ class SmartAssistTokensSensor(SmartAssistSensorBase):
         metrics = self._get_metrics()
         if metrics:
             return {
-                "prompt_tokens": metrics.get("total_prompt_tokens", 0),
-                "completion_tokens": metrics.get("total_completion_tokens", 0),
+                "prompt_tokens": getattr(metrics, "total_prompt_tokens", 0),
+                "completion_tokens": getattr(metrics, "total_completion_tokens", 0),
             }
         return {}
 
 
-class SmartAssistCacheHitsSensor(SmartAssistSensorBase):
-    """Sensor for cache performance."""
+class AgentCacheHitsSensor(SmartAssistSubentrySensorBase):
+    """Sensor for cache hits of a conversation agent."""
 
     _attr_name = "Cache Hits"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_icon = "mdi:cached"
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, entry)
-        self._attr_unique_id = f"{entry.entry_id}_cache_hits"
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_cache_hits"
 
     @property
     def native_value(self) -> int | None:
         """Return the cache hits count."""
         metrics = self._get_metrics()
         if metrics:
-            return metrics.get("cache_hits", 0)
+            return getattr(metrics, "cache_hits", 0)
         return None
 
     @property
@@ -279,8 +324,8 @@ class SmartAssistCacheHitsSensor(SmartAssistSensorBase):
         """Return additional attributes."""
         metrics = self._get_metrics()
         if metrics:
-            hits = metrics.get("cache_hits", 0)
-            misses = metrics.get("cache_misses", 0)
+            hits = getattr(metrics, "cache_hits", 0)
+            misses = getattr(metrics, "cache_misses", 0)
             total = hits + misses
             hit_rate = (hits / total * 100) if total > 0 else 0
             return {
@@ -290,8 +335,8 @@ class SmartAssistCacheHitsSensor(SmartAssistSensorBase):
         return {}
 
 
-class SmartAssistCacheHitRateSensor(SmartAssistSensorBase):
-    """Sensor for token-based cache hit rate.
+class AgentCacheHitRateSensor(SmartAssistSubentrySensorBase):
+    """Sensor for token-based cache hit rate of a conversation agent.
     
     Formula: cached_tokens / prompt_tokens * 100%
     This shows what percentage of input tokens were served from cache.
@@ -302,21 +347,23 @@ class SmartAssistCacheHitRateSensor(SmartAssistSensorBase):
     _attr_icon = "mdi:speedometer"
     _attr_suggested_display_precision = 1
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
         """Initialize the sensor."""
-        super().__init__(hass, entry)
-        self._attr_unique_id = f"{entry.entry_id}_cache_hit_rate"
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_cache_hit_rate"
 
     @property
     def native_value(self) -> float | None:
-        """Return the cache hit rate percentage.
-        
-        Calculated as: cached_tokens / prompt_tokens * 100%
-        """
+        """Return the cache hit rate percentage."""
         metrics = self._get_metrics()
         if metrics:
-            cached = metrics.get("cached_tokens", 0)
-            prompt = metrics.get("total_prompt_tokens", 0)
+            cached = getattr(metrics, "cached_tokens", 0)
+            prompt = getattr(metrics, "total_prompt_tokens", 0)
             if prompt > 0:
                 return round((cached / prompt) * 100, 1)
             return 0.0
@@ -327,11 +374,255 @@ class SmartAssistCacheHitRateSensor(SmartAssistSensorBase):
         """Return additional attributes."""
         metrics = self._get_metrics()
         if metrics:
-            cached = metrics.get("cached_tokens", 0)
-            prompt = metrics.get("total_prompt_tokens", 0)
+            cached = getattr(metrics, "cached_tokens", 0)
+            prompt = getattr(metrics, "total_prompt_tokens", 0)
             return {
                 "cached_tokens": cached,
                 "prompt_tokens": prompt,
-                "tokens_saved": cached,  # Cached tokens = tokens not reprocessed
+                "tokens_saved": cached,
+            }
+        return {}
+
+
+class AgentAverageCachedTokensSensor(SmartAssistSubentrySensorBase):
+    """Sensor for average cached tokens per request.
+    
+    Formula: cached_tokens / successful_requests
+    Shows how many tokens are being cached on average per request.
+    """
+
+    _attr_name = "Average Cached Tokens"
+    _attr_icon = "mdi:database-clock"
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_avg_cached_tokens"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the average cached tokens per request."""
+        metrics = self._get_metrics()
+        if metrics:
+            cached = getattr(metrics, "cached_tokens", 0)
+            successful = getattr(metrics, "successful_requests", 0)
+            if successful > 0:
+                return round(cached / successful, 0)
+            return 0.0
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        metrics = self._get_metrics()
+        if metrics:
+            cached = getattr(metrics, "cached_tokens", 0)
+            successful = getattr(metrics, "successful_requests", 0)
+            prompt = getattr(metrics, "total_prompt_tokens", 0)
+            avg_prompt = round(prompt / successful, 0) if successful > 0 else 0
+            return {
+                "total_cached_tokens": cached,
+                "successful_requests": successful,
+                "average_prompt_tokens": avg_prompt,
+            }
+        return {}
+
+
+class AgentCacheWarmingSensor(SmartAssistSubentrySensorBase):
+    """Sensor for cache warming status of a conversation agent."""
+
+    _attr_name = "Cache Warming"
+    _attr_icon = "mdi:fire"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, entry, subentry, "conversation")
+        self._attr_unique_id = f"{subentry.subentry_id}_cache_warming"
+
+    async def async_added_to_hass(self) -> None:
+        """Register signal listeners when added to hass."""
+        await super().async_added_to_hass()
+        # Also listen for cache warming specific updates
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{SIGNAL_CACHE_WARMING_UPDATED}_{self._subentry_id}",
+                self._handle_metrics_update,
+            )
+        )
+
+    def _get_warming_data(self) -> dict[str, Any] | None:
+        """Get cache warming data for this subentry."""
+        domain_data = self.hass.data.get(DOMAIN, {})
+        entry_data = domain_data.get(self._entry.entry_id, {})
+        warming_data = entry_data.get("cache_warming", {})
+        return warming_data.get(self._subentry_id)
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the cache warming status."""
+        data = self._get_warming_data()
+        if data:
+            return data.get("status", "inactive")
+        return "inactive"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        data = self._get_warming_data()
+        if data:
+            return {
+                "last_warmup": data.get("last_warmup"),
+                "next_warmup": data.get("next_warmup"),
+                "warmup_count": data.get("warmup_count", 0),
+                "warmup_failures": data.get("warmup_failures", 0),
+                "warming_enabled": True,
+                "interval_minutes": data.get("interval_minutes"),
+            }
+        return {"warming_enabled": False}
+
+
+# =============================================================================
+# AI Task Sensors
+# =============================================================================
+
+
+class TaskResponseTimeSensor(SmartAssistSubentrySensorBase):
+    """Sensor for average response time of an AI task."""
+
+    _attr_name = "Average Response Time"
+    _attr_native_unit_of_measurement = "ms"
+    _attr_icon = "mdi:timer-outline"
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, entry, subentry, "ai_task")
+        self._attr_unique_id = f"{subentry.subentry_id}_response_time"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the average response time."""
+        metrics = self._get_metrics()
+        if metrics:
+            return getattr(metrics, "average_response_time_ms", 0)
+        return None
+
+
+class TaskRequestCountSensor(SmartAssistSubentrySensorBase):
+    """Sensor for total request count of an AI task."""
+
+    _attr_name = "Total Requests"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:counter"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, entry, subentry, "ai_task")
+        self._attr_unique_id = f"{subentry.subentry_id}_total_requests"
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the total request count."""
+        metrics = self._get_metrics()
+        if metrics:
+            return getattr(metrics, "total_requests", 0)
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        metrics = self._get_metrics()
+        if metrics:
+            return {
+                "successful": getattr(metrics, "successful_requests", 0),
+                "failed": getattr(metrics, "failed_requests", 0),
+            }
+        return {}
+
+
+class TaskSuccessRateSensor(SmartAssistSubentrySensorBase):
+    """Sensor for success rate of an AI task."""
+
+    _attr_name = "Success Rate"
+    _attr_native_unit_of_measurement = "%"
+    _attr_icon = "mdi:check-circle-outline"
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, entry, subentry, "ai_task")
+        self._attr_unique_id = f"{subentry.subentry_id}_success_rate"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the success rate."""
+        metrics = self._get_metrics()
+        if metrics:
+            return getattr(metrics, "success_rate", 100.0)
+        return None
+
+
+class TaskTokensSensor(SmartAssistSubentrySensorBase):
+    """Sensor for total tokens used by an AI task."""
+
+    _attr_name = "Total Tokens"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:file-document-outline"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        subentry: ConfigSubentry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(hass, entry, subentry, "ai_task")
+        self._attr_unique_id = f"{subentry.subentry_id}_total_tokens"
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the total tokens used."""
+        metrics = self._get_metrics()
+        if metrics:
+            prompt = getattr(metrics, "total_prompt_tokens", 0)
+            completion = getattr(metrics, "total_completion_tokens", 0)
+            return prompt + completion
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        metrics = self._get_metrics()
+        if metrics:
+            return {
+                "prompt_tokens": getattr(metrics, "total_prompt_tokens", 0),
+                "completion_tokens": getattr(metrics, "total_completion_tokens", 0),
             }
         return {}

@@ -99,8 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if caching_enabled and warming_enabled:
             if hass.is_running:
                 _LOGGER.info("HA running, starting cache warming for %s...", subentry.title)
-                hass.async_create_task(_perform_cache_warming(hass, entry, subentry_id))
-                _start_cache_refresh_timer(hass, entry, subentry)
+                hass.async_create_task(_initial_cache_warming(hass, entry, subentry_id, subentry))
             else:
                 # Track whether the listener has been called
                 listener_called = {"value": False}
@@ -114,8 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     """Perform cache warming after Home Assistant starts."""
                     called["value"] = True
                     _LOGGER.info("Starting initial cache warming for %s...", se.title)
-                    await _perform_cache_warming(hass, entry, se_id)
-                    _start_cache_refresh_timer(hass, entry, se)
+                    await _initial_cache_warming(hass, entry, se_id, se)
                 
                 unsub = hass.bus.async_listen_once(
                     EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
@@ -132,11 +130,57 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def _initial_cache_warming(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    subentry_id: str,
+    subentry: ConfigSubentry,
+) -> None:
+    """Perform initial cache warming and start the refresh timer.
+    
+    This handles the first warmup and initializes tracking data.
+    """
+    from datetime import datetime
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
+    
+    # Initialize tracking data early
+    hass.data[DOMAIN][entry.entry_id].setdefault("cache_warming", {})
+    hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id] = {
+        "status": "warming",
+        "last_warmup": None,
+        "next_warmup": None,
+        "warmup_count": 0,
+        "warmup_failures": 0,
+        "interval_minutes": subentry.data.get(
+            CONF_CACHE_REFRESH_INTERVAL, DEFAULT_CACHE_REFRESH_INTERVAL
+        ),
+    }
+    
+    # Perform initial warming
+    success = await _perform_cache_warming(hass, entry, subentry_id, initial=True)
+    
+    # Update tracking
+    warming_data = hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]
+    warming_data["last_warmup"] = datetime.now().isoformat()
+    warming_data["status"] = "active"
+    if success:
+        warming_data["warmup_count"] = 1
+    else:
+        warming_data["warmup_failures"] = 1
+    
+    # Signal sensor update
+    async_dispatcher_send(hass, f"{DOMAIN}_cache_warming_updated_{subentry_id}")
+    
+    # Start the periodic refresh timer
+    _start_cache_refresh_timer(hass, entry, subentry)
+
+
 def _start_cache_refresh_timer(
     hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry
 ) -> None:
     """Start periodic cache refresh timer for a specific conversation agent."""
-    from datetime import timedelta
+    from datetime import timedelta, datetime
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
     
     # Get user-configured refresh interval (in minutes) from subentry
     interval_minutes = subentry.data.get(
@@ -145,13 +189,48 @@ def _start_cache_refresh_timer(
     interval_seconds = interval_minutes * 60
     subentry_id = subentry.subentry_id
     
+    # Initialize cache warming tracking data
+    hass.data[DOMAIN][entry.entry_id].setdefault("cache_warming", {})
+    hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id] = {
+        "status": "active",
+        "last_warmup": None,
+        "next_warmup": None,
+        "warmup_count": 0,
+        "warmup_failures": 0,
+        "interval_minutes": interval_minutes,
+    }
+    
+    def _update_next_warmup() -> None:
+        """Update the next warmup timestamp."""
+        from datetime import datetime, timedelta
+        next_time = datetime.now() + timedelta(minutes=interval_minutes)
+        hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]["next_warmup"] = next_time.isoformat()
+    
     async def _refresh_cache(now: Any) -> None:
         """Periodically refresh the cache."""
         _LOGGER.info(
             "Refreshing prompt cache for %s (every %d min)",
             subentry.title, interval_minutes
         )
-        await _perform_cache_warming(hass, entry, subentry_id, initial=False)
+        
+        # Update status to warming
+        hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]["status"] = "warming"
+        async_dispatcher_send(hass, f"{DOMAIN}_cache_warming_updated_{subentry_id}")
+        
+        success = await _perform_cache_warming(hass, entry, subentry_id, initial=False)
+        
+        # Update tracking data
+        warming_data = hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]
+        warming_data["last_warmup"] = datetime.now().isoformat()
+        warming_data["status"] = "active"
+        if success:
+            warming_data["warmup_count"] += 1
+        else:
+            warming_data["warmup_failures"] += 1
+        _update_next_warmup()
+        
+        # Signal sensor update
+        async_dispatcher_send(hass, f"{DOMAIN}_cache_warming_updated_{subentry_id}")
     
     # Register the periodic task
     cancel_refresh = async_track_time_interval(
@@ -165,6 +244,9 @@ def _start_cache_refresh_timer(
     hass.data[DOMAIN][entry.entry_id]["cache_timers"][subentry_id] = cancel_refresh
     entry.async_on_unload(cancel_refresh)
     
+    # Set initial next warmup time
+    _update_next_warmup()
+    
     _LOGGER.info(
         "Cache refresh timer started for %s (interval: %d minutes)",
         subentry.title, interval_minutes,
@@ -176,7 +258,7 @@ async def _perform_cache_warming(
     entry: ConfigEntry,
     subentry_id: str,
     initial: bool = True,
-) -> None:
+) -> bool:
     """Perform cache warming for a specific conversation agent.
     
     This pre-populates the prompt cache with the system prompt and entity index,
@@ -187,6 +269,9 @@ async def _perform_cache_warming(
         entry: Config entry
         subentry_id: ID of the subentry (conversation agent) to warm
         initial: If True, wait for entities to load (first run only)
+        
+    Returns:
+        True if warming was successful, False otherwise
     """
     _LOGGER.debug("Starting cache warming for subentry %s", subentry_id)
     
@@ -205,16 +290,18 @@ async def _perform_cache_warming(
         
         if entity is None:
             _LOGGER.debug("No entity found for cache warming (subentry %s), skipping", subentry_id)
-            return
+            return False
         
         # Perform a minimal warming request
         # This builds the system prompt and entity index, populating the cache
         await entity.warm_cache()
         
         _LOGGER.info("Cache warming completed successfully for subentry %s", subentry_id)
+        return True
         
     except Exception as err:
         _LOGGER.warning("Cache warming failed for subentry %s: %s", subentry_id, err)
+        return False
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

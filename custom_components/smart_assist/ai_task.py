@@ -16,6 +16,7 @@ from homeassistant.components.conversation import ChatLog
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
@@ -145,6 +146,15 @@ class SmartAssistAITask(AITaskEntity):
             hass=hass,
             entry=config_entry,
         )
+        
+        # Store LLM client reference for sensors to access metrics
+        hass.data.setdefault(DOMAIN, {})
+        hass.data[DOMAIN].setdefault(config_entry.entry_id, {})
+        hass.data[DOMAIN][config_entry.entry_id].setdefault("tasks", {})
+        hass.data[DOMAIN][config_entry.entry_id]["tasks"][subentry.subentry_id] = {
+            "llm_client": self._llm_client,
+            "entity": self,
+        }
 
     async def _async_generate_data(
         self,
@@ -174,6 +184,12 @@ class SmartAssistAITask(AITaskEntity):
         except Exception as e:
             _LOGGER.error("AI Task LLM call failed: %s", e)
             response_content = f"Error processing task: {e}"
+        
+        # Signal sensors to update their state (per subentry)
+        async_dispatcher_send(
+            self.hass,
+            f"{DOMAIN}_metrics_updated_{self._subentry.subentry_id}",
+        )
         
         # Return result
         if task.structure:
