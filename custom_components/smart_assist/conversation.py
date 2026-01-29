@@ -327,15 +327,15 @@ class SmartAssistConversationEntity(ConversationEntity):
 
         try:
             # Use streaming with tool loop
-            final_content = await self._call_llm_streaming_with_tools(
+            final_content, await_response_called = await self._call_llm_streaming_with_tools(
                 messages=messages,
                 tools=tools,
                 cached_prefix_length=cached_prefix_length,
                 chat_log=chat_log,
             )
 
-            # Parse response for continuation marker
-            cleaned_content, continue_conversation = self._parse_response_marker(final_content)
+            # Determine if conversation should continue based on await_response tool
+            continue_conversation = await_response_called
             
             # Override: If ask_followup is disabled, never continue
             ask_followup = self._get_config(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
@@ -343,7 +343,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                 continue_conversation = False
 
             # Clean response for TTS if enabled
-            final_response = cleaned_content
+            final_response = final_content
             if self._get_config(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES):
                 language = self._get_config(CONF_LANGUAGE, "")
                 final_response = clean_for_tts(final_response, language)
@@ -370,18 +370,22 @@ class SmartAssistConversationEntity(ConversationEntity):
         cached_prefix_length: int,
         chat_log: ChatLog,
         max_iterations: int = 5,
-    ) -> str:
+    ) -> tuple[str, bool]:
         """Call LLM with streaming and handle tool calls in-loop.
         
         Implements streaming with tool execution. Content deltas are sent
         to the ChatLog's delta_listener for real-time TTS streaming.
         Tool calls are executed between LLM iterations.
         
-        Returns the final response text after all tool calls are complete.
+        Returns:
+            Tuple of (final_response_text, await_response_called)
+            - final_response_text: The final response after all tool calls
+            - await_response_called: True if await_response tool was called
         """
         iteration = 0
         working_messages = messages.copy()
         final_content = ""
+        await_response_called = False
         
         while iteration < max_iterations:
             iteration += 1
@@ -423,60 +427,76 @@ class SmartAssistConversationEntity(ConversationEntity):
             # If no tool calls, we're done
             if not tool_calls:
                 _LOGGER.debug("[USER-REQUEST] Complete (iteration %d, no tool calls)", iteration)
-                return final_content
+                return final_content, await_response_called
             
-            # Execute tool calls and add results to messages for next iteration
-            _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(tool_calls))
+            # Check if await_response is in the tool calls (signal, not executed with others)
+            await_response_calls = [tc for tc in tool_calls if tc.name == "await_response"]
+            other_tool_calls = [tc for tc in tool_calls if tc.name != "await_response"]
             
-            # Add assistant message with tool calls to working messages
-            working_messages.append(
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=iteration_content,
-                    tool_calls=tool_calls,
+            if await_response_calls:
+                await_response_called = True
+                _LOGGER.debug("[USER-REQUEST] await_response tool called - conversation will continue")
+                # If only await_response was called, we're done
+                if not other_tool_calls:
+                    return final_content, await_response_called
+            
+            # Execute other tool calls (not await_response) and add results to messages for next iteration
+            if other_tool_calls:
+                _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(other_tool_calls))
+            
+                # Add assistant message with tool calls to working messages
+                working_messages.append(
+                    ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content=iteration_content,
+                        tool_calls=other_tool_calls,
+                    )
                 )
-            )
-            
-            # Execute all tools in parallel
-            async def execute_tool(tool_call: ToolCall) -> tuple[ToolCall, Any]:
-                """Execute a single tool and return result with metadata."""
-                _LOGGER.debug("Executing tool: %s", tool_call.name)
-                result = await self._get_tool_registry().execute(
-                    tool_call.name, tool_call.arguments
+                
+                # Execute all tools in parallel
+                async def execute_tool(tool_call: ToolCall) -> tuple[ToolCall, Any]:
+                    """Execute a single tool and return result with metadata."""
+                    _LOGGER.debug("Executing tool: %s", tool_call.name)
+                    result = await self._get_tool_registry().execute(
+                        tool_call.name, tool_call.arguments
+                    )
+                    return (tool_call, result)
+                
+                tool_results = await asyncio.gather(
+                    *[execute_tool(tc) for tc in other_tool_calls],
+                    return_exceptions=True
                 )
-                return (tool_call, result)
-            
-            tool_results = await asyncio.gather(
-                *[execute_tool(tc) for tc in tool_calls],
-                return_exceptions=True
-            )
-            
-            # Add tool results to working messages
-            for item in tool_results:
-                if isinstance(item, Exception):
-                    _LOGGER.error("Tool execution failed: %s", item)
+                
+                # Add tool results to working messages
+                for item in tool_results:
+                    if isinstance(item, Exception):
+                        _LOGGER.error("Tool execution failed: %s", item)
+                        working_messages.append(
+                            ChatMessage(
+                                role=MessageRole.TOOL,
+                                content=f"Error: {item}",
+                                tool_call_id="error",
+                                name="error",
+                            )
+                        )
+                        continue
+                    tool_call, result = item
                     working_messages.append(
                         ChatMessage(
                             role=MessageRole.TOOL,
-                            content=f"Error: {item}",
-                            tool_call_id="error",
-                            name="error",
+                            content=result.to_string(),
+                            tool_call_id=tool_call.id,
+                            name=tool_call.name,
                         )
                     )
-                    continue
-                tool_call, result = item
-                working_messages.append(
-                    ChatMessage(
-                        role=MessageRole.TOOL,
-                        content=result.to_string(),
-                        tool_call_id=tool_call.id,
-                        name=tool_call.name,
-                    )
-                )
+            else:
+                # Only await_response was called, no other tools to execute
+                # This shouldn't happen normally since we return above, but handle it
+                pass
         
         # Max iterations reached
         _LOGGER.warning("Max tool iterations (%d) reached", max_iterations)
-        return final_content
+        return final_content, await_response_called
 
     async def _create_delta_stream(
         self,
@@ -489,43 +509,20 @@ class SmartAssistConversationEntity(ConversationEntity):
         Yields AssistantContentDeltaDict objects that conform to HA's
         streaming protocol. Each yield with "role" starts a new message.
         Content and tool_calls are accumulated until the next role.
-        
-        Filters out [AWAIT_RESPONSE] marker before sending to TTS.
         """
         from homeassistant.helpers import llm as ha_llm
         
-        MARKER = "[AWAIT_RESPONSE]"
-        MARKER_LEN = len(MARKER)
-        
         # Start with role indicator for new assistant message
         yield {"role": "assistant"}
-        
-        # Buffer to detect and filter [AWAIT_RESPONSE] marker
-        # We need to buffer because the marker might be split across chunks
-        buffer = ""
         
         async for delta in self._llm_client.chat_stream_full(
             messages=messages,
             tools=tools,
             cached_prefix_length=cached_prefix_length,
         ):
-            # Handle content chunks - filter out [AWAIT_RESPONSE] marker
+            # Handle content chunks
             if "content" in delta and delta["content"]:
-                buffer += delta["content"]
-                
-                # Check if buffer contains the marker
-                if MARKER in buffer:
-                    # Remove marker and yield the clean content
-                    clean_buffer = buffer.replace(MARKER, "").rstrip()
-                    if clean_buffer:
-                        yield {"content": clean_buffer}
-                    buffer = ""
-                elif len(buffer) > MARKER_LEN:
-                    # Safe to yield content that can't contain marker start
-                    safe_content = buffer[:-MARKER_LEN]
-                    buffer = buffer[-MARKER_LEN:]
-                    if safe_content:
-                        yield {"content": safe_content}
+                yield {"content": delta["content"]}
             
             # Yield tool calls when complete
             if "tool_calls" in delta and delta["tool_calls"]:
@@ -540,12 +537,6 @@ class SmartAssistConversationEntity(ConversationEntity):
                         )
                     )
                 yield {"tool_calls": tool_inputs}
-        
-        # Flush remaining buffer (after removing any marker)
-        if buffer:
-            clean_buffer = buffer.replace(MARKER, "").rstrip()
-            if clean_buffer:
-                yield {"content": clean_buffer}
 
     def _build_system_prompt(self) -> str:
         """Build or return cached system prompt based on configuration.
@@ -599,13 +590,19 @@ class SmartAssistConversationEntity(ConversationEntity):
         if ask_followup:
             parts.append("""
 ## Follow-up Behavior
-- Offer follow-up only when useful (ambiguous request, multiple options)
-- Do NOT offer follow-up for simple completed actions
+- Offer follow-up when useful (ambiguous request, multiple options)
+- Occasionally ask "Is there anything else I can help with?" after completing tasks
+- Do NOT offer follow-up for every simple action
 
-## Conversation Signal [CRITICAL]
-Add [AWAIT_RESPONSE] at the END of your message when you ask a question or offer a choice.
-Without this marker, the microphone closes and user cannot respond.
-Example: "Which light - living room or bedroom? [AWAIT_RESPONSE]" """)
+## Conversation Continuation [CRITICAL]
+Call the 'await_response' tool when you expect user input:
+- Asking a clarifying question ("Which light?")
+- Offering choices
+- Requesting confirmation for critical actions
+- Proactively offering further help
+
+WITHOUT calling await_response, the microphone closes and user cannot respond.
+NEVER add text markers like [Done] or [No action needed] - use tools only.""")
         else:
             parts.append("""
 ## Response Rules
@@ -662,28 +659,6 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         _LOGGER.debug("System prompt cached (length: %d chars)", len(self._cached_system_prompt))
         
         return self._cached_system_prompt
-
-    def _parse_response_marker(self, response: str) -> tuple[str, bool]:
-        """Parse response for [AWAIT_RESPONSE] marker and determine continuation.
-        
-        Args:
-            response: The raw LLM response text
-            
-        Returns:
-            Tuple of (cleaned_response, continue_conversation)
-        """
-        MARKER = "[AWAIT_RESPONSE]"
-        
-        # Check if marker is present
-        if MARKER in response:
-            _LOGGER.debug("AWAIT_RESPONSE marker found in LLM response - continuing conversation")
-            # Remove marker and clean up
-            cleaned = response.replace(MARKER, "").strip()
-            return cleaned, True
-        
-        # No marker - don't continue conversation
-        _LOGGER.debug("No AWAIT_RESPONSE marker in LLM response - ending conversation")
-        return response, False
 
     async def _get_calendar_context(self) -> str:
         """Get upcoming calendar events for context injection.

@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.9   | 2026-01-29 |
+| Smart Assist | 1.0.10  | 2026-01-29 |
 
 ## Version History
+
+### v1.0.10 (2026-01-29) - await_response Tool
+
+**Refactor: Conversation Continuation**
+
+- Replaced text marker `[AWAIT_RESPONSE]` with `await_response` tool
+- LLM now calls a tool to signal "keep microphone open" instead of adding text markers
+- Prevents LLM from inventing markers like `[Keine weitere Aktion nötig]` or `[No action needed]`
+- Deterministic, debuggable (tool calls visible in logs)
+- System prompt updated with clear tool usage instructions
+- Proactive follow-up: LLM can now ask "Is there anything else I can help with?"
+
+**Benefits:**
+- No more random action status tags in TTS output
+- Cleaner, more predictable conversation flow
+- Better for AI Tasks that need user confirmation
 
 ### v1.0.9 (2026-01-29) - TTS Cleanup for Action Tags
 
