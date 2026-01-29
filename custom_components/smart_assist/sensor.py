@@ -16,7 +16,7 @@ from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     CONF_ENABLE_CACHE_WARMING,
@@ -34,24 +34,24 @@ SIGNAL_CACHE_WARMING_UPDATED = f"{DOMAIN}_cache_warming_updated"
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Smart Assist sensors from config entry subentries.
     
     Creates sensors for each Conversation Agent and AI Task subentry.
+    Each set of sensors is added with its config_subentry_id for proper grouping.
     """
-    sensors: list[SensorEntity] = []
-    
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type == "conversation":
             # Create conversation agent sensors
-            sensors.extend(_create_agent_sensors(hass, entry, subentry))
+            sensors = _create_agent_sensors(hass, entry, subentry)
+            if sensors:
+                async_add_entities(sensors, config_subentry_id=subentry_id)
         elif subentry.subentry_type == "ai_task":
             # Create AI task sensors
-            sensors.extend(_create_task_sensors(hass, entry, subentry))
-    
-    if sensors:
-        async_add_entities(sensors)
+            sensors = _create_task_sensors(hass, entry, subentry)
+            if sensors:
+                async_add_entities(sensors, config_subentry_id=subentry_id)
 
 
 def _create_agent_sensors(
@@ -439,6 +439,7 @@ class AgentCacheWarmingSensor(SmartAssistSubentrySensorBase):
 
     _attr_name = "Cache Warming"
     _attr_icon = "mdi:fire"
+    _attr_state_class = None  # Override: this is a string status, not a measurement
 
     def __init__(
         self,
