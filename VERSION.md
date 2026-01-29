@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.5   | 2026-01-29 |
+| Smart Assist | 1.0.6   | 2026-01-29 |
 
 ## Version History
+
+### v1.0.6 (2026-01-29) - Per-Agent Metrics (Bugfix)
+
+**Bugfixes**
+
+- Fixed sensor subentry grouping: sensors now correctly appear only under their respective agent/task device
+- Fixed Cache Warming sensor state class (string status, not measurement)
 
 ### v1.0.5 (2026-01-29) - Per-Agent Metrics
 
