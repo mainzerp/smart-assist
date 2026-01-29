@@ -173,6 +173,7 @@ def clean_for_tts(text: str, language: str = "") -> str:
     - Emojis
     - Markdown formatting
     - URLs
+    - Status tags in brackets like [Keine weitere Aktion nötig], [No action needed], etc.
 
     Converts:
     - Symbols to spoken words (e.g., degrees Celsius -> Grad Celsius for German)
@@ -190,6 +191,10 @@ def clean_for_tts(text: str, language: str = "") -> str:
 
     result = text
 
+    # Remove status tags in brackets (LLM action indicators)
+    # Matches [Keine weitere Aktion nötig], [No action needed], [Action required], etc.
+    result = re.sub(r'\s*\[[^\]]*(?:Aktion|action|Action)[^\]]*\]\s*', ' ', result, flags=re.IGNORECASE)
+    
     # Remove emojis
     result = EMOJI_PATTERN.sub("", result)
 

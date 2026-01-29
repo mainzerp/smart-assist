@@ -4,9 +4,14 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.8   | 2026-01-29 |
+| Smart Assist | 1.0.9   | 2026-01-29 |
 
 ## Version History
+
+### v1.0.9 (2026-01-29) - TTS Cleanup for Action Tags
+
+- Removed action status tags from TTS output (e.g., [Keine weitere Aktion nötig], [No action needed])
+- These LLM action indicators are now stripped before speech synthesis
 
 ### v1.0.8 (2026-01-29) - Cache Warming Sensor Update Fix
 
