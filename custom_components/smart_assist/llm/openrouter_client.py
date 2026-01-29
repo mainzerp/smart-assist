@@ -429,9 +429,11 @@ class OpenRouterClient:
                                     _LOGGER.debug("Got usage in stream: %s", usage)
                                     self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                                     self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
-                                    # Track cache hits
-                                    if "cache_read_input_tokens" in usage or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0) > 0:
+                                    # Track cache hits and cached tokens
+                                    cached = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                                    if cached > 0:
                                         self._metrics.cache_hits += 1
+                                        self._metrics.cached_tokens += cached
                                     elif self._enable_caching:
                                         self._metrics.cache_misses += 1
                                 delta = data.get("choices", [{}])[0].get("delta", {})
@@ -622,9 +624,11 @@ class OpenRouterClient:
                             _LOGGER.debug("Got usage in full stream: %s", usage)
                             self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                             self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
-                            # Track cache hits from usage data
-                            if "cache_read_input_tokens" in usage or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0) > 0:
+                            # Track cache hits and cached tokens
+                            cached = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                            if cached > 0:
                                 self._metrics.cache_hits += 1
+                                self._metrics.cached_tokens += cached
                             elif self._enable_caching:
                                 self._metrics.cache_misses += 1
                         

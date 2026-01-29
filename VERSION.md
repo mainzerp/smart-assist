@@ -4,9 +4,15 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.6   | 2026-01-29 |
+| Smart Assist | 1.0.7   | 2026-01-29 |
 
 ## Version History
+
+### v1.0.7 (2026-01-29) - Cached Tokens Tracking Fix
+
+- Fixed cached_tokens metric not being tracked in OpenRouter client
+- Cache warming now correctly contributes to average cached tokens sensor
+- Note: For device grouping issues, please remove and re-add the Smart Assist integration
 
 ### v1.0.6 (2026-01-29) - Per-Agent Metrics (Bugfix)
 
