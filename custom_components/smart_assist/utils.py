@@ -192,8 +192,14 @@ def clean_for_tts(text: str, language: str = "") -> str:
     result = text
 
     # Remove status tags in brackets (LLM action indicators)
-    # Matches [Keine weitere Aktion nötig], [No action needed], [Action required], etc.
-    result = re.sub(r'\s*\[[^\]]*(?:Aktion|action|Action)[^\]]*\]\s*', ' ', result, flags=re.IGNORECASE)
+    # Supports: German (Aktion), English (action), French (action), Spanish (acción), 
+    # Italian (azione), Dutch (actie), Portuguese (ação)
+    result = re.sub(
+        r'\s*\[[^\]]*(?:Aktion|action|acción|azione|actie|ação|Handlung|needed|nötig|required|erforderlich|nécessaire|necesario|necessario|nodig|necessário)[^\]]*\]\s*',
+        ' ',
+        result,
+        flags=re.IGNORECASE
+    )
     
     # Remove emojis
     result = EMOJI_PATTERN.sub("", result)
