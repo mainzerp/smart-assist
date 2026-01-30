@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.17  | 2026-01-30 |
+| Smart Assist | 1.0.18  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.18 (2026-01-30) - Double Cache Warming at Startup
+
+**Improvement: Faster Initial Response**
+
+- Cache warming now runs TWICE at startup
+- First warmup creates the cache, second warmup uses it
+- Immediate benefit from prompt caching on first user request
+- warmup_count sensor now reflects both warmups
 
 ### v1.0.17 (2026-01-30) - TTS Response Format Rules
 

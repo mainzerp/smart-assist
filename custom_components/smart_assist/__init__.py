@@ -139,6 +139,7 @@ async def _initial_cache_warming(
     """Perform initial cache warming and start the refresh timer.
     
     This handles the first warmup and initializes tracking data.
+    Performs TWO warmups at startup to ensure cache is fully populated.
     """
     from datetime import datetime
     from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -156,17 +157,22 @@ async def _initial_cache_warming(
         ),
     }
     
-    # Perform initial warming
-    success = await _perform_cache_warming(hass, entry, subentry_id, initial=True)
-    
-    # Update tracking
     warming_data = hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]
-    warming_data["last_warmup"] = datetime.now().isoformat()
+    
+    # Perform TWO warmups at startup to ensure cache is fully populated
+    # First warmup creates the cache, second warmup uses it (verifies it works)
+    for i in range(2):
+        _LOGGER.debug("Cache warming pass %d/2 for %s", i + 1, subentry.title)
+        success = await _perform_cache_warming(hass, entry, subentry_id, initial=True)
+        
+        # Update tracking
+        warming_data["last_warmup"] = datetime.now().isoformat()
+        if success:
+            warming_data["warmup_count"] += 1
+        else:
+            warming_data["warmup_failures"] += 1
+    
     warming_data["status"] = "active"
-    if success:
-        warming_data["warmup_count"] = 1
-    else:
-        warming_data["warmup_failures"] = 1
     
     # Signal sensor update
     async_dispatcher_send(hass, f"{DOMAIN}_cache_warming_updated_{subentry_id}")
