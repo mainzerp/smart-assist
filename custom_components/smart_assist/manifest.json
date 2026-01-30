@@ -9,5 +9,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/mainzerp/smart-assist/issues",
   "requirements": ["aiohttp>=3.8.0", "ddgs>=7.0.0"],
-  "version": "1.0.10"
+  "version": "1.0.11"
 }

@@ -438,6 +438,8 @@ class SmartAssistConversationEntity(ConversationEntity):
                 _LOGGER.debug("[USER-REQUEST] await_response tool called - conversation will continue")
                 # If only await_response was called, we're done
                 if not other_tool_calls:
+                    if not final_content.strip():
+                        _LOGGER.warning("[USER-REQUEST] await_response called without response text - LLM should provide text first")
                     return final_content, await_response_called
             
             # Execute other tool calls (not await_response) and add results to messages for next iteration
@@ -600,6 +602,10 @@ Call the 'await_response' tool when you expect user input:
 - Offering choices
 - Requesting confirmation for critical actions
 - Proactively offering further help
+
+IMPORTANT: ALWAYS include your question/response TEXT BEFORE calling await_response.
+The text is spoken to the user. await_response only keeps the microphone open.
+Example: Say "Which room?" THEN call await_response. Never call await_response alone.
 
 WITHOUT calling await_response, the microphone closes and user cannot respond.""")
         else:

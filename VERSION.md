@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.10  | 2026-01-29 |
+| Smart Assist | 1.0.11  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.11 (2026-01-30) - await_response Fix for Satellites
+
+**Bugfix: Voice Assistant Satellites**
+
+- Fixed issue where satellites (e.g., ESP32-S3) would not enter listening mode after `await_response`
+- Root cause: LLM called `await_response` tool without providing speech text first
+- Speech was empty, so no audio was played, and satellite never transitioned to listening mode
+
+**Improvements:**
+
+- Updated system prompt with explicit instruction to ALWAYS include text BEFORE calling `await_response`
+- Enhanced `await_response` tool description with clear examples of correct/incorrect usage
+- Added warning log when `await_response` is called without response text
 
 ### v1.0.10 (2026-01-29) - await_response Tool
 

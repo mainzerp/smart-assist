@@ -26,6 +26,10 @@ class AwaitResponseTool(BaseTool):
     name = "await_response"
     description = """Signal that you expect user input to continue the conversation.
 
+CRITICAL: You MUST include your spoken response/question BEFORE calling this tool.
+This tool only keeps the microphone open - it does NOT speak anything.
+Example: First output "Which room?" as text, THEN call await_response.
+
 WHEN TO USE:
 - Asking a clarifying question ("Which light - living room or bedroom?")
 - Offering multiple choices or options
@@ -37,7 +41,8 @@ WHEN NOT TO USE:
 - Information responses that don't need follow-up
 - Error messages
 
-Call this tool AFTER your message text, not before."""
+WRONG: Call await_response without text (user hears nothing)
+RIGHT: Say "Which room?" then call await_response"""
 
     parameters = [
         ToolParameter(
