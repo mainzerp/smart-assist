@@ -281,16 +281,39 @@ Example: `await_response(message="Which room?", reason="clarification")`
 | TTS Announcements | "Announce dinner is ready in all rooms" | Medium |
 | Media Queue | "Add this song to the queue", "What's playing next?" | Low |
 
+#### v1.4.0 - Vision and Camera Analysis
+
+| Feature | Description | Priority |
+| ------- | ----------- | -------- |
+| Camera Image Analysis | "Who is at the door?" - Analyze doorbell/camera snapshots with vision LLM | High |
+| Object Detection | "Is my car in the driveway?" - Check specific objects in camera view | Medium |
+| Motion Summary | "What happened in the garage?" - Summarize recent camera activity | Medium |
+
+#### v1.5.0 - Proactive Assistant
+
+| Feature | Description | Priority |
+| ------- | ----------- | -------- |
+| Morning Briefing | Automatic daily summary (calendar, weather, reminders) via TTS | High |
+| Anomaly Alerts | "Your energy usage is unusually high today" - Proactive notifications | Medium |
+| Weather Suggestions | "It will rain, should I close the windows?" - Context-aware hints | Low |
+
+#### v1.6.0 - Advanced Control
+
+| Feature | Description | Priority |
+| ------- | ----------- | -------- |
+| Natural Language Automations | "When I come home, turn on the lights" - Creates HA automation | High |
+| Routine Creation | "Create a 'Good Night' routine" - Define multi-step sequences | Medium |
+| Conditional Actions | "Turn off lights only if no one is home" - Smart conditionals | Medium |
+
 #### Future Considerations
 
 | Feature | Description | Effort |
 | ------- | ----------- | ------ |
-| Local LLM Support | Ollama integration as privacy-first alternative to Groq | Medium |
-| Natural Language Automations | "When I come home, turn on the lights" creates HA automation | High |
-| Multimodal Vision | Camera image analysis: "Who is at the door?" | High |
-| Weather-based Suggestions | Proactive hints: "It will rain, should I close the windows?" | Low |
-| Energy Optimization | "How can I save energy?" with consumption analysis | Medium |
-| RAG Integration | Search own documents, manuals, recipes | High |
+| Local LLM Support | Ollama integration as privacy-first alternative to cloud LLMs | Medium |
+| RAG Integration | Search own documents, manuals, recipes with vector embeddings | High |
+| Multi-Language Switching | "Spreche jetzt Deutsch" - Switch language mid-conversation | Low |
+| Energy Dashboard | "How can I save energy?" - Consumption analysis with suggestions | Medium |
+| Spotify Deep Integration | Play by playlist name, liked songs, artist radio | Medium |
 
 ---
 
