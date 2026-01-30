@@ -4,9 +4,29 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.1.1   | 2026-01-30 |
+| Smart Assist | 1.1.2   | 2026-01-30 |
 
 ## Version History
+
+### v1.1.2 (2026-01-30) - Entity History Periods Aggregation
+
+**Improvement: Better History Output for Binary Entities**
+
+Added `periods` aggregation option to `get_entity_history` tool:
+- Calculates on/off time ranges for switches, lights, locks, etc.
+- Returns human-readable periods: "from 15:18 to 19:45 (4h 27min)"
+- Includes total on-time calculation
+- Supports states: on, playing, home, open, unlocked, active, heating, cooling
+
+Example output:
+```
+switch.keller was on during 24h:
+  from 15:18 to 19:45 (4h 27min)
+  from 20:01 to 20:03 (2min)
+  Total on time: 4h 29min
+```
+
+LLM can now say "Das Licht war von 15:18 bis 19:45 Uhr an" instead of just listing state changes.
 
 ### v1.1.1 (2026-01-30) - Recorder Dependency Fix
 

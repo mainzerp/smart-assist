@@ -559,9 +559,9 @@ class GetEntityHistoryTool(BaseTool):
         ToolParameter(
             name="aggregation",
             type="string",
-            description="How to aggregate results: 'raw' (all changes, max 20), 'summary' (min/max/avg), 'last_change' (most recent change)",
+            description="How to aggregate results: 'raw' (all changes), 'summary' (min/max/avg or counts), 'last_change' (most recent), 'periods' (on/off time ranges for switches/lights)",
             required=False,
-            enum=["raw", "summary", "last_change"],
+            enum=["raw", "summary", "last_change", "periods"],
         ),
     ]
 
@@ -634,6 +634,84 @@ class GetEntityHistoryTool(BaseTool):
                 success=True,
                 message=f"{entity_id} was last '{last.state}' at {time_str}",
                 data={"state": last.state, "time": time_str},
+            )
+
+        elif aggregation == "periods":
+            # Calculate on/off time periods for binary entities (switches, lights)
+            # Returns periods like "on from 15:18 to 19:45 (4h 27min)"
+            on_states = {"on", "playing", "home", "open", "unlocked", "active", "heating", "cooling"}
+            periods = []
+            current_on_start = None
+            
+            for s in states:
+                state_lower = s.state.lower()
+                is_on = state_lower in on_states
+                
+                if is_on and current_on_start is None:
+                    # Start of an "on" period
+                    current_on_start = s.last_changed
+                elif not is_on and current_on_start is not None:
+                    # End of an "on" period
+                    duration = s.last_changed - current_on_start
+                    duration_mins = int(duration.total_seconds() / 60)
+                    if duration_mins >= 60:
+                        duration_str = f"{duration_mins // 60}h {duration_mins % 60}min"
+                    else:
+                        duration_str = f"{duration_mins}min"
+                    
+                    periods.append({
+                        "start": current_on_start.strftime("%H:%M"),
+                        "end": s.last_changed.strftime("%H:%M"),
+                        "duration": duration_str,
+                    })
+                    current_on_start = None
+            
+            # Handle still-on period
+            if current_on_start is not None:
+                duration = now - current_on_start
+                duration_mins = int(duration.total_seconds() / 60)
+                if duration_mins >= 60:
+                    duration_str = f"{duration_mins // 60}h {duration_mins % 60}min"
+                else:
+                    duration_str = f"{duration_mins}min"
+                
+                periods.append({
+                    "start": current_on_start.strftime("%H:%M"),
+                    "end": "now",
+                    "duration": duration_str,
+                })
+            
+            if not periods:
+                return ToolResult(
+                    success=True,
+                    message=f"{entity_id} was not on during the last {period}.",
+                )
+            
+            # Format periods
+            lines = [f"{entity_id} was on during {period}:"]
+            for p in periods[-10:]:  # Limit to last 10 periods
+                if p["end"] == "now":
+                    lines.append(f"  from {p['start']} until now ({p['duration']})")
+                else:
+                    lines.append(f"  from {p['start']} to {p['end']} ({p['duration']})")
+            
+            # Calculate total on time
+            total_on_mins = sum(
+                int(p["duration"].replace("h ", "*60+").replace("min", "").replace("*60+", "*60+") or "0")
+                if "h" not in p["duration"]
+                else int(p["duration"].split("h")[0]) * 60 + int(p["duration"].split("h")[1].replace("min", "").strip())
+                for p in periods
+            )
+            if total_on_mins >= 60:
+                total_str = f"{total_on_mins // 60}h {total_on_mins % 60}min"
+            else:
+                total_str = f"{total_on_mins}min"
+            lines.append(f"  Total on time: {total_str}")
+            
+            return ToolResult(
+                success=True,
+                message="\n".join(lines),
+                data={"periods": periods, "total_on_minutes": total_on_mins},
             )
 
         elif aggregation == "summary":
