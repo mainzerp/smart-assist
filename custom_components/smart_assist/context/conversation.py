@@ -14,11 +14,22 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
+class RecentEntity:
+    """Recently mentioned or acted upon entity for pronoun resolution."""
+
+    entity_id: str
+    friendly_name: str
+    action: str  # "controlled", "queried", "mentioned"
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
 class ConversationSession:
     """Represents a conversation session."""
 
     session_id: str
     messages: deque[ChatMessage] = field(default_factory=lambda: deque(maxlen=20))
+    recent_entities: deque[RecentEntity] = field(default_factory=lambda: deque(maxlen=5))
     created_at: datetime = field(default_factory=datetime.now)
     last_active: datetime = field(default_factory=datetime.now)
 
@@ -34,9 +45,48 @@ class ConversationSession:
             messages = messages[-max_messages:]
         return messages
 
+    def add_recent_entity(
+        self,
+        entity_id: str,
+        friendly_name: str,
+        action: str = "controlled",
+    ) -> None:
+        """Track a recently used entity for pronoun resolution.
+
+        Moves entity to front if already tracked to maintain recency order.
+        """
+        # Remove if already exists (will re-add at front)
+        self.recent_entities = deque(
+            [e for e in self.recent_entities if e.entity_id != entity_id],
+            maxlen=5,
+        )
+        # Add at front (most recent)
+        self.recent_entities.appendleft(
+            RecentEntity(
+                entity_id=entity_id,
+                friendly_name=friendly_name,
+                action=action,
+            )
+        )
+        self.last_active = datetime.now()
+
+    def get_recent_entities_context(self) -> str:
+        """Get formatted context string for LLM pronoun resolution.
+
+        Returns empty string if no recent entities tracked.
+        """
+        if not self.recent_entities:
+            return ""
+
+        entities_str = ", ".join(
+            f"{e.entity_id} ({e.friendly_name})" for e in self.recent_entities
+        )
+        return f"[Recent Entities: {entities_str}]"
+
     def clear(self) -> None:
-        """Clear conversation history."""
+        """Clear conversation history and recent entities."""
         self.messages.clear()
+        self.recent_entities.clear()
         self.last_active = datetime.now()
 
     @property
@@ -148,6 +198,23 @@ class ConversationManager:
         if actions:
             return f"Previous actions: {'; '.join(actions[-3:])}"
         return ""
+
+    def add_recent_entity(
+        self,
+        session_id: str,
+        entity_id: str,
+        friendly_name: str,
+        action: str = "controlled",
+    ) -> None:
+        """Track a recently used entity for pronoun resolution."""
+        session = self.get_or_create_session(session_id)
+        session.add_recent_entity(entity_id, friendly_name, action)
+
+    def get_recent_entities_context(self, session_id: str) -> str:
+        """Get recent entities context for a session."""
+        if session_id not in self._sessions:
+            return ""
+        return self._sessions[session_id].get_recent_entities_context()
 
     def get_session_count(self) -> int:
         """Get number of active sessions."""

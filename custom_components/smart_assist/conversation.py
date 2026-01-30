@@ -93,6 +93,7 @@ try:
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
+    from .context.conversation import ConversationManager
     from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
     from .llm.models import MessageRole, ToolCall
     from .tools import create_tool_registry, ToolRegistry
@@ -220,6 +221,11 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Calendar reminder tracker for staged reminders
         self._calendar_reminder_tracker = CalendarReminderTracker()
+        
+        # Conversation manager for multi-turn context tracking
+        self._conversation_manager = ConversationManager(
+            max_history=get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
+        )
 
     def _get_tool_registry(self) -> ToolRegistry:
         """Get tool registry, creating it lazily if needed.
@@ -321,6 +327,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             chat_log,
             satellite_id=satellite_id,
             device_id=device_id,
+            conversation_id=user_input.conversation_id,
         )
         tools = self._get_tool_registry().get_schemas()
         
@@ -342,6 +349,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                 tools=tools,
                 cached_prefix_length=cached_prefix_length,
                 chat_log=chat_log,
+                conversation_id=user_input.conversation_id,
             )
 
             # Determine if conversation should continue based on await_response tool
@@ -384,6 +392,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         tools: list[dict[str, Any]],
         cached_prefix_length: int,
         chat_log: ChatLog,
+        conversation_id: str | None = None,
         max_iterations: int = 5,
     ) -> tuple[str, bool]:
         """Call LLM with streaming and handle tool calls in-loop.
@@ -391,6 +400,14 @@ class SmartAssistConversationEntity(ConversationEntity):
         Implements streaming with tool execution. Content deltas are sent
         to the ChatLog's delta_listener for real-time TTS streaming.
         Tool calls are executed between LLM iterations.
+        
+        Args:
+            messages: Initial message list for LLM
+            tools: Tool schemas for LLM
+            cached_prefix_length: Number of messages to cache
+            chat_log: Home Assistant ChatLog for streaming
+            conversation_id: Optional conversation ID for entity tracking
+            max_iterations: Maximum tool call iterations
         
         Returns:
             Tuple of (final_response_text, await_response_called)
@@ -529,6 +546,12 @@ class SmartAssistConversationEntity(ConversationEntity):
                             name=tool_call.name,
                         )
                     )
+                    
+                    # Track entities from successful control operations for pronoun resolution
+                    if conversation_id and result.success:
+                        self._track_entity_from_tool_call(
+                            conversation_id, tool_call.name, tool_call.arguments
+                        )
             else:
                 # Only await_response was called, no other tools to execute
                 # This shouldn't happen normally since we return above, but handle it
@@ -577,6 +600,62 @@ class SmartAssistConversationEntity(ConversationEntity):
                         )
                     )
                 yield {"tool_calls": tool_inputs}
+
+    def _track_entity_from_tool_call(
+        self,
+        conversation_id: str,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> None:
+        """Track entity from a successful tool call for pronoun resolution.
+        
+        Extracts entity_id from control tool calls and tracks them in the
+        conversation session so the LLM can resolve pronouns like "it", "that".
+        """
+        # Tools that operate on entities
+        entity_tools = {
+            "control",
+            "control_entity",
+            "control_light",
+            "control_climate",
+            "control_media",
+            "control_cover",
+            "get_entity_state",
+            "get_entity_history",
+        }
+        
+        if tool_name not in entity_tools:
+            return
+        
+        entity_id = arguments.get("entity_id")
+        if not entity_id:
+            return
+        
+        # Get friendly name from state
+        state = self.hass.states.get(entity_id)
+        if state:
+            friendly_name = state.attributes.get("friendly_name", entity_id)
+        else:
+            friendly_name = entity_id
+        
+        # Determine action type
+        if tool_name.startswith("control"):
+            action = "controlled"
+        elif tool_name == "get_entity_history":
+            action = "queried"
+        else:
+            action = "queried"
+        
+        # Track in conversation manager
+        self._conversation_manager.add_recent_entity(
+            conversation_id, entity_id, friendly_name, action
+        )
+        _LOGGER.debug(
+            "[CONTEXT] Tracked entity for pronoun resolution: %s (%s) - %s",
+            entity_id,
+            friendly_name,
+            action,
+        )
 
     def _build_system_prompt(self) -> str:
         """Build or return cached system prompt based on configuration.
@@ -664,6 +743,11 @@ If your response ends with a question mark (?), you MUST call await_response wit
 ## Entity Lookup
 - Use get_entities with domain filter to find entities
 - Use get_entity_state before actions to verify current state""")
+        
+        # Pronoun resolution hint
+        parts.append("""
+## Pronoun Resolution
+When user says "it", "that", "the same one", check [Recent Entities] in context to identify the referenced entity.""")
         
         # Calendar reminders instruction (if enabled) - compact version
         calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
@@ -809,6 +893,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         chat_log: ChatLog | None = None,
         satellite_id: str | None = None,
         device_id: str | None = None,
+        conversation_id: str | None = None,
     ) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request (async version with calendar context).
         
@@ -817,6 +902,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             chat_log: Optional ChatLog containing conversation history
             satellite_id: Optional satellite entity_id that initiated the request
             device_id: Optional device_id that initiated the request
+            conversation_id: Optional conversation ID for recent entity context
             
         Returns:
             Tuple of (messages, cached_prefix_length)
@@ -825,8 +911,20 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         calendar_context = await self._get_calendar_context()
         _LOGGER.debug("Calendar context from _get_calendar_context: len=%d", len(calendar_context) if calendar_context else 0)
         
+        # Get recent entities context for pronoun resolution
+        recent_entities_context = ""
+        if conversation_id:
+            recent_entities_context = self._conversation_manager.get_recent_entities_context(
+                conversation_id
+            )
+            if recent_entities_context:
+                _LOGGER.debug("Recent entities context: %s", recent_entities_context)
+        
         # Build base messages synchronously
-        return self._build_messages_for_llm(user_text, chat_log, calendar_context, satellite_id, device_id)
+        return self._build_messages_for_llm(
+            user_text, chat_log, calendar_context, satellite_id, device_id,
+            recent_entities_context
+        )
 
     def _build_messages_for_llm(
         self,
@@ -835,6 +933,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         calendar_context: str = "",
         satellite_id: str | None = None,
         device_id: str | None = None,
+        recent_entities_context: str = "",
     ) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request.
         
@@ -843,11 +942,15 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         2. User system prompt (static/cached)  
         3. Entity index (static/cached - changes only when entities change)
         4. Conversation history (dynamic)
-        5. Current context + user message (dynamic - time, states, calendar)
+        5. Current context + user message (dynamic - time, states, calendar, recent entities)
         
         Args:
             user_text: The current user message
             chat_log: Optional ChatLog containing conversation history
+            calendar_context: Optional calendar reminder context
+            satellite_id: Optional satellite entity_id
+            device_id: Optional device_id
+            recent_entities_context: Optional recent entities for pronoun resolution
             
         Returns:
             Tuple of (messages, cached_prefix_length) where cached_prefix_length
@@ -946,6 +1049,10 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         # This allows the LLM to know which device initiated the request
         if satellite_id:
             context_parts.append(f"[Current Assist Satellite: {satellite_id}]")
+        
+        # Add recent entities for pronoun resolution (e.g., "it", "that", "the same one")
+        if recent_entities_context:
+            context_parts.append(recent_entities_context)
         
         # Combine context with user message
         context_prefix = " ".join(context_parts)

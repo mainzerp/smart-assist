@@ -12,6 +12,8 @@ Control your smart home with natural language. Uses **Groq API** or **OpenRouter
 - **Unified Control Tool**: Single efficient tool for all entity types
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently
 - **Full Streaming**: Real-time token streaming to TTS
+- **Entity History Queries**: Query historical entity states
+- **Multi-Turn Context**: Pronoun resolution across conversation turns
 
 ### Music Assistant Integration
 

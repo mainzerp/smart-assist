@@ -4,9 +4,43 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.30  | 2026-01-30 |
+| Smart Assist | 1.1.0   | 2026-01-30 |
 
 ## Version History
+
+### v1.1.0 (2026-01-30) - Entity History Queries & Multi-Turn Context
+
+**New Feature: Entity History Queries**
+
+New `get_entity_history` tool allows querying historical entity states:
+- Time periods: 1h, 6h, 12h, 24h, 48h, 7d
+- Aggregation modes: raw (all changes), summary (min/max/avg), last_change
+- Supports numeric sensors (temperature, humidity) with statistics
+- Supports discrete state entities (lights, switches) with occurrence counts
+
+Example queries:
+- "How was the temperature yesterday?"
+- "When was the light last on?"
+- "What was the average humidity in the last 6 hours?"
+
+**New Feature: Multi-Turn Context Improvements**
+
+Enhanced pronoun resolution for natural conversations:
+- Tracks last 5 entities interacted with per conversation
+- Injects `[Recent Entities]` context for LLM pronoun resolution
+- System prompt instructs LLM to use context for "it", "that", "the same one"
+
+Example conversation:
+1. User: "Turn on the kitchen light" -> Tracks light.kitchen
+2. User: "Make it brighter" -> LLM resolves "it" = light.kitchen
+3. User: "What's the temperature?" -> Tracks sensor.kitchen_temp
+4. User: "Turn that off" -> LLM resolves "that" = light.kitchen (most recent controllable)
+
+**Implementation Details:**
+- `GetEntityHistoryTool` in entity_tools.py - Uses HA recorder/history API
+- `RecentEntity` dataclass in context/conversation.py - Tracks entity_id, friendly_name, action, timestamp
+- `ConversationSession.recent_entities` - deque with maxlen=5
+- Context placed in dynamic section to preserve prompt caching
 
 ### v1.0.30 (2026-01-30) - Auto-Detect Questions for Conversation Continuation
 
@@ -426,19 +460,20 @@ Example: `await_response(message="Which room?", reason="clarification")`
 
 #### v1.2.0 - Reminders and Notifications
 
+**Implemented:**
+- ~~Voice Reminders~~ - Implemented in v1.0.23 (Timer with `command` parameter)
+- ~~Scheduled Tasks~~ - Implemented in v1.0.23 (Timer with `command` parameter, e.g., "Turn off lights in 2 hours")
+
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
-| Voice Reminders | "Remind me in 10 minutes to check the oven" with proactive TTS | High |
-| Scheduled Tasks | "Turn off the lights at 11pm" without creating HA automations | Medium |
 | Proactive Notifications | LLM-triggered alerts based on entity state changes | Medium |
 
 #### v1.3.0 - Media Enhancements
 
-| Feature | Description | Priority |
-| ------- | ----------- | -------- |
-| Playlist Support | Spotify/local media playlist control by name | Medium |
-| TTS Announcements | "Announce dinner is ready in all rooms" | Medium |
-| Media Queue | "Add this song to the queue", "What's playing next?" | Low |
+**Implemented:**
+- ~~Playlist Support~~ - Implemented in v1.0.24 (Music Assistant Tool)
+- ~~Media Queue~~ - Implemented in v1.0.24 (Music Assistant Tool)
+- ~~TTS Announcements~~ - Use `tts.speak` service in automations after `ai_task.generate_data`
 
 #### v1.4.0 - Vision and Camera Analysis
 
@@ -450,9 +485,11 @@ Example: `await_response(message="Which room?", reason="clarification")`
 
 #### v1.5.0 - Proactive Assistant
 
+**Implemented:**
+- ~~Morning Briefing~~ - Use `ai_task.generate_data` + `tts.speak` in a time-triggered automation
+
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
-| Morning Briefing | Automatic daily summary (calendar, weather, reminders) via TTS | High |
 | Anomaly Alerts | "Your energy usage is unusually high today" - Proactive notifications | Medium |
 | Weather Suggestions | "It will rain, should I close the windows?" - Context-aware hints | Low |
 
@@ -472,7 +509,7 @@ Example: `await_response(message="Which room?", reason="clarification")`
 | RAG Integration | Search own documents, manuals, recipes with vector embeddings | High |
 | Multi-Language Switching | "Spreche jetzt Deutsch" - Switch language mid-conversation | Low |
 | Energy Dashboard | "How can I save energy?" - Consumption analysis with suggestions | Medium |
-| Spotify Deep Integration | Play by playlist name, liked songs, artist radio | Medium |
+| ~~Spotify Deep Integration~~ | ~~Play by playlist name, liked songs, artist radio~~ - Implemented in v1.0.24 (Music Assistant) | ~~Medium~~ |
 
 ---
 

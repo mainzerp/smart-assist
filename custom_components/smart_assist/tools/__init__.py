@@ -47,7 +47,7 @@ def create_tool_registry(
     Returns:
         ToolRegistry with appropriate tools registered
     """
-    from .entity_tools import GetEntitiesTool, GetEntityStateTool
+    from .entity_tools import GetEntitiesTool, GetEntityStateTool, GetEntityHistoryTool
     from .unified_control import UnifiedControlTool
     from .scene_tools import RunSceneTool, TriggerAutomationTool
     from .search_tools import GetWeatherTool, WebSearchTool
@@ -77,6 +77,8 @@ def create_tool_registry(
     registered_tools.append("get_entities")
     registry.register(GetEntityStateTool(hass))
     registered_tools.append("get_entity_state")
+    registry.register(GetEntityHistoryTool(hass))  # Query historical entity states
+    registered_tools.append("get_entity_history")
     registry.register(UnifiedControlTool(hass))  # Handles all entity control including scripts
     registered_tools.append("control_entity")
     registry.register(AwaitResponseTool(hass))  # Signal to keep conversation open
@@ -155,7 +157,7 @@ def create_tool_registry(
 
 
 # Exports - only actively used tools
-from .entity_tools import GetEntitiesTool, GetEntityStateTool
+from .entity_tools import GetEntitiesTool, GetEntityStateTool, GetEntityHistoryTool
 from .unified_control import UnifiedControlTool
 from .scene_tools import RunSceneTool, TriggerAutomationTool
 from .search_tools import WebSearchTool, GetWeatherTool
@@ -173,6 +175,7 @@ __all__ = [
     # Core tools
     "GetEntitiesTool",
     "GetEntityStateTool",
+    "GetEntityHistoryTool",
     "UnifiedControlTool",
     "AwaitResponseTool",
     # Timer

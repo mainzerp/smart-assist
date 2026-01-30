@@ -535,3 +535,155 @@ class ControlCoverTool(BaseTool):
             return ToolResult(success=False, message=f"Unknown action: {action}")
         except Exception as err:
             return ToolResult(success=False, message=f"Failed: {err}")
+
+
+class GetEntityHistoryTool(BaseTool):
+    """Tool to get historical states of an entity."""
+
+    name = "get_entity_history"
+    description = "Get historical states of an entity. Use for questions about past states like 'How was the temperature yesterday?' or 'When was the light last on?'"
+    parameters = [
+        ToolParameter(
+            name="entity_id",
+            type="string",
+            description="The entity ID to query history for",
+            required=True,
+        ),
+        ToolParameter(
+            name="period",
+            type="string",
+            description="Time period to query",
+            required=False,
+            enum=["1h", "6h", "12h", "24h", "48h", "7d"],
+        ),
+        ToolParameter(
+            name="aggregation",
+            type="string",
+            description="How to aggregate results: 'raw' (all changes, max 20), 'summary' (min/max/avg), 'last_change' (most recent change)",
+            required=False,
+            enum=["raw", "summary", "last_change"],
+        ),
+    ]
+
+    async def execute(
+        self,
+        entity_id: str,
+        period: str = "24h",
+        aggregation: str = "summary",
+    ) -> ToolResult:
+        """Execute the get_entity_history tool."""
+        from collections import Counter
+        from datetime import timedelta
+
+        from homeassistant.components.recorder import get_instance, history
+        from homeassistant.util import dt as dt_util
+
+        # Parse period
+        period_map = {
+            "1h": timedelta(hours=1),
+            "6h": timedelta(hours=6),
+            "12h": timedelta(hours=12),
+            "24h": timedelta(hours=24),
+            "48h": timedelta(hours=48),
+            "7d": timedelta(days=7),
+        }
+        delta = period_map.get(period, timedelta(hours=24))
+
+        now = dt_util.utcnow()
+        start_time = now - delta
+
+        try:
+            instance = get_instance(self._hass)
+            states_dict = await instance.async_add_executor_job(
+                history.state_changes_during_period,
+                self._hass,
+                start_time,
+                now,
+                entity_id,
+                False,  # no_attributes - include attributes
+                False,  # descending
+                100 if aggregation == "raw" else None,  # limit for raw
+                True,  # include_start_time_state
+            )
+        except Exception as err:
+            _LOGGER.error("Failed to query history for %s: %s", entity_id, err)
+            return ToolResult(
+                success=False,
+                message=f"Failed to query history: {err}",
+            )
+
+        if not states_dict or entity_id not in states_dict:
+            return ToolResult(
+                success=True,
+                message=f"No history found for {entity_id} in the last {period}.",
+            )
+
+        states = states_dict[entity_id]
+
+        if not states:
+            return ToolResult(
+                success=True,
+                message=f"No state changes for {entity_id} in the last {period}.",
+            )
+
+        if aggregation == "last_change":
+            # Format the most recent state change
+            last = states[-1]
+            time_str = last.last_changed.strftime("%Y-%m-%d %H:%M:%S")
+            return ToolResult(
+                success=True,
+                message=f"{entity_id} was last '{last.state}' at {time_str}",
+                data={"state": last.state, "time": time_str},
+            )
+
+        elif aggregation == "summary":
+            # Try numeric aggregation
+            numeric_values = []
+            for s in states:
+                try:
+                    val = float(s.state)
+                    numeric_values.append(val)
+                except (ValueError, TypeError):
+                    pass
+
+            if numeric_values:
+                # Numeric sensor - calculate statistics
+                unit = states[0].attributes.get("unit_of_measurement", "")
+                min_val = min(numeric_values)
+                max_val = max(numeric_values)
+                avg_val = sum(numeric_values) / len(numeric_values)
+
+                msg = (
+                    f"{entity_id} over {period}: "
+                    f"min={min_val:.1f}{unit}, max={max_val:.1f}{unit}, "
+                    f"avg={avg_val:.1f}{unit}, readings={len(states)}"
+                )
+            else:
+                # Discrete states - count occurrences
+                state_counts = Counter(s.state for s in states)
+                counts_str = ", ".join(
+                    f"{k}={v}" for k, v in state_counts.most_common(5)
+                )
+                msg = (
+                    f"{entity_id} over {period}: {counts_str}, "
+                    f"total changes={len(states)}"
+                )
+
+            return ToolResult(
+                success=True,
+                message=msg,
+                data={"states_count": len(states)},
+            )
+
+        else:  # raw
+            # Format raw state changes (limited to 20)
+            lines = [f"{entity_id} history ({period}, {len(states)} changes):"]
+            for s in states[-20:]:
+                time_str = s.last_changed.strftime("%H:%M:%S")
+                lines.append(f"  {time_str}: {s.state}")
+
+            return ToolResult(
+                success=True,
+                message="\n".join(lines),
+                data={"states_count": len(states)},
+            )
