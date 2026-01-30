@@ -6,17 +6,31 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Control your smart home with natural language. Uses **Groq API** for ultra-fast inference with automatic prompt caching, achieving **~90% cache hit rates** and response times under 500ms.
+Control your smart home with natural language. Uses **Groq API** or **OpenRouter** for ultra-fast inference with automatic prompt caching, achieving **~90% cache hit rates** and response times under 500ms.
 
 ## Features
 
 ### Core Features
 
 - **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
+- **OpenRouter Integration**: Access 200+ models via OpenRouter API
 - **Natural Language Control**: Talk to your smart home naturally
 - **Unified Control Tool**: Single efficient tool for all entity types (lights, switches, climate, covers, media players, fans)
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently for faster responses
 - **Full Streaming**: Real-time token streaming to TTS, even during tool execution
+
+### Music Assistant Integration
+
+- **Automatic Detection**: Detects Music Assistant when installed
+- **Music Playback**: Play songs, albums, artists, playlists via voice
+- **Radio Streaming**: Stream radio stations (TuneIn, Radio Browser)
+- **Satellite-Aware**: Automatic player selection based on which satellite you're talking to
+
+### Voice Timers
+
+- **Native Assist Timers**: Uses Home Assistant's built-in voice timer system
+- **Satellite-Specific**: Timers are tied to the satellite where they were set
+- **Custom Commands**: Set timers with custom callback messages
 
 ### Calendar Integration
 
@@ -64,7 +78,8 @@ Control your smart home with natural language. Uses **Groq API** for ultra-fast 
 2. Click **Add Integration**
 3. Search for "Smart Assist"
 4. Follow the setup wizard:
-   - Enter your Groq API key ([get one here](https://console.groq.com/keys))
+   - Select LLM provider (Groq or OpenRouter)
+   - Enter your API key ([Groq](https://console.groq.com/keys) or [OpenRouter](https://openrouter.ai/keys))
    - Select your preferred model
    - Configure behavior and caching settings
 
@@ -164,6 +179,8 @@ Smart Assist provides these tools to the LLM:
 | `control` | Unified control for lights, switches, climate, covers, media players, fans |
 | `run_scene` | Activate scenes |
 | `trigger_automation` | Trigger automations |
+| `timer` | Set, cancel, or list voice timers (native Assist timers) |
+| `music_assistant` | Play music/radio via Music Assistant (auto-detected) |
 | `get_calendar_events` | Query upcoming calendar events |
 | `create_calendar_event` | Create new calendar events (fuzzy calendar matching) |
 | `get_weather` | Current weather information |
@@ -171,7 +188,7 @@ Smart Assist provides these tools to the LLM:
 
 ## Supported Models
 
-Groq models with prompt caching support:
+### Groq Models
 
 | Model | Description |
 | ----- | ----------- |
@@ -182,11 +199,21 @@ Groq models with prompt caching support:
 
 See [Groq Models](https://console.groq.com/docs/models) for the full list.
 
+### OpenRouter Models
+
+Access 200+ models including:
+- Claude 3.5 Sonnet
+- GPT-4o
+- Gemini Pro
+- And many more
+
+See [OpenRouter Models](https://openrouter.ai/models) for the full list.
+
 ## Requirements
 
 - Home Assistant 2024.1 or newer
 - Python 3.12+
-- Groq API key ([get one here](https://console.groq.com/keys))
+- Groq API key ([get one here](https://console.groq.com/keys)) or OpenRouter API key ([get one here](https://openrouter.ai/keys))
 
 ## Troubleshooting
 
@@ -217,7 +244,7 @@ Enable debug logging in Advanced settings to see:
 
 See [VERSION.md](VERSION.md) for detailed changelog.
 
-**Current Version**: 1.0.0
+**Current Version**: 1.0.30
 
 ## License
 
