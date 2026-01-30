@@ -602,17 +602,18 @@ class SmartAssistConversationEntity(ConversationEntity):
             parts.append("""
 ## Follow-up Behavior
 - Offer follow-up when useful (ambiguous request, multiple options)
-- Occasionally ask "Is there anything else I can help with?" after completing tasks
 - Do NOT offer follow-up for every simple action
 
-## Asking Questions (Conversation Continuation)
-When you need to ask a question, use the await_response tool:
-- call await_response(message="Your question here", reason="clarification")
+## MANDATORY: Questions Require await_response Tool
+EVERY question you ask MUST use the await_response tool. Without it, the user CANNOT respond.
 
-The message parameter contains what you want to say to the user.
-Example: await_response(message="Which light - living room or bedroom?", reason="clarification")
+WRONG (user cannot respond):
+"Kann ich Ihnen noch helfen?"
 
-Without this tool, the microphone closes after your response.""")
+CORRECT (user can respond):
+await_response(message="Kann ich Ihnen noch helfen?", reason="follow_up")
+
+If your response ends with a question mark (?), you MUST call await_response with that question.""")
         else:
             parts.append("""
 ## Response Rules

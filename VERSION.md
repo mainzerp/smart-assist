@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.14  | 2026-01-30 |
+| Smart Assist | 1.0.15  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.15 (2026-01-30) - Mandatory await_response for Questions
+
+**Improvement: Stronger System Prompt**
+
+- Added explicit rule: EVERY question MUST use await_response tool
+- Clear WRONG vs CORRECT examples in system prompt
+- Rule: If response ends with "?", must call await_response
+- LLM should no longer ask questions without tool call
 
 ### v1.0.14 (2026-01-30) - await_response with Message Parameter
 
