@@ -145,10 +145,6 @@ def create_tool_registry(
     else:
         _LOGGER.debug("Music Assistant not detected, music_assistant tool not registered")
     
-    if music_assistant_available:
-        registry.register(MusicAssistantTool(hass))
-        registered_tools.append("music_assistant")
-    
     _LOGGER.debug(
         "Tool registry created: %d tools registered: %s",
         len(registered_tools),

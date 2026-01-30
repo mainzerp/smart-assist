@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.27  | 2026-01-30 |
+| Smart Assist | 1.0.28  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.28 (2026-01-30) - Conditional Music Instructions
+
+**Improvement: Dynamic Prompt Injection Based on Tool Availability**
+
+- Music/Radio Playback instructions now only appear in system prompt when `music_assistant` tool is registered
+- Simpler, clearer instructions without conditional logic for the LLM
+- Added `has_tool()` method to ToolRegistry for checking tool availability
+- Fixed duplicate MusicAssistantTool registration bug
 
 ### v1.0.27 (2026-01-30) - Clearer Music Assistant Instructions
 

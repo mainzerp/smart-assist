@@ -659,14 +659,16 @@ When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
         parts.append("""
 ## Entity Control
 Use 'control' tool for lights, switches, covers, fans, climate, locks, etc.
-Domain auto-detected from entity_id.
+Domain auto-detected from entity_id.""")
 
+        # Music/Radio instructions - only if music_assistant tool is registered
+        if self._get_tool_registry().has_tool("music_assistant"):
+            parts.append("""
 ## Music/Radio Playback [IMPORTANT]
-For ALL music, radio, or media playback requests:
-1. Check if 'music_assistant' tool exists in your available tools
-2. If YES: Use 'music_assistant' tool with action='play', query='[song/artist/radio]', media_type='track/album/artist/playlist/radio'
-3. If NO: Fall back to 'control' tool with media_player services
-4. For player selection: Check [Current Assist Satellite] context and use your satellite-to-player mapping from your instructions""")
+For ALL music, radio, or media playback requests, use the 'music_assistant' tool:
+- action='play', query='[song/artist/radio station]', media_type='track/album/artist/playlist/radio'
+- For player selection: Check [Current Assist Satellite] context and use your satellite-to-player mapping from your instructions
+- Do NOT use 'control' tool for music/radio - it cannot search or stream content""")
         
         # Critical actions confirmation
         if confirm_critical:
