@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.22  | 2026-01-30 |
+| Smart Assist | 1.0.23  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.23 (2026-01-30) - Timer Reminders and Delayed Commands
+
+**New Feature: conversation_command Support**
+
+- Timer tool now supports `command` parameter for delayed actions
+- Execute any voice command when timer finishes
+- Enables voice reminders without separate reminder system
+- Uses native Assist `conversation_command` slot
+
+Examples:
+- Reminder: `timer(action=start, minutes=30, command="Remind me to drink water")`
+- Delayed action: `timer(action=start, hours=1, command="Turn off the lights")`
+- Combined: `timer(action=start, minutes=10, name="Pizza", command="Check the oven")`
 
 ### v1.0.22 (2026-01-30) - Unified Timer Tool with Native Intents
 

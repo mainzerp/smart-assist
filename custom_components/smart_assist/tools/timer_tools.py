@@ -26,21 +26,24 @@ class TimerTool(BaseTool):
     """
 
     name = "timer"
-    description = """Manage timers using voice commands.
+    description = """Manage timers and reminders using voice commands.
 
 Actions:
-- start: Start a timer (e.g., 5 minutes, 1 hour)
+- start: Start a timer or reminder
 - cancel: Cancel/stop a timer
 - pause: Pause a running timer
 - resume: Resume a paused timer
 - status: Get timer status
 
 Examples:
-- Start 5 minute timer: action=start, minutes=5
-- Start named timer: action=start, minutes=10, name="Pizza"
+- 5 minute timer: action=start, minutes=5
+- Named timer: action=start, minutes=10, name="Pizza"
+- Reminder: action=start, minutes=30, command="Remind me to drink water"
+- Delayed command: action=start, hours=1, command="Turn off the lights"
 - Cancel timer: action=cancel
-- Cancel specific timer: action=cancel, name="Pizza"
-- Timer status: action=status"""
+- Timer status: action=status
+
+The 'command' parameter can execute any voice command when timer finishes."""
     
     parameters = [
         ToolParameter(
@@ -74,6 +77,12 @@ Examples:
             description="Name for the timer (e.g., 'Pizza', 'Laundry')",
             required=False,
         ),
+        ToolParameter(
+            name="command",
+            type="string",
+            description="Voice command to execute when timer finishes (e.g., 'Turn off the lights', 'Remind me to check the oven'). This enables reminders and delayed actions.",
+            required=False,
+        ),
     ]
 
     async def execute(
@@ -83,12 +92,13 @@ Examples:
         minutes: int | None = None,
         seconds: int | None = None,
         name: str | None = None,
+        command: str | None = None,
     ) -> ToolResult:
         """Execute timer action using native Assist intents."""
         
         try:
             if action == "start":
-                return await self._start_timer(hours, minutes, seconds, name)
+                return await self._start_timer(hours, minutes, seconds, name, command)
             elif action == "cancel":
                 return await self._cancel_timer(name)
             elif action == "pause":
@@ -131,8 +141,9 @@ Examples:
         minutes: int | None,
         seconds: int | None,
         name: str | None,
+        command: str | None,
     ) -> ToolResult:
-        """Start a new timer."""
+        """Start a new timer or reminder."""
         if not any([hours, minutes, seconds]):
             return ToolResult(
                 success=False,
@@ -149,6 +160,8 @@ Examples:
             slots["seconds"] = {"value": seconds}
         if name:
             slots["name"] = {"value": name}
+        if command:
+            slots["conversation_command"] = {"value": command}
         
         response = await ha_intent.async_handle(
             self._hass,
@@ -168,11 +181,19 @@ Examples:
         duration_str = " and ".join(parts) if parts else "unknown duration"
         
         name_str = f" named '{name}'" if name else ""
+        command_str = f" with command '{command}'" if command else ""
         
         # Get speech response if available
         speech = self._get_speech(response)
         if speech:
             return ToolResult(success=True, message=speech)
+        
+        # Custom message for reminders/commands
+        if command:
+            return ToolResult(
+                success=True,
+                message=f"Reminder set for {duration_str}. Will execute: {command}",
+            )
         
         return ToolResult(
             success=True,
