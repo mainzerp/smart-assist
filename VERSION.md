@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.28  | 2026-01-30 |
+| Smart Assist | 1.0.29  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.29 (2026-01-30) - Fix Duplicate Tool Calls
+
+**Fix: Duplicate Tool Call Execution**
+
+- Added deduplication of tool calls by ID before execution
+- LLM sometimes sends duplicate tool calls (same ID), now only one is executed
+- Changed Music Assistant `play_media` to non-blocking to prevent hanging
+- Prevents processing loop getting stuck when Music Assistant takes too long
 
 ### v1.0.28 (2026-01-30) - Conditional Music Instructions
 

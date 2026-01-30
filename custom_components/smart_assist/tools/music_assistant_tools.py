@@ -226,11 +226,12 @@ The radio_mode creates an endless playlist based on the seed track/artist."""
         _LOGGER.debug("Calling music_assistant.play_media with: %s", service_data)
         
         # Call the Music Assistant play_media service
+        # Use blocking=False to avoid hanging if MA takes too long
         await self._hass.services.async_call(
             DOMAIN,
             "play_media",
             service_data,
-            blocking=True,
+            blocking=False,
         )
         
         # Build response message

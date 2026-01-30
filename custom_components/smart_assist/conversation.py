@@ -463,6 +463,20 @@ class SmartAssistConversationEntity(ConversationEntity):
             
             # Execute other tool calls (not await_response) and add results to messages for next iteration
             if other_tool_calls:
+                # Deduplicate tool calls by ID (LLM sometimes sends duplicates)
+                seen_ids: set[str] = set()
+                unique_tool_calls: list[ToolCall] = []
+                for tc in other_tool_calls:
+                    if tc.id not in seen_ids:
+                        seen_ids.add(tc.id)
+                        unique_tool_calls.append(tc)
+                    else:
+                        _LOGGER.debug("[USER-REQUEST] Skipping duplicate tool call: %s (id=%s)", tc.name, tc.id)
+                
+                if len(unique_tool_calls) < len(other_tool_calls):
+                    _LOGGER.debug("[USER-REQUEST] Deduplicated %d -> %d tool calls", len(other_tool_calls), len(unique_tool_calls))
+                    other_tool_calls = unique_tool_calls
+                
                 _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(other_tool_calls))
             
                 # Add assistant message with tool calls to working messages
