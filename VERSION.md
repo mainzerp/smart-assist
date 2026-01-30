@@ -452,11 +452,15 @@ Example: `await_response(message="Which room?", reason="clarification")`
 
 #### v1.1.0 - Context and History
 
-| Feature | Description | Priority |
-| ------- | ----------- | -------- |
-| Entity History Queries | "How was the temperature yesterday?", "When was the light last on?" | High |
-| Multi-Turn Improvements | Hybrid approach: ConversationContextTracker + automatic System Prompt injection. Tracks recent entities/rooms after tool calls, injects context for pronoun resolution ("make it brighter" -> understands last light). No new tools needed, minimal token overhead. | High |
-| Persistent Memory | Hybrid injection: Memory section (~50-100 tokens) injected AFTER Entity Index, BEFORE dynamic content. Stored in HA Storage (`.storage/smart_assist`). Contains: user preferences ("dim evening lighting"), learned patterns, named entities ("Anna=wife"). Rarely changes, preserves cache for static prefix. LLM recognizes and saves new preferences automatically. | Medium |
+**Implemented in v1.1.0 (2026-01-30):**
+- ~~Entity History Queries~~ - `get_entity_history` tool for querying historical states
+- ~~Multi-Turn Improvements~~ - `RecentEntity` tracking with automatic context injection
+
+| Feature | Description | Status |
+| ------- | ----------- | ------ |
+| ~~Entity History Queries~~ | "How was the temperature yesterday?", "When was the light last on?" | Done |
+| ~~Multi-Turn Improvements~~ | Tracks recent entities after tool calls, injects `[Recent Entities]` context for pronoun resolution ("make it brighter" -> understands last light) | Done |
+| Persistent Memory | Hybrid injection: Memory section (~50-100 tokens) injected AFTER Entity Index, BEFORE dynamic content. Stored in HA Storage (`.storage/smart_assist`). Contains: user preferences ("dim evening lighting"), learned patterns, named entities ("Anna=wife"). Rarely changes, preserves cache for static prefix. LLM recognizes and saves new preferences automatically. | Planned |
 
 #### v1.2.0 - Reminders and Notifications
 
