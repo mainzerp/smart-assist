@@ -1,4 +1,9 @@
-"""Timer tools for Smart Assist."""
+"""Timer tool for Smart Assist - unified timer management.
+
+This tool uses native Assist voice timer intents (HassStartTimer, HassCancelTimer, etc.)
+which work WITHOUT Timer Helper entities. These are the built-in voice timers
+that work per voice satellite/pipeline.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,7 @@ import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceNotFound
+from homeassistant.helpers import intent as ha_intent
 
 from .base import BaseTool, ToolParameter, ToolResult
 
@@ -14,41 +19,59 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class TimerTool(BaseTool):
-    """Tool to manage Home Assistant timers.
+    """Tool to manage timers using native Assist intents.
     
-    Note: This requires the timer integration to be set up in HA.
-    Timers are helper entities created via Settings > Devices & Services > Helpers.
+    Uses HassStartTimer, HassCancelTimer, etc. intents which are built into
+    Home Assistant Assist. These work WITHOUT Timer Helper entities.
     """
 
     name = "timer"
-    description = """Manage Home Assistant timers. 
-Actions:
-- start: Start a timer with optional duration (e.g., "00:05:00" for 5 minutes)
-- cancel: Cancel/stop a running timer
-- pause: Pause a running timer
-- finish: Immediately finish a timer (triggers timer.finished event)
-- change: Modify duration of a running timer
+    description = """Manage timers using voice commands.
 
-If no timer_id is specified, will try to find an available timer."""
+Actions:
+- start: Start a timer (e.g., 5 minutes, 1 hour)
+- cancel: Cancel/stop a timer
+- pause: Pause a running timer
+- resume: Resume a paused timer
+- status: Get timer status
+
+Examples:
+- Start 5 minute timer: action=start, minutes=5
+- Start named timer: action=start, minutes=10, name="Pizza"
+- Cancel timer: action=cancel
+- Cancel specific timer: action=cancel, name="Pizza"
+- Timer status: action=status"""
     
     parameters = [
         ToolParameter(
             name="action",
             type="string",
-            description="Timer action: start, cancel, pause, finish, change",
+            description="Timer action: start, cancel, pause, resume, status",
             required=True,
-            enum=["start", "cancel", "pause", "finish", "change"],
+            enum=["start", "cancel", "pause", "resume", "status"],
         ),
         ToolParameter(
-            name="timer_id",
-            type="string",
-            description="Timer entity ID (e.g., timer.kitchen). If not specified, finds first available timer.",
+            name="hours",
+            type="number",
+            description="Number of hours for the timer",
             required=False,
         ),
         ToolParameter(
-            name="duration",
+            name="minutes",
+            type="number",
+            description="Number of minutes for the timer",
+            required=False,
+        ),
+        ToolParameter(
+            name="seconds",
+            type="number",
+            description="Number of seconds for the timer",
+            required=False,
+        ),
+        ToolParameter(
+            name="name",
             type="string",
-            description="Duration in HH:MM:SS format (e.g., '00:05:00' for 5 minutes). Required for 'start' action.",
+            description="Name for the timer (e.g., 'Pizza', 'Laundry')",
             required=False,
         ),
     ]
@@ -56,163 +79,208 @@ If no timer_id is specified, will try to find an available timer."""
     async def execute(
         self,
         action: str,
-        timer_id: str | None = None,
-        duration: str | None = None,
+        hours: int | None = None,
+        minutes: int | None = None,
+        seconds: int | None = None,
+        name: str | None = None,
     ) -> ToolResult:
-        """Execute timer action."""
-        # Find timer entity if not specified
-        if not timer_id:
-            timer_id = self._find_available_timer(action)
-            if not timer_id:
-                return ToolResult(
-                    success=False,
-                    message="No timer entities found. Create a timer helper in Settings > Devices & Services > Helpers.",
-                )
-        
-        # Ensure proper entity ID format
-        if not timer_id.startswith("timer."):
-            timer_id = f"timer.{timer_id}"
-        
-        # Check if timer exists
-        state = self._hass.states.get(timer_id)
-        if not state:
-            available = self._get_all_timers()
-            if available:
-                return ToolResult(
-                    success=False,
-                    message=f"Timer '{timer_id}' not found. Available timers: {', '.join(available)}",
-                )
-            return ToolResult(
-                success=False,
-                message=f"Timer '{timer_id}' not found. No timers configured.",
-            )
-        
-        current_state = state.state
+        """Execute timer action using native Assist intents."""
         
         try:
             if action == "start":
-                service_data: dict[str, Any] = {"entity_id": timer_id}
-                if duration:
-                    service_data["duration"] = duration
-                await self._hass.services.async_call(
-                    "timer", "start", service_data, blocking=True
-                )
-                duration_str = f" for {duration}" if duration else ""
-                return ToolResult(
-                    success=True,
-                    message=f"Timer {timer_id} started{duration_str}.",
-                )
-            
+                return await self._start_timer(hours, minutes, seconds, name)
             elif action == "cancel":
-                if current_state == "idle":
-                    return ToolResult(
-                        success=True,
-                        message=f"Timer {timer_id} is not running (already idle).",
-                    )
-                await self._hass.services.async_call(
-                    "timer", "cancel", {"entity_id": timer_id}, blocking=True
-                )
-                return ToolResult(
-                    success=True,
-                    message=f"Timer {timer_id} cancelled.",
-                )
-            
+                return await self._cancel_timer(name)
             elif action == "pause":
-                if current_state != "active":
-                    return ToolResult(
-                        success=False,
-                        message=f"Timer {timer_id} cannot be paused (current state: {current_state}).",
-                    )
-                await self._hass.services.async_call(
-                    "timer", "pause", {"entity_id": timer_id}, blocking=True
-                )
-                return ToolResult(
-                    success=True,
-                    message=f"Timer {timer_id} paused.",
-                )
-            
-            elif action == "finish":
-                if current_state == "idle":
-                    return ToolResult(
-                        success=True,
-                        message=f"Timer {timer_id} is not running.",
-                    )
-                await self._hass.services.async_call(
-                    "timer", "finish", {"entity_id": timer_id}, blocking=True
-                )
-                return ToolResult(
-                    success=True,
-                    message=f"Timer {timer_id} finished.",
-                )
-            
-            elif action == "change":
-                if not duration:
-                    return ToolResult(
-                        success=False,
-                        message="Duration required for 'change' action.",
-                    )
-                if current_state != "active":
-                    return ToolResult(
-                        success=False,
-                        message=f"Timer {timer_id} is not active (current state: {current_state}).",
-                    )
-                await self._hass.services.async_call(
-                    "timer", "change", {"entity_id": timer_id, "duration": duration}, blocking=True
-                )
-                return ToolResult(
-                    success=True,
-                    message=f"Timer {timer_id} duration changed to {duration}.",
-                )
-            
+                return await self._pause_timer(name)
+            elif action == "resume":
+                return await self._resume_timer(name)
+            elif action == "status":
+                return await self._timer_status(name)
             else:
                 return ToolResult(
                     success=False,
-                    message=f"Unknown action: {action}. Use: start, cancel, pause, finish, change.",
+                    message=f"Unknown action: {action}. Use: start, cancel, pause, resume, status",
                 )
-                
-        except ServiceNotFound:
+        except ha_intent.IntentNotRegistered:
             return ToolResult(
                 success=False,
-                message="Timer integration not available. Make sure the timer helper is configured.",
+                message="Timer intents not available. Make sure Assist is properly configured.",
             )
+        except ha_intent.IntentHandleError as err:
+            # Common errors like "no timer to cancel"
+            error_msg = str(err)
+            if "no timer" in error_msg.lower():
+                if action == "cancel":
+                    return ToolResult(success=True, message="No active timer to cancel.")
+                elif action == "pause":
+                    return ToolResult(success=True, message="No running timer to pause.")
+                elif action == "resume":
+                    return ToolResult(success=True, message="No paused timer to resume.")
+            return ToolResult(success=False, message=f"Timer error: {error_msg}")
         except Exception as err:
-            _LOGGER.error("Timer action failed: %s", err)
+            _LOGGER.error("Timer error: %s", err, exc_info=True)
             return ToolResult(
                 success=False,
-                message=f"Failed to {action} timer: {err}",
+                message=f"Failed to execute timer action: {err}",
             )
 
-    def _get_all_timers(self) -> list[str]:
-        """Get all timer entity IDs."""
-        return [
-            state.entity_id
-            for state in self._hass.states.async_all()
-            if state.entity_id.startswith("timer.")
-        ]
+    async def _start_timer(
+        self,
+        hours: int | None,
+        minutes: int | None,
+        seconds: int | None,
+        name: str | None,
+    ) -> ToolResult:
+        """Start a new timer."""
+        if not any([hours, minutes, seconds]):
+            return ToolResult(
+                success=False,
+                message="Please specify a duration (hours, minutes, or seconds).",
+            )
+        
+        slots: dict[str, Any] = {}
+        
+        if hours:
+            slots["hours"] = {"value": hours}
+        if minutes:
+            slots["minutes"] = {"value": minutes}
+        if seconds:
+            slots["seconds"] = {"value": seconds}
+        if name:
+            slots["name"] = {"value": name}
+        
+        response = await ha_intent.async_handle(
+            self._hass,
+            "smart_assist",
+            "HassStartTimer",
+            slots,
+        )
+        
+        # Build duration string for response
+        parts = []
+        if hours:
+            parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
+        if minutes:
+            parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+        if seconds:
+            parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
+        duration_str = " and ".join(parts) if parts else "unknown duration"
+        
+        name_str = f" named '{name}'" if name else ""
+        
+        # Get speech response if available
+        speech = self._get_speech(response)
+        if speech:
+            return ToolResult(success=True, message=speech)
+        
+        return ToolResult(
+            success=True,
+            message=f"Timer{name_str} started for {duration_str}.",
+        )
 
-    def _find_available_timer(self, action: str) -> str | None:
-        """Find an available timer for the action.
+    async def _cancel_timer(self, name: str | None) -> ToolResult:
+        """Cancel a timer."""
+        slots: dict[str, Any] = {}
         
-        For 'start': prefer idle timers
-        For other actions: prefer active/paused timers
-        """
-        timers = self._get_all_timers()
-        if not timers:
-            return None
+        if name:
+            slots["name"] = {"value": name}
         
-        if action == "start":
-            # Find an idle timer
-            for timer_id in timers:
-                state = self._hass.states.get(timer_id)
-                if state and state.state == "idle":
-                    return timer_id
-            # If all are busy, return first one anyway
-            return timers[0]
-        else:
-            # Find an active or paused timer
-            for timer_id in timers:
-                state = self._hass.states.get(timer_id)
-                if state and state.state in ("active", "paused"):
-                    return timer_id
-            # Return first timer if none active
-            return timers[0] if timers else None
+        response = await ha_intent.async_handle(
+            self._hass,
+            "smart_assist",
+            "HassCancelTimer",
+            slots,
+        )
+        
+        speech = self._get_speech(response)
+        if speech:
+            return ToolResult(success=True, message=speech)
+        
+        name_str = f" '{name}'" if name else ""
+        return ToolResult(
+            success=True,
+            message=f"Timer{name_str} cancelled.",
+        )
+
+    async def _pause_timer(self, name: str | None) -> ToolResult:
+        """Pause a timer."""
+        slots: dict[str, Any] = {}
+        
+        if name:
+            slots["name"] = {"value": name}
+        
+        response = await ha_intent.async_handle(
+            self._hass,
+            "smart_assist",
+            "HassPauseTimer",
+            slots,
+        )
+        
+        speech = self._get_speech(response)
+        if speech:
+            return ToolResult(success=True, message=speech)
+        
+        name_str = f" '{name}'" if name else ""
+        return ToolResult(
+            success=True,
+            message=f"Timer{name_str} paused.",
+        )
+
+    async def _resume_timer(self, name: str | None) -> ToolResult:
+        """Resume a paused timer."""
+        slots: dict[str, Any] = {}
+        
+        if name:
+            slots["name"] = {"value": name}
+        
+        response = await ha_intent.async_handle(
+            self._hass,
+            "smart_assist",
+            "HassUnpauseTimer",
+            slots,
+        )
+        
+        speech = self._get_speech(response)
+        if speech:
+            return ToolResult(success=True, message=speech)
+        
+        name_str = f" '{name}'" if name else ""
+        return ToolResult(
+            success=True,
+            message=f"Timer{name_str} resumed.",
+        )
+
+    async def _timer_status(self, name: str | None) -> ToolResult:
+        """Get timer status."""
+        slots: dict[str, Any] = {}
+        
+        if name:
+            slots["name"] = {"value": name}
+        
+        response = await ha_intent.async_handle(
+            self._hass,
+            "smart_assist",
+            "HassTimerStatus",
+            slots,
+        )
+        
+        speech = self._get_speech(response)
+        if speech:
+            return ToolResult(success=True, message=speech)
+        
+        return ToolResult(
+            success=True,
+            message="No active timers.",
+        )
+
+    def _get_speech(self, response: ha_intent.IntentResponse) -> str | None:
+        """Extract speech text from intent response."""
+        if response.speech:
+            # Try plain text first
+            if "plain" in response.speech:
+                return response.speech["plain"].get("speech")
+            # Try SSML
+            if "ssml" in response.speech:
+                return response.speech["ssml"].get("speech")
+        return None

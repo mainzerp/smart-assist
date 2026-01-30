@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.21  | 2026-01-30 |
+| Smart Assist | 1.0.22  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.22 (2026-01-30) - Unified Timer Tool with Native Intents
+
+**Improvement: Simplified Timer Management**
+
+- Single `timer` tool now uses native Assist intents (HassStartTimer, etc.)
+- No Timer Helper entities required - uses built-in Assist voice timers
+- Removed separate voice_timer tool - one unified timer tool
+- Actions: start, cancel, pause, resume, status
+- Parameters: hours, minutes, seconds, name
 
 ### v1.0.21 (2026-01-30) - Native Voice Timer Support
 
