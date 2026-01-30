@@ -30,6 +30,7 @@ class ConversationSession:
     session_id: str
     messages: deque[ChatMessage] = field(default_factory=lambda: deque(maxlen=20))
     recent_entities: deque[RecentEntity] = field(default_factory=lambda: deque(maxlen=5))
+    consecutive_followups: int = 0  # Counter for consecutive follow-up questions
     created_at: datetime = field(default_factory=datetime.now)
     last_active: datetime = field(default_factory=datetime.now)
 
@@ -87,6 +88,25 @@ class ConversationSession:
         """Clear conversation history and recent entities."""
         self.messages.clear()
         self.recent_entities.clear()
+        self.consecutive_followups = 0
+        self.last_active = datetime.now()
+
+    def increment_followup(self) -> int:
+        """Increment and return consecutive followup count.
+
+        Called when await_response is used without a real action.
+        Returns the new count for limit checking.
+        """
+        self.consecutive_followups += 1
+        self.last_active = datetime.now()
+        return self.consecutive_followups
+
+    def reset_followups(self) -> None:
+        """Reset followup counter after a successful action.
+
+        Called when a real tool (not await_response) is executed.
+        """
+        self.consecutive_followups = 0
         self.last_active = datetime.now()
 
     @property
@@ -215,6 +235,25 @@ class ConversationManager:
         if session_id not in self._sessions:
             return ""
         return self._sessions[session_id].get_recent_entities_context()
+
+    def increment_followup(self, session_id: str) -> int:
+        """Increment and return consecutive followup count for a session.
+
+        Returns the new count for limit checking.
+        """
+        session = self.get_or_create_session(session_id)
+        return session.increment_followup()
+
+    def reset_followups(self, session_id: str) -> None:
+        """Reset followup counter for a session after successful action."""
+        if session_id in self._sessions:
+            self._sessions[session_id].reset_followups()
+
+    def get_followup_count(self, session_id: str) -> int:
+        """Get current consecutive followup count for a session."""
+        if session_id not in self._sessions:
+            return 0
+        return self._sessions[session_id].consecutive_followups
 
     def get_session_count(self) -> int:
         """Get number of active sessions."""

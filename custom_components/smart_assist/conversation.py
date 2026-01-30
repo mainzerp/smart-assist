@@ -90,6 +90,7 @@ try:
         DOMAIN,
         LLM_PROVIDER_GROQ,
         LOCALE_TO_LANGUAGE,
+        MAX_CONSECUTIVE_FOLLOWUPS,
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
@@ -469,6 +470,18 @@ class SmartAssistConversationEntity(ConversationEntity):
                 await_response_called = True
                 _LOGGER.debug("[USER-REQUEST] await_response tool called - conversation will continue")
                 
+                # Check consecutive followup limit to prevent infinite loops
+                # (e.g., satellite triggered by TV audio causing repeated clarification requests)
+                if conversation_id:
+                    followup_count = self._conversation_manager.increment_followup(conversation_id)
+                    if followup_count >= MAX_CONSECUTIVE_FOLLOWUPS:
+                        _LOGGER.warning(
+                            "[USER-REQUEST] Max consecutive followups (%d) reached - aborting to prevent loop",
+                            MAX_CONSECUTIVE_FOLLOWUPS
+                        )
+                        # Return a polite abort message instead of continuing
+                        return "I did not understand. Please try again.", False
+                
                 # Extract message from await_response tool call
                 if await_response_calls[0].arguments:
                     await_message = await_response_calls[0].arguments.get("message", "")
@@ -552,6 +565,12 @@ class SmartAssistConversationEntity(ConversationEntity):
                         self._track_entity_from_tool_call(
                             conversation_id, tool_call.name, tool_call.arguments
                         )
+                
+                # Reset consecutive followup counter after successful tool execution
+                # This breaks the followup loop when user provides meaningful input
+                if conversation_id:
+                    self._conversation_manager.reset_followups(conversation_id)
+                    _LOGGER.debug("[USER-REQUEST] Reset followup counter after tool execution")
             else:
                 # Only await_response was called, no other tools to execute
                 # This shouldn't happen normally since we return above, but handle it

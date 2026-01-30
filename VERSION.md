@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.1.2   | 2026-01-30 |
+| Smart Assist | 1.1.3   | 2026-01-30 |
 
 ## Version History
+
+### v1.1.3 (2026-01-30) - Follow-up Loop Protection
+
+**Fix: Prevent Infinite Follow-up Loops**
+
+Added protection against endless clarification loops when satellite is triggered by false positive (e.g., TV audio):
+- Tracks consecutive follow-up questions per conversation session
+- After 3 consecutive follow-ups without meaningful action, conversation aborts
+- Returns "I did not understand. Please try again." instead of another question
+- Counter resets after any successful tool execution
+
+How it works:
+1. Satellite triggered by TV audio (false positive wake word)
+2. LLM receives unintelligible input, asks for clarification (followup #1)
+3. Satellite listens again, captures more TV audio (followup #2)
+4. After 3rd failed attempt, Smart Assist aborts and stops listening
+
+This prevents the satellite from getting stuck in an infinite loop of questions when triggered accidentally.
 
 ### v1.1.2 (2026-01-30) - Entity History Periods Aggregation
 
