@@ -658,7 +658,13 @@ When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
         # Control instructions - compact
         parts.append("""
 ## Entity Control
-Use 'control' tool for all entities. Domain auto-detected from entity_id.""")
+Use 'control' tool for all entities. Domain auto-detected from entity_id.
+
+## Music/Radio Playback
+For music, radio, or media requests:
+- If 'music_assistant' tool is available, use it for: playing songs, artists, albums, playlists, radio stations
+- Parameters: action='play', query='[search term]', media_type='track'/'album'/'artist'/'playlist'/'radio'
+- If user doesn't specify a player, use the mapped player from your instructions based on the current satellite""")
         
         # Critical actions confirmation
         if confirm_critical:

@@ -115,10 +115,37 @@ def create_tool_registry(
         registered_tools.append("web_search")
     
     # Music Assistant (if integration is loaded)
-    # Check if music_assistant domain is available
-    if "music_assistant" in hass.data or any(
-        "music_assistant" in eid for eid in [s.entity_id for s in hass.states.async_all("media_player")]
-    ):
+    # Check multiple ways to detect Music Assistant
+    music_assistant_available = False
+    
+    # Method 1: Check if music_assistant is in hass.data (integration loaded)
+    if "music_assistant" in hass.data:
+        music_assistant_available = True
+        _LOGGER.debug("Music Assistant detected via hass.data")
+    
+    # Method 2: Check if music_assistant.play_media service is available
+    if not music_assistant_available:
+        if hass.services.has_service("music_assistant", "play_media"):
+            music_assistant_available = True
+            _LOGGER.debug("Music Assistant detected via service availability")
+    
+    # Method 3: Check for players with mass_player_id attribute (MA players)
+    if not music_assistant_available:
+        ma_players = [
+            s.entity_id for s in hass.states.async_all("media_player")
+            if s.attributes.get("mass_player_id") or s.attributes.get("mass_player_type")
+        ]
+        if ma_players:
+            music_assistant_available = True
+            _LOGGER.debug("Music Assistant detected via MA player attributes: %s", ma_players[:3])
+    
+    if music_assistant_available:
+        registry.register(MusicAssistantTool(hass))
+        registered_tools.append("music_assistant")
+    else:
+        _LOGGER.debug("Music Assistant not detected, music_assistant tool not registered")
+    
+    if music_assistant_available:
         registry.register(MusicAssistantTool(hass))
         registered_tools.append("music_assistant")
     

@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.25  | 2026-01-30 |
+| Smart Assist | 1.0.26  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.26 (2026-01-30) - Music Assistant Detection & System Prompt
+
+**Fix: Music Assistant Tool Detection**
+
+- Improved detection logic with 3 methods:
+  1. Check `hass.data` for music_assistant key
+  2. Look for MA players (entity_id starts with `media_player.ma_`)
+  3. Check if `music_assistant.play_media` service exists
+- Added debug logging for detection method
+
+**New: Music/Radio Playback Instructions in System Prompt**
+
+- Added instructions for when to use `music_assistant` tool
+- LLM now knows to use music_assistant for songs, artists, albums, playlists, radio
+- References satellite-to-player mapping from user system prompt
 
 ### v1.0.25 (2026-01-30) - Satellite Context for Media Playback
 
