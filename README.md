@@ -163,7 +163,7 @@ The integration provides sensors for monitoring cache performance:
 
 Enable cache warming to keep the cache "warm" for instant responses. This sends periodic minimal requests to prevent cache expiration.
 
-**Cost**: Minimal (~1 request per interval, ~$0.01/day with 10-minute interval)
+**Cost**: Approximately $0.10/day with ~3,500 token prompts and 4-minute refresh interval (144 requests/day at Groq pricing).
 
 ## AI Task Platform (Automations)
 
