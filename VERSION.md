@@ -4,9 +4,24 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.20  | 2026-01-30 |
+| Smart Assist | 1.0.21  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.21 (2026-01-30) - Native Voice Timer Support
+
+**New Feature: VoiceTimerTool**
+
+- New `voice_timer` tool using native Assist intents
+- Uses HassStartTimer, HassCancelTimer, HassPauseTimer, etc.
+- Does NOT require Timer Helper entities - uses built-in Assist voice timers
+- Actions: start, cancel, pause, resume, status, add_time, remove_time
+- Parameters: hours, minutes, seconds, name, area
+- Always available (not domain-dependent)
+
+**Two Timer Options:**
+1. `voice_timer` - Native Assist voice timers (satellite-specific, no entities)
+2. `timer` - Timer Helper entities (for automations, requires timer domain)
 
 ### v1.0.20 (2026-01-30) - Timer Tool
 

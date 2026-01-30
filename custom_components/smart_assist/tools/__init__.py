@@ -54,6 +54,7 @@ def create_tool_registry(
     from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
     from .conversation_tools import AwaitResponseTool
     from .timer_tools import TimerTool
+    from .voice_timer_tools import VoiceTimerTool
     
     registry = ToolRegistry(hass)
     registered_tools: list[str] = []
@@ -81,7 +82,13 @@ def create_tool_registry(
     registry.register(AwaitResponseTool(hass))  # Signal to keep conversation open
     registered_tools.append("await_response")
     
-    # Timer tool (if timer domain exists)
+    # Voice Timer tool (native Assist intents - always available)
+    # Uses HassStartTimer, HassCancelTimer etc. intents
+    registry.register(VoiceTimerTool(hass))
+    registered_tools.append("voice_timer")
+    
+    # Timer Helper tool (if timer domain exists)
+    # Uses timer.* helper entities for automation integration
     if "timer" in available_domains:
         registry.register(TimerTool(hass))
         registered_tools.append("timer")
@@ -130,6 +137,7 @@ from .search_tools import WebSearchTool, GetWeatherTool
 from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
 from .conversation_tools import AwaitResponseTool
 from .timer_tools import TimerTool
+from .voice_timer_tools import VoiceTimerTool
 
 __all__ = [
     # Base classes
@@ -144,6 +152,7 @@ __all__ = [
     "AwaitResponseTool",
     # Timer
     "TimerTool",
+    "VoiceTimerTool",
     # Scene/Automation
     "RunSceneTool",
     "TriggerAutomationTool",
