@@ -6,14 +6,13 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Control your smart home with natural language. Uses **Groq API** or **OpenRouter** for ultra-fast inference with automatic prompt caching, achieving **~90% cache hit rates** and response times under 500ms.
+Control your smart home with natural language. Uses **Groq API** for ultra-fast inference with automatic prompt caching, achieving **~90% cache hit rates** and response times under 500ms.
 
 ## Features
 
 ### Core Features
 
 - **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
-- **OpenRouter Integration**: Access 200+ models via OpenRouter API
 - **Natural Language Control**: Talk to your smart home naturally
 - **Unified Control Tool**: Single efficient tool for all entity types (lights, switches, climate, covers, media players, fans)
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently for faster responses
@@ -93,8 +92,7 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 2. Click **Add Integration**
 3. Search for "Smart Assist"
 4. Follow the setup wizard:
-   - Select LLM provider (Groq or OpenRouter)
-   - Enter your API key ([Groq](https://console.groq.com/keys) or [OpenRouter](https://openrouter.ai/keys))
+   - Enter your Groq API key ([get one here](https://console.groq.com/keys))
    - Select your preferred model
    - Configure behavior and caching settings
 
@@ -215,21 +213,11 @@ Smart Assist provides these tools to the LLM:
 
 See [Groq Models](https://console.groq.com/docs/models) for the full list.
 
-### OpenRouter Models
-
-Access 200+ models including:
-- Claude 3.5 Sonnet
-- GPT-4o
-- Gemini Pro
-- And many more
-
-See [OpenRouter Models](https://openrouter.ai/models) for the full list.
-
 ## Requirements
 
 - Home Assistant 2024.1 or newer
 - Python 3.12+
-- Groq API key ([get one here](https://console.groq.com/keys)) or OpenRouter API key ([get one here](https://openrouter.ai/keys))
+- Groq API key ([get one here](https://console.groq.com/keys))
 
 ## Troubleshooting
 
@@ -255,12 +243,6 @@ Enable debug logging in Advanced settings to see:
 - Check cache hit rate in sensors
 - Enable cache warming for consistent performance
 - Verify Groq API status
-
-## Version History
-
-See [VERSION.md](VERSION.md) for detailed changelog.
-
-**Current Version**: 1.0.30
 
 ## License
 
