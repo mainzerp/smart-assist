@@ -4,9 +4,15 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.18  | 2026-01-30 |
+| Smart Assist | 1.0.19  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.19 (2026-01-30) - Calendar: Only Show Upcoming Events
+
+- Fixed: "What's on my calendar today?" no longer returns past events
+- get_calendar_events now starts from current time, not midnight
+- Past events from today are filtered out
 
 ### v1.0.18 (2026-01-30) - Double Cache Warming at Startup
 

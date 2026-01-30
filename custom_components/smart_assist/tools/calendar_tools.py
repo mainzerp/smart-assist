@@ -53,7 +53,8 @@ class GetCalendarEventsTool(BaseTool):
         now = dt_util.now()
         
         if time_range == "today":
-            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            # Start from NOW to only show upcoming events, not past ones
+            start = now
             end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
         elif time_range == "tomorrow":
             tomorrow = now + timedelta(days=1)
