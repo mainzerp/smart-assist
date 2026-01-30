@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.13  | 2026-01-30 |
+| Smart Assist | 1.0.14  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.14 (2026-01-30) - await_response with Message Parameter
+
+**Improvement: Tool Redesign**
+
+- Added required `message` parameter to await_response tool
+- LLM now passes the question text directly in the tool call
+- Conversation handler extracts message from tool arguments
+- No more reliance on LLM outputting text before tool call
+- System prompt updated with new tool usage examples
+
+Example: `await_response(message="Which room?", reason="clarification")`
 
 ### v1.0.13 (2026-01-30) - Simplified await_response Tool
 

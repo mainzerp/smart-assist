@@ -24,8 +24,14 @@ class AwaitResponseTool(BaseTool):
     """
 
     name = "await_response"
-    description = "Keep microphone open for user response. Call AFTER providing your spoken question or message."
+    description = "Ask the user a question and keep microphone open for their response."
     parameters = [
+        ToolParameter(
+            name="message",
+            type="string",
+            description="The question or message to speak to the user before waiting for response",
+            required=True,
+        ),
         ToolParameter(
             name="reason",
             type="string",
@@ -42,14 +48,15 @@ class AwaitResponseTool(BaseTool):
     async def execute(self, **kwargs: Any) -> ToolResult:
         """Execute the await_response signal.
         
-        This tool doesn't actually do anything - it's a signal to the
-        conversation handler that user input is expected.
+        This tool returns the message that should be spoken to the user.
+        The conversation handler will use this as the response text.
         """
+        message = kwargs.get("message", "")
         reason = kwargs.get("reason", "clarification")
-        _LOGGER.debug("await_response tool called with reason: %s", reason)
+        _LOGGER.debug("await_response tool called: message='%s', reason=%s", message, reason)
         
         return ToolResult(
             success=True,
-            message="Awaiting user response",
-            data={"reason": reason, "await_response": True}
+            message=message,  # This becomes the spoken response
+            data={"reason": reason, "await_response": True, "spoken_message": message}
         )

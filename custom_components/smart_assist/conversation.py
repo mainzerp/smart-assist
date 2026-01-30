@@ -436,10 +436,19 @@ class SmartAssistConversationEntity(ConversationEntity):
             if await_response_calls:
                 await_response_called = True
                 _LOGGER.debug("[USER-REQUEST] await_response tool called - conversation will continue")
+                
+                # Extract message from await_response tool call
+                if await_response_calls[0].arguments:
+                    await_message = await_response_calls[0].arguments.get("message", "")
+                    if await_message:
+                        # Use the message from the tool as the response
+                        final_content = await_message
+                        _LOGGER.debug("[USER-REQUEST] Using message from await_response: %s", await_message[:50])
+                
                 # If only await_response was called, we're done
                 if not other_tool_calls:
                     if not final_content.strip():
-                        _LOGGER.warning("[USER-REQUEST] await_response called without response text - LLM should provide text first")
+                        _LOGGER.warning("[USER-REQUEST] await_response called without message - check tool definition")
                     return final_content, await_response_called
             
             # Execute other tool calls (not await_response) and add results to messages for next iteration
@@ -596,16 +605,14 @@ class SmartAssistConversationEntity(ConversationEntity):
 - Occasionally ask "Is there anything else I can help with?" after completing tasks
 - Do NOT offer follow-up for every simple action
 
-## Conversation Continuation
-To keep microphone open for user response:
-1. First output your question as text (e.g., "Which room?")
-2. Then call the await_response tool with reason parameter
+## Asking Questions (Conversation Continuation)
+When you need to ask a question, use the await_response tool:
+- call await_response(message="Your question here", reason="clarification")
 
-Example flow:
-- User: "Turn on the light"
-- You: "Which light - living room or bedroom?" + call await_response(reason="clarification")
+The message parameter contains what you want to say to the user.
+Example: await_response(message="Which light - living room or bedroom?", reason="clarification")
 
-Without await_response tool, microphone closes after your response.""")
+Without this tool, the microphone closes after your response.""")
         else:
             parts.append("""
 ## Response Rules
