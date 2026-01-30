@@ -123,9 +123,10 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| Prompt Caching | Enable prompt caching | true |
 | Cache Warming | Periodic cache refresh | false |
 | Refresh Interval | Cache refresh interval (minutes) | 4 |
+
+> **Note**: Prompt Caching is always enabled automatically by Groq. There is no option to disable it.
 
 ### Advanced Settings
 
