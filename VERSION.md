@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.15  | 2026-01-30 |
+| Smart Assist | 1.0.16  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.16 (2026-01-30) - English System Prompt Examples
+
+**Improvement: Consistent Language**
+
+- Changed examples in system prompt from German to English
+- LLMs understand English instructions better
+- Example now uses "Is there anything else I can help with?" instead of German
 
 ### v1.0.15 (2026-01-30) - Mandatory await_response for Questions
 

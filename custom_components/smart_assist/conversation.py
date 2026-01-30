@@ -608,10 +608,10 @@ class SmartAssistConversationEntity(ConversationEntity):
 EVERY question you ask MUST use the await_response tool. Without it, the user CANNOT respond.
 
 WRONG (user cannot respond):
-"Kann ich Ihnen noch helfen?"
+"Is there anything else I can help with?"
 
 CORRECT (user can respond):
-await_response(message="Kann ich Ihnen noch helfen?", reason="follow_up")
+await_response(message="Is there anything else I can help with?", reason="follow_up")
 
 If your response ends with a question mark (?), you MUST call await_response with that question.""")
         else:
