@@ -24,32 +24,13 @@ class AwaitResponseTool(BaseTool):
     """
 
     name = "await_response"
-    description = """Signal that you expect user input to continue the conversation.
-
-CRITICAL: You MUST include your spoken response/question BEFORE calling this tool.
-This tool only keeps the microphone open - it does NOT speak anything.
-Example: First output "Which room?" as text, THEN call await_response.
-
-WHEN TO USE:
-- Asking a clarifying question ("Which light - living room or bedroom?")
-- Offering multiple choices or options
-- Requesting confirmation for critical actions (locks, alarms)
-- Proactively offering further help ("Is there anything else I can help with?")
-
-WHEN NOT TO USE:
-- Simple action confirmations ("Light is on")
-- Information responses that don't need follow-up
-- Error messages
-
-WRONG: Call await_response without text (user hears nothing)
-RIGHT: Say "Which room?" then call await_response"""
-
+    description = "Keep microphone open for user response. Call AFTER providing your spoken question or message."
     parameters = [
         ToolParameter(
             name="reason",
             type="string",
-            description="Brief reason: 'clarification', 'confirmation', 'choice', or 'follow_up'",
-            required=False,
+            description="Why waiting: clarification, confirmation, choice, or follow_up",
+            required=True,
             enum=["clarification", "confirmation", "choice", "follow_up"],
         )
     ]

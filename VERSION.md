@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.12  | 2026-01-30 |
+| Smart Assist | 1.0.13  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.13 (2026-01-30) - Simplified await_response Tool
+
+**Improvement: Tool Definition**
+
+- Simplified await_response tool description to match other working tools
+- Changed reason parameter from optional to required
+- Removed verbose instructions from tool description
+- Cleaner system prompt with example flow
+- Removed text fallback workaround (pure tool-based solution)
 
 ### v1.0.12 (2026-01-30) - Text Fallback for await_response
 

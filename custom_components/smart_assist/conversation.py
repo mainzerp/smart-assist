@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import traceback
 from collections.abc import AsyncGenerator
 from typing import Any, Literal, TYPE_CHECKING
@@ -335,14 +334,6 @@ class SmartAssistConversationEntity(ConversationEntity):
                 chat_log=chat_log,
             )
 
-            # Fallback: Some models output await_response as text instead of tool call
-            # Detect and handle this case
-            await_response_text_pattern = re.compile(r'\s*await_response\s*\(\s*\{[^}]*\}\s*\)\s*', re.IGNORECASE)
-            if await_response_text_pattern.search(final_content):
-                _LOGGER.warning("[USER-REQUEST] Model output await_response as text instead of tool call - extracting")
-                final_content = await_response_text_pattern.sub('', final_content).strip()
-                await_response_called = True
-
             # Determine if conversation should continue based on await_response tool
             continue_conversation = await_response_called
             
@@ -605,18 +596,16 @@ class SmartAssistConversationEntity(ConversationEntity):
 - Occasionally ask "Is there anything else I can help with?" after completing tasks
 - Do NOT offer follow-up for every simple action
 
-## Conversation Continuation [CRITICAL]
-Call the 'await_response' tool when you expect user input:
-- Asking a clarifying question ("Which light?")
-- Offering choices
-- Requesting confirmation for critical actions
-- Proactively offering further help
+## Conversation Continuation
+To keep microphone open for user response:
+1. First output your question as text (e.g., "Which room?")
+2. Then call the await_response tool with reason parameter
 
-IMPORTANT: ALWAYS include your question/response TEXT BEFORE calling await_response.
-The text is spoken to the user. await_response only keeps the microphone open.
-Example: Say "Which room?" THEN call await_response. Never call await_response alone.
+Example flow:
+- User: "Turn on the light"
+- You: "Which light - living room or bedroom?" + call await_response(reason="clarification")
 
-WITHOUT calling await_response, the microphone closes and user cannot respond.""")
+Without await_response tool, microphone closes after your response.""")
         else:
             parts.append("""
 ## Response Rules
