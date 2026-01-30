@@ -658,13 +658,15 @@ When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
         # Control instructions - compact
         parts.append("""
 ## Entity Control
-Use 'control' tool for all entities. Domain auto-detected from entity_id.
+Use 'control' tool for lights, switches, covers, fans, climate, locks, etc.
+Domain auto-detected from entity_id.
 
-## Music/Radio Playback
-For music, radio, or media requests:
-- If 'music_assistant' tool is available, use it for: playing songs, artists, albums, playlists, radio stations
-- Parameters: action='play', query='[search term]', media_type='track'/'album'/'artist'/'playlist'/'radio'
-- If user doesn't specify a player, use the mapped player from your instructions based on the current satellite""")
+## Music/Radio Playback [IMPORTANT]
+For ALL music, radio, or media playback requests:
+1. Check if 'music_assistant' tool exists in your available tools
+2. If YES: Use 'music_assistant' tool with action='play', query='[song/artist/radio]', media_type='track/album/artist/playlist/radio'
+3. If NO: Fall back to 'control' tool with media_player services
+4. For player selection: Check [Current Assist Satellite] context and use your satellite-to-player mapping from your instructions""")
         
         # Critical actions confirmation
         if confirm_critical:
