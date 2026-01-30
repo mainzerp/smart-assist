@@ -595,7 +595,9 @@ class SmartAssistConversationEntity(ConversationEntity):
 ## Response Format
 - Keep responses brief (1-2 sentences for actions, 2-3 for information)
 - Confirm actions concisely: "Light is on." not "I have successfully turned on the light for you."
-- ALWAYS use tools to check states - never guess or assume values""")
+- ALWAYS use tools to check states - never guess or assume values
+- Use plain text only - no markdown, no bullet points, no formatting
+- Responses are spoken aloud (TTS) - avoid URLs, special characters, abbreviations""")
         
         # Response rules with conversation continuation marker
         if ask_followup:

@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.16  | 2026-01-30 |
+| Smart Assist | 1.0.17  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.17 (2026-01-30) - TTS Response Format Rules
+
+**Improvement: TTS-Optimized Output**
+
+- Added rule: Use plain text only - no markdown, no bullet points, no formatting
+- Added rule: Responses are spoken aloud (TTS) - avoid URLs, special characters, abbreviations
+- Cleaner audio output from voice assistants
 
 ### v1.0.16 (2026-01-30) - English System Prompt Examples
 
