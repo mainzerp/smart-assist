@@ -28,6 +28,19 @@ Control your smart home with natural language. Uses **Groq API** or **OpenRouter
 - **Radio Streaming**: Stream radio stations (TuneIn, Radio Browser)
 - **Satellite-Aware**: Automatic player selection based on which satellite you're talking to
 
+#### Satellite-to-Player Mapping
+
+Smart Assist automatically detects which satellite you're speaking to and injects it into the context. To enable automatic player selection, add a mapping to your **User System Prompt** (in the integration configuration):
+
+```
+Satellite to Media Player Mappings:
+- assist_satellite.satellite_kitchen -> media_player.kitchen_speaker
+- assist_satellite.satellite_living_room -> media_player.living_room_sonos
+- assist_satellite.satellite_bedroom -> media_player.bedroom_speaker
+```
+
+Now when you say "Play some jazz" in the kitchen, the music will automatically play on the kitchen speaker.
+
 ### Voice Timers
 
 - **Native Assist Timers**: Uses Home Assistant's built-in voice timer system
