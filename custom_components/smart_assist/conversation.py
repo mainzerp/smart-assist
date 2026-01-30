@@ -289,10 +289,12 @@ class SmartAssistConversationEntity(ConversationEntity):
         The assistant pipeline can start TTS synthesis before the full response is ready.
         """
         _LOGGER.debug(
-            "[USER-REQUEST] New message: user_id=%s, text_length=%d, language=%s",
+            "[USER-REQUEST] New message: user_id=%s, text_length=%d, language=%s, satellite=%s, device=%s",
             user_input.conversation_id,
             len(user_input.text),
             user_input.language,
+            getattr(user_input, 'satellite_id', None),
+            getattr(user_input, 'device_id', None),
         )
         
         # Quick action bypass (if enabled - disabled by default)
@@ -311,7 +313,15 @@ class SmartAssistConversationEntity(ConversationEntity):
 
         # Build messages for LLM (using our own message format with history)
         # Use async version to include calendar context if enabled
-        messages, cached_prefix_length = await self._build_messages_for_llm_async(user_input.text, chat_log)
+        # Pass satellite_id so LLM knows which device initiated the request
+        satellite_id = getattr(user_input, 'satellite_id', None)
+        device_id = getattr(user_input, 'device_id', None)
+        messages, cached_prefix_length = await self._build_messages_for_llm_async(
+            user_input.text,
+            chat_log,
+            satellite_id=satellite_id,
+            device_id=device_id,
+        )
         tools = self._get_tool_registry().get_schemas()
         
         # Log registered tools for debugging cache issues
@@ -764,12 +774,20 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             _LOGGER.warning("Failed to get calendar context: %s", err)
             return ""
 
-    async def _build_messages_for_llm_async(self, user_text: str, chat_log: ChatLog | None = None) -> tuple[list[ChatMessage], int]:
+    async def _build_messages_for_llm_async(
+        self,
+        user_text: str,
+        chat_log: ChatLog | None = None,
+        satellite_id: str | None = None,
+        device_id: str | None = None,
+    ) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request (async version with calendar context).
         
         Args:
             user_text: The current user message
             chat_log: Optional ChatLog containing conversation history
+            satellite_id: Optional satellite entity_id that initiated the request
+            device_id: Optional device_id that initiated the request
             
         Returns:
             Tuple of (messages, cached_prefix_length)
@@ -779,9 +797,16 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         _LOGGER.debug("Calendar context from _get_calendar_context: len=%d", len(calendar_context) if calendar_context else 0)
         
         # Build base messages synchronously
-        return self._build_messages_for_llm(user_text, chat_log, calendar_context)
+        return self._build_messages_for_llm(user_text, chat_log, calendar_context, satellite_id, device_id)
 
-    def _build_messages_for_llm(self, user_text: str, chat_log: ChatLog | None = None, calendar_context: str = "") -> tuple[list[ChatMessage], int]:
+    def _build_messages_for_llm(
+        self,
+        user_text: str,
+        chat_log: ChatLog | None = None,
+        calendar_context: str = "",
+        satellite_id: str | None = None,
+        device_id: str | None = None,
+    ) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request.
         
         Message order optimized for prompt caching (static prefix first):
@@ -887,6 +912,11 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         if calendar_context:
             _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
             context_parts.append(calendar_context)
+        
+        # Add current assist satellite info if available
+        # This allows the LLM to know which device initiated the request
+        if satellite_id:
+            context_parts.append(f"[Current Assist Satellite: {satellite_id}]")
         
         # Combine context with user message
         context_prefix = " ".join(context_parts)

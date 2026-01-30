@@ -4,9 +4,31 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.24  | 2026-01-30 |
+| Smart Assist | 1.0.25  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.25 (2026-01-30) - Satellite Context for Media Playback
+
+**New Feature: Current Assist Satellite in Context**
+
+- Satellite entity_id is now included in the dynamic context
+- LLM knows which Assist satellite initiated the request
+- Enables automatic media player mapping based on user system prompt
+
+How it works:
+- ConversationInput.satellite_id is passed through to message builder
+- Added `[Current Assist Satellite: assist_satellite.xxx]` to dynamic context
+- User can define mappings in system prompt (satellite -> media_player)
+
+Example user system prompt:
+```
+Satellite to Media Player Mappings:
+- assist_satellite.satellite_kuche_assist_satellit -> media_player.ma_satellite_kuche
+- assist_satellite.satellite_flur_assist_satellit -> media_player.ma_satellite_flur
+```
+
+Now "play music" without specifying player will use the correct mapped player.
 
 ### v1.0.24 (2026-01-30) - Music Assistant Integration
 
