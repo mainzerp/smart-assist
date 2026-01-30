@@ -4,9 +4,41 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.23  | 2026-01-30 |
+| Smart Assist | 1.0.24  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.24 (2026-01-30) - Music Assistant Integration
+
+**New Feature: MusicAssistantTool**
+
+- New `music_assistant` tool for advanced music control
+- Uses Music Assistant integration for multi-provider support
+- Actions: play, search, queue_add
+
+Features:
+- Play music from any provider (Spotify, YouTube Music, local files, etc.)
+- Internet radio support (TuneIn, Radio Browser, etc.)
+- Radio mode for endless dynamic playlists based on seed track/artist
+- Queue management (play, replace, next, add)
+- Search across all configured providers
+
+Parameters:
+- `action`: play, search, queue_add
+- `query`: Search term (song, artist, album, playlist, radio station)
+- `media_type`: track, album, artist, playlist, radio
+- `artist`, `album`: Optional filters
+- `player`: Target media player entity_id
+- `enqueue`: play, replace, next, add
+- `radio_mode`: Enable endless similar music
+
+Examples:
+- Play song: `action=play, query="Bohemian Rhapsody", media_type=track`
+- Play radio: `action=play, query="SWR3", media_type=radio`
+- Radio mode: `action=play, query="Queen", media_type=artist, radio_mode=true`
+- Add to queue: `action=queue_add, query="Another One Bites the Dust"`
+
+Tool is automatically available when Music Assistant is installed.
 
 ### v1.0.23 (2026-01-30) - Timer Reminders and Delayed Commands
 

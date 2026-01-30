@@ -54,6 +54,7 @@ def create_tool_registry(
     from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
     from .conversation_tools import AwaitResponseTool
     from .timer_tools import TimerTool
+    from .music_assistant_tools import MusicAssistantTool
     
     registry = ToolRegistry(hass)
     registered_tools: list[str] = []
@@ -113,6 +114,14 @@ def create_tool_registry(
         registry.register(WebSearchTool(hass))
         registered_tools.append("web_search")
     
+    # Music Assistant (if integration is loaded)
+    # Check if music_assistant domain is available
+    if "music_assistant" in hass.data or any(
+        "music_assistant" in eid for eid in [s.entity_id for s in hass.states.async_all("media_player")]
+    ):
+        registry.register(MusicAssistantTool(hass))
+        registered_tools.append("music_assistant")
+    
     _LOGGER.debug(
         "Tool registry created: %d tools registered: %s",
         len(registered_tools),
@@ -130,6 +139,7 @@ from .search_tools import WebSearchTool, GetWeatherTool
 from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
 from .conversation_tools import AwaitResponseTool
 from .timer_tools import TimerTool
+from .music_assistant_tools import MusicAssistantTool
 
 __all__ = [
     # Base classes
@@ -144,6 +154,8 @@ __all__ = [
     "AwaitResponseTool",
     # Timer
     "TimerTool",
+    # Music
+    "MusicAssistantTool",
     # Scene/Automation
     "RunSceneTool",
     "TriggerAutomationTool",
