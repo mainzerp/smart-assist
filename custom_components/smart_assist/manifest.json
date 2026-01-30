@@ -3,7 +3,7 @@
   "name": "Smart Assist",
   "codeowners": ["@mainzerp"],
   "config_flow": true,
-  "dependencies": ["ai_task", "conversation"],
+  "dependencies": ["ai_task", "conversation", "recorder"],
   "documentation": "https://github.com/mainzerp/smart-assist",
   "integration_type": "service",
   "iot_class": "cloud_polling",
