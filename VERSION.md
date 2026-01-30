@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.1.0   | 2026-01-30 |
+| Smart Assist | 1.1.1   | 2026-01-30 |
 
 ## Version History
+
+### v1.1.1 (2026-01-30) - Recorder Dependency Fix
+
+**Bugfix: Missing Recorder Dependency**
+
+- Added `recorder` to manifest.json dependencies
+- Required for `get_entity_history` tool to access historical states
+- Fixes GitHub Actions CI validation error
 
 ### v1.1.0 (2026-01-30) - Entity History Queries & Multi-Turn Context
 
