@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.11  | 2026-01-30 |
+| Smart Assist | 1.0.12  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.12 (2026-01-30) - Text Fallback for await_response
+
+**Bugfix: Model Compatibility**
+
+- Fixed issue where some models (e.g., gpt-oss-120b) output `await_response({...})` as text instead of a proper tool call
+- Added regex detection to extract await_response from text output
+- Text is cleaned (await_response removed) and conversation continuation is properly set
+- Satellites now correctly enter listening mode even when model uses text syntax
 
 ### v1.0.11 (2026-01-30) - await_response Fix for Satellites
 

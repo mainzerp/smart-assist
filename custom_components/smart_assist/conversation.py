@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import traceback
 from collections.abc import AsyncGenerator
 from typing import Any, Literal, TYPE_CHECKING
@@ -333,6 +334,14 @@ class SmartAssistConversationEntity(ConversationEntity):
                 cached_prefix_length=cached_prefix_length,
                 chat_log=chat_log,
             )
+
+            # Fallback: Some models output await_response as text instead of tool call
+            # Detect and handle this case
+            await_response_text_pattern = re.compile(r'\s*await_response\s*\(\s*\{[^}]*\}\s*\)\s*', re.IGNORECASE)
+            if await_response_text_pattern.search(final_content):
+                _LOGGER.warning("[USER-REQUEST] Model output await_response as text instead of tool call - extracting")
+                final_content = await_response_text_pattern.sub('', final_content).strip()
+                await_response_called = True
 
             # Determine if conversation should continue based on await_response tool
             continue_conversation = await_response_called
