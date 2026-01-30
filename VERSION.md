@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.29  | 2026-01-30 |
+| Smart Assist | 1.0.30  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.30 (2026-01-30) - Auto-Detect Questions for Conversation Continuation
+
+**Improvement: Question Detection Fallback**
+
+- Auto-detects when LLM response ends with `?` but forgot to call `await_response` tool
+- Automatically enables `continue_conversation` for questions
+- Ensures user can always respond to questions, even if LLM doesn't follow instructions perfectly
 
 ### v1.0.29 (2026-01-30) - Fix Duplicate Tool Calls
 

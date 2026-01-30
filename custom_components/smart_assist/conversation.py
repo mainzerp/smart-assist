@@ -351,6 +351,11 @@ class SmartAssistConversationEntity(ConversationEntity):
             ask_followup = self._get_config(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
             if not ask_followup:
                 continue_conversation = False
+            elif not continue_conversation and final_content.strip().endswith("?"):
+                # Auto-detect: If response ends with question mark but await_response wasn't called,
+                # still allow conversation to continue (LLM forgot to call the tool)
+                _LOGGER.debug("[USER-REQUEST] Auto-detected question in response, enabling continue_conversation")
+                continue_conversation = True
 
             # Clean response for TTS if enabled
             final_response = final_content
