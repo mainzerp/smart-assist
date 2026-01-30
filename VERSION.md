@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.0.19  | 2026-01-30 |
+| Smart Assist | 1.0.20  | 2026-01-30 |
 
 ## Version History
+
+### v1.0.20 (2026-01-30) - Timer Tool
+
+- New `timer` tool for managing HA timer helpers
+- Actions: start, cancel, pause, finish, change
+- Auto-finds available timer if not specified
+- Duration format: HH:MM:SS (e.g., "00:05:00" for 5 minutes)
+- Requires timer helper to be configured in HA
 
 ### v1.0.19 (2026-01-30) - Calendar: Only Show Upcoming Events
 

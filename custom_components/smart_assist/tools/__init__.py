@@ -53,6 +53,7 @@ def create_tool_registry(
     from .search_tools import GetWeatherTool, WebSearchTool
     from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
     from .conversation_tools import AwaitResponseTool
+    from .timer_tools import TimerTool
     
     registry = ToolRegistry(hass)
     registered_tools: list[str] = []
@@ -79,6 +80,11 @@ def create_tool_registry(
     registered_tools.append("control_entity")
     registry.register(AwaitResponseTool(hass))  # Signal to keep conversation open
     registered_tools.append("await_response")
+    
+    # Timer tool (if timer domain exists)
+    if "timer" in available_domains:
+        registry.register(TimerTool(hass))
+        registered_tools.append("timer")
     
     # Scene tool (if domain exists) - scripts handled by unified control
     if "scene" in available_domains:
@@ -123,6 +129,7 @@ from .scene_tools import RunSceneTool, TriggerAutomationTool
 from .search_tools import WebSearchTool, GetWeatherTool
 from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
 from .conversation_tools import AwaitResponseTool
+from .timer_tools import TimerTool
 
 __all__ = [
     # Base classes
@@ -135,6 +142,8 @@ __all__ = [
     "GetEntityStateTool",
     "UnifiedControlTool",
     "AwaitResponseTool",
+    # Timer
+    "TimerTool",
     # Scene/Automation
     "RunSceneTool",
     "TriggerAutomationTool",
