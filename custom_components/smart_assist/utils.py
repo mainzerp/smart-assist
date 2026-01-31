@@ -225,3 +225,28 @@ def clean_for_tts(text: str, language: str = "") -> str:
     result = result.strip()
 
     return result
+
+
+def remove_urls_for_tts(text: str) -> str:
+    """Remove URLs from text for TTS output.
+    
+    This is a lightweight function that only removes URLs, without
+    the full clean_for_tts processing. URLs are never useful when
+    spoken aloud.
+    
+    Args:
+        text: The text to clean
+        
+    Returns:
+        Text with URLs removed
+    """
+    if not text:
+        return text
+    
+    result = URL_PATTERN.sub("", text)
+    
+    # Clean up extra whitespace after URL removal
+    result = re.sub(r"\s+", " ", result)
+    result = result.strip()
+    
+    return result

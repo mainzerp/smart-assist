@@ -371,6 +371,11 @@ class SmartAssistConversationEntity(ConversationEntity):
             if self._get_config(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES):
                 language = self._get_config(CONF_LANGUAGE, "")
                 final_response = clean_for_tts(final_response, language)
+            else:
+                # Always remove URLs from TTS output even if full cleaning is disabled
+                # URLs are never useful when spoken aloud
+                from .utils import remove_urls_for_tts
+                final_response = remove_urls_for_tts(final_response)
 
             _LOGGER.debug("Streaming response complete. continue=%s", continue_conversation)
 

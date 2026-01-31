@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.2   | 2026-01-31 |
+| Smart Assist | 1.2.3   | 2026-01-31 |
 
 ## Version History
+
+### v1.2.3 (2026-01-31) - TTS URL Removal
+
+**Improvement: URLs Always Removed from TTS Output**
+
+- URLs are now always removed from spoken responses, regardless of clean_responses setting
+- Prevents TTS from reading out long URLs like "https colon slash slash..."
+- Added `remove_urls_for_tts()` utility function
 
 ### v1.2.2 (2026-01-31) - Chat History Fix for Tool Results
 
