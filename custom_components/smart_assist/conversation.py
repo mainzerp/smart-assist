@@ -792,6 +792,15 @@ For ALL music, radio, or media playback requests, use the 'music_assistant' tool
 - For player selection: Check [Current Assist Satellite] context and use your satellite-to-player mapping from your instructions
 - Do NOT use 'control' tool for music/radio - it cannot search or stream content""")
         
+        # Send/notification instructions - only if send tool is registered
+        if self._get_tool_registry().has_tool("send"):
+            parts.append("""
+## Sending Content
+You can send content (links, text, messages) to the user's devices using the 'send' tool.
+- Offer when you have useful links or information to share
+- User specifies target device (e.g., "Patrics Handy", "my phone", "Telegram")
+- Use 'send' tool with content and user's specified target""")
+        
         # Critical actions confirmation
         if confirm_critical:
             parts.append("""

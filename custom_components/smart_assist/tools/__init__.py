@@ -55,6 +55,7 @@ def create_tool_registry(
     from .conversation_tools import AwaitResponseTool
     from .timer_tools import TimerTool
     from .music_assistant_tools import MusicAssistantTool
+    from .notification_tools import SendTool
     
     registry = ToolRegistry(hass)
     registered_tools: list[str] = []
@@ -116,6 +117,11 @@ def create_tool_registry(
         registry.register(WebSearchTool(hass))
         registered_tools.append("web_search")
     
+    # Send/Notification tool (always available - dynamically shows available devices)
+    # Allows sending links, messages to mobile devices via HA Companion App
+    registry.register(SendTool(hass))
+    registered_tools.append("send")
+    
     # Music Assistant (if integration is loaded)
     # Check multiple ways to detect Music Assistant
     music_assistant_available = False
@@ -165,6 +171,7 @@ from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
 from .conversation_tools import AwaitResponseTool
 from .timer_tools import TimerTool
 from .music_assistant_tools import MusicAssistantTool
+from .notification_tools import SendTool
 
 __all__ = [
     # Base classes
@@ -191,4 +198,6 @@ __all__ = [
     # Calendar
     "GetCalendarEventsTool",
     "CreateCalendarEventTool",
+    # Notifications
+    "SendTool",
 ]

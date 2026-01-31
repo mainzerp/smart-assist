@@ -4,9 +4,33 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.1.3   | 2026-01-30 |
+| Smart Assist | 1.2.0   | 2026-01-31 |
 
 ## Version History
+
+### v1.2.0 (2026-01-31) - Send Tool for Notifications
+
+**New Feature: Universal Send Tool**
+
+Added `send` tool for sending content (links, messages) to notification targets:
+- Dynamically discovers all `notify.*` services (mobile apps, Telegram, email, groups, etc.)
+- LLM sees available targets in tool description
+- Can send links, reminders, or any text content
+- Supports single and multiple URLs with actionable notifications
+
+Example flow:
+1. LLM has useful information or links to share
+2. LLM offers: "Soll ich dir die Links schicken?"
+3. User responds: "Ja, auf Patrics Handy" or "Schick es an Telegram"
+4. LLM calls `send` tool with content and target
+5. User receives notification with clickable links
+
+Features:
+- Automatic URL extraction from content
+- Single URL: notification clickable to open link
+- Multiple URLs: action buttons for up to 3 links
+- Fuzzy matching for target names (e.g., "patrics_handy" matches "mobile_app_patrics_iphone")
+- Works with any HA notify service (mobile_app, telegram, email, groups, etc.)
 
 ### v1.1.3 (2026-01-30) - Follow-up Loop Protection
 
@@ -513,9 +537,11 @@ Example: `await_response(message="Which room?", reason="clarification")`
 **Implemented:**
 - ~~Voice Reminders~~ - Implemented in v1.0.23 (Timer with `command` parameter)
 - ~~Scheduled Tasks~~ - Implemented in v1.0.23 (Timer with `command` parameter, e.g., "Turn off lights in 2 hours")
+- ~~Universal Send Tool~~ - Implemented in v1.2.0 (`send` tool for notifications)
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
+| ~~Universal Send Tool~~ | `send` tool for delivering content (links, text) to notification targets. Supports all `notify.*` services (mobile_app, telegram, email, groups). LLM offers to send content, user specifies target. | ~~Done~~ |
 | Proactive Notifications | LLM-triggered alerts based on entity state changes | Medium |
 
 #### v1.3.0 - Media Enhancements
