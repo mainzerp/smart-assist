@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.4   | 2026-01-31 |
+| Smart Assist | 1.2.5   | 2026-01-31 |
 
 ## Version History
+
+### v1.2.5 (2026-01-31) - Language Consistency Fix
+
+**Fix: LLM No Longer Mixes Languages in Responses**
+
+- Strengthened language instruction in system prompt with [CRITICAL] marker
+- Removed English examples from follow-up behavior section that LLM was copying
+- Language instruction now explicitly covers follow-ups, confirmations, and errors
+- Added instruction to never mix languages in responses
 
 ### v1.2.4 (2026-01-31) - Concise Send Responses
 

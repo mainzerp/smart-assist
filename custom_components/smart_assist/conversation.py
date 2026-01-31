@@ -720,7 +720,11 @@ class SmartAssistConversationEntity(ConversationEntity):
         parts = []
         
         # Base prompt - minimal, role defined in user prompt
-        parts.append(f"You are a smart home assistant. {language_instruction}")
+        # Language instruction is emphasized and placed prominently
+        parts.append(f"""You are a smart home assistant.
+
+## LANGUAGE REQUIREMENT [CRITICAL]
+{language_instruction} This applies to ALL responses including follow-up questions, confirmations, and error messages. Never mix languages.""")
         
         # Response format guidelines
         parts.append("""
@@ -737,17 +741,16 @@ class SmartAssistConversationEntity(ConversationEntity):
 ## Follow-up Behavior
 - Offer follow-up when useful (ambiguous request, multiple options)
 - Do NOT offer follow-up for every simple action
+- For simple completed actions, just confirm briefly without asking follow-up
 
 ## MANDATORY: Questions Require await_response Tool
-EVERY question you ask MUST use the await_response tool. Without it, the user CANNOT respond.
+If you need to ask the user something, you MUST use the await_response tool.
+Without it, the user CANNOT respond to your question.
 
-WRONG (user cannot respond):
-"Is there anything else I can help with?"
+Example (note: always use the configured response language, not English):
+await_response(message="[your question in user's language]", reason="follow_up")
 
-CORRECT (user can respond):
-await_response(message="Is there anything else I can help with?", reason="follow_up")
-
-If your response ends with a question mark (?), you MUST call await_response with that question.""")
+If your response ends with a question mark (?), you MUST call await_response.""")
         else:
             parts.append("""
 ## Response Rules
