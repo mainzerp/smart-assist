@@ -61,6 +61,7 @@ class SendTool(BaseTool):
         """Initialize the send tool."""
         super().__init__(hass)
         self._cached_devices: list[str] | None = None
+        self._logged_services = False
     
     def _get_mobile_app_services(self) -> list[str]:
         """Get all available mobile_app notification services.
@@ -87,8 +88,26 @@ class SendTool(BaseTool):
         notify_services = self._hass.services.async_services().get("notify", {})
         return [name for name in notify_services if not name.startswith("mobile_app_")]
     
+    def _log_available_services(self) -> None:
+        """Log available notification services (once per session)."""
+        if self._logged_services:
+            return
+        
+        mobile_devices = self._get_mobile_app_services()
+        other_services = self._get_all_notify_services()
+        
+        _LOGGER.debug(
+            "Send tool - available notification targets: mobile_apps=%s, other_services=%s",
+            mobile_devices,
+            other_services,
+        )
+        self._logged_services = True
+    
     def get_schema(self) -> dict[str, Any]:
         """Get OpenAI-compatible tool schema with dynamic target list."""
+        # Log available services (once)
+        self._log_available_services()
+        
         # Get available devices and services for the description
         devices = self._get_mobile_app_services()
         other_services = self._get_all_notify_services()
@@ -205,8 +224,11 @@ class SendTool(BaseTool):
         Returns:
             ToolResult indicating success or failure
         """
+        _LOGGER.debug("Send tool called: target='%s', title='%s', content_length=%d", target, title, len(content))
+        
         # Find the matching notification service
         service_name = self._find_matching_service(target)
+        _LOGGER.debug("Target '%s' resolved to service: %s", target, service_name)
         
         if not service_name:
             available = self._get_mobile_app_services()
