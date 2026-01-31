@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.3   | 2026-01-31 |
+| Smart Assist | 1.2.4   | 2026-01-31 |
 
 ## Version History
+
+### v1.2.4 (2026-01-31) - Concise Send Responses
+
+**Improvement: LLM Responds Briefly After Sending**
+
+- Updated system prompt to instruct LLM to respond briefly after send actions
+- Example: "Sent to your Pixel" instead of repeating the sent content
+- User will see the content on their device, no need to read it aloud
 
 ### v1.2.3 (2026-01-31) - TTS URL Removal
 

@@ -801,10 +801,11 @@ For ALL music, radio, or media playback requests, use the 'music_assistant' tool
         if self._get_tool_registry().has_tool("send"):
             parts.append("""
 ## Sending Content
-You can send content (links, text, messages) to the user's devices using the 'send' tool.
+You can send content (links, text, messages) to devices using the 'send' tool.
 - Offer when you have useful links or information to share
 - User specifies target device (e.g., "Patrics Handy", "my phone", "Telegram")
-- Use 'send' tool with content and user's specified target""")
+- IMPORTANT: After sending, respond briefly: "Sent to [device]." or "I've sent it to your [device]."
+- Do NOT repeat the content in your spoken response - the user will see it on the device""")
         
         # Critical actions confirmation
         if confirm_critical:
