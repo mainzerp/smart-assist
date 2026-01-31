@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.0   | 2026-01-31 |
+| Smart Assist | 1.2.1   | 2026-01-31 |
 
 ## Version History
+
+### v1.2.1 (2026-01-31) - Send Tool Debug Logging
+
+**Improvement: Debug Logging for Send Tool**
+
+- Added debug logging for available notification targets (mobile apps, other services)
+- Logs target resolution when send tool is called
+- Helps troubleshoot device matching issues
 
 ### v1.2.0 (2026-01-31) - Send Tool for Notifications
 

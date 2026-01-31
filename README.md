@@ -52,6 +52,19 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Create Events**: Create timed or all-day events with fuzzy calendar matching
 - **Proactive Reminders**: Staged context injection (24h, 4h, 1h before events)
 
+### Send Content to Devices
+
+- **Universal Send Tool**: Send links, text, or messages to any notification target
+- **Mobile Apps**: Companion App notifications with clickable URLs
+- **Other Services**: Telegram, email, groups, or any HA notify service
+- **Smart Matching**: Say "send it to Patrics phone" and it finds `mobile_app_patrics_iphone`
+
+Example:
+1. Ask a question that requires web search
+2. LLM offers: "Want me to send you the links?"
+3. Say: "Yes, to my phone" or "Send it to Telegram"
+4. Receive notification with clickable links
+
 ### AI Task Platform
 
 - **Automation Integration**: Use LLM in automations via `ai_task.generate_data` service
