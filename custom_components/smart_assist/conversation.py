@@ -1026,6 +1026,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
 
         # 4. Conversation history from ChatLog (if available)
         # Placed BEFORE dynamic context to maximize cache prefix length
+        # IMPORTANT: Also include tool calls and results for context continuity
         if chat_log is not None:
             try:
                 max_history = int(self._get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY))
@@ -1045,14 +1046,63 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
                     if len(history_entries) > max_history:
                         history_entries = history_entries[-max_history:]
                     
+                    # Debug: log history entry types
+                    entry_types = [type(e).__name__ for e in history_entries]
+                    _LOGGER.debug("ChatLog history types: %s", entry_types)
+                    
                     for entry in history_entries:
-                        if hasattr(entry, 'content') and entry.content:
-                            # Check type by class name (safer than isinstance with potentially None types)
-                            entry_type = type(entry).__name__
-                            if entry_type == "UserContent":
+                        entry_type = type(entry).__name__
+                        
+                        if entry_type == "UserContent":
+                            if hasattr(entry, 'content') and entry.content:
                                 messages.append(ChatMessage(role=MessageRole.USER, content=entry.content))
-                            elif entry_type == "AssistantContent":
-                                messages.append(ChatMessage(role=MessageRole.ASSISTANT, content=entry.content))
+                        
+                        elif entry_type == "AssistantContent":
+                            # Process assistant content with potential tool calls
+                            assistant_content = getattr(entry, 'content', '') or ''
+                            tool_calls_list: list[ToolCall] = []
+                            
+                            # Extract tool calls from history for context
+                            if hasattr(entry, 'tool_calls') and entry.tool_calls:
+                                for tc in entry.tool_calls:
+                                    tool_calls_list.append(ToolCall(
+                                        id=getattr(tc, 'id', f"tc_{len(tool_calls_list)}"),
+                                        name=getattr(tc, 'tool_name', 'unknown'),
+                                        arguments=getattr(tc, 'tool_args', {}),
+                                    ))
+                            
+                            if assistant_content or tool_calls_list:
+                                messages.append(ChatMessage(
+                                    role=MessageRole.ASSISTANT,
+                                    content=assistant_content,
+                                    tool_calls=tool_calls_list if tool_calls_list else None,
+                                ))
+                        
+                        elif entry_type == "ToolResultContent":
+                            # Include tool results so LLM knows what tools returned
+                            tool_result = getattr(entry, 'tool_result', None)
+                            tool_name = getattr(entry, 'tool_name', 'unknown')
+                            tool_call_id = getattr(entry, 'id', 'unknown')
+                            
+                            # Format tool result as string
+                            result_content = ""
+                            if tool_result is not None:
+                                if isinstance(tool_result, str):
+                                    result_content = tool_result
+                                elif isinstance(tool_result, dict):
+                                    import json
+                                    result_content = json.dumps(tool_result, ensure_ascii=False)
+                                else:
+                                    result_content = str(tool_result)
+                            
+                            if result_content:
+                                messages.append(ChatMessage(
+                                    role=MessageRole.TOOL,
+                                    content=result_content,
+                                    tool_call_id=tool_call_id,
+                                    name=tool_name,
+                                ))
+                                
             except Exception as err:
                 _LOGGER.warning("Failed to process chat history: %s", err)
                 # Continue without history - don't fail the request

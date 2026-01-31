@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.1   | 2026-01-31 |
+| Smart Assist | 1.2.2   | 2026-01-31 |
 
 ## Version History
+
+### v1.2.2 (2026-01-31) - Chat History Fix for Tool Results
+
+**Fix: Tool Results Now Included in Conversation History**
+
+- Fixed issue where tool call results (e.g., web search results) were lost between conversation turns
+- LLM now receives full context including previous tool calls and their results
+- Enables proper follow-up conversations after tool executions (e.g., "send me the link" after a web search)
+- Added debug logging for chat history entry types
 
 ### v1.2.1 (2026-01-31) - Send Tool Debug Logging
 
