@@ -560,6 +560,7 @@ Example: `await_response(message="Which room?", reason="clarification")`
 | Multi-Language Switching | "Spreche jetzt Deutsch" - Switch language mid-conversation | Low |
 | Energy Dashboard | "How can I save energy?" - Consumption analysis with suggestions | Medium |
 | ~~Spotify Deep Integration~~ | ~~Play by playlist name, liked songs, artist radio~~ - Implemented in v1.0.24 (Music Assistant) | ~~Medium~~ |
+| Cancel Intent Handler | Custom handler for "Abbrechen"/"Cancel" that returns TTS confirmation instead of empty response (workaround for HA Core bug where HassNevermind leaves satellite hanging) | Low |
 
 ---
 
