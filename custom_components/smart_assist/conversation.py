@@ -480,18 +480,25 @@ class SmartAssistConversationEntity(ConversationEntity):
                 )
                 if response.content:
                     iteration_content = response.content
-                    # Add content to ChatLog so TTS can use it
-                    chat_log.async_add_assistant_content_without_tools(
-                        conversation.AssistantContent(
-                            agent_id=self.entity_id or "",
-                            content=iteration_content,
-                        )
-                    )
-                    # Important: Notify delta_listener so TTS stream receives the content
-                    # async_add_assistant_content_without_tools doesn't call delta_listener
+                    # Notify delta_listener for TTS streaming
+                    # This must happen before any ChatLog modifications
                     if chat_log.delta_listener:
                         chat_log.delta_listener(chat_log, {"role": "assistant"})
                         chat_log.delta_listener(chat_log, {"content": iteration_content})
+                    # Try to add to ChatLog, but don't fail if state is invalid
+                    # (ChatLog may already have content from previous iterations)
+                    try:
+                        chat_log.async_add_assistant_content_without_tools(
+                            conversation.AssistantContent(
+                                agent_id=self.entity_id or "",
+                                content=iteration_content,
+                            )
+                        )
+                    except Exception as chatlog_err:
+                        _LOGGER.debug(
+                            "[USER-REQUEST] Could not add to ChatLog (already has content): %s",
+                            chatlog_err
+                        )
                 if response.tool_calls:
                     for tc in response.tool_calls:
                         tool_calls.append(tc)
