@@ -66,9 +66,11 @@ Example workflow:
 3. Say: "Yes, to my phone" or "Send it to Telegram"
 4. Receive notification with clickable links
 
-#### Device Name Mappings
+#### Device Name Mappings (Optional)
 
-The send tool uses fuzzy matching to find the right notification service. For best results, add a mapping to your **User System Prompt** (in the integration configuration):
+The send tool uses fuzzy matching to automatically find the right notification service based on the device name. **Mappings are not required** - the tool will try to match phrases like "my phone" to services like `mobile_app_pixel_8a` automatically.
+
+However, for more reliable matching (especially with ambiguous names or multiple devices), you can add explicit mappings to your **User System Prompt** (in the integration configuration):
 
 ```text
 Device to Notification Service Mappings:
@@ -78,7 +80,7 @@ Device to Notification Service Mappings:
 - "family group" -> notify.family_group
 ```
 
-Now when you say "Send that to my phone", the assistant knows exactly which service to use.
+When you add these mappings, the LLM will use them directly from the system prompt context, making device selection more reliable.
 
 ### AI Task Platform
 
