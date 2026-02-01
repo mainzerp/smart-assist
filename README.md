@@ -31,7 +31,7 @@ Control your smart home with natural language. Uses **Groq API** for ultra-fast 
 
 Smart Assist automatically detects which satellite you're speaking to and injects it into the context. To enable automatic player selection, add a mapping to your **User System Prompt** (in the integration configuration):
 
-```
+```text
 Satellite to Media Player Mappings:
 - assist_satellite.satellite_kitchen -> media_player.kitchen_speaker
 - assist_satellite.satellite_living_room -> media_player.living_room_sonos
@@ -59,11 +59,26 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Other Services**: Telegram, email, groups, or any HA notify service
 - **Smart Matching**: Say "send it to Patrics phone" and it finds `mobile_app_patrics_iphone`
 
-Example:
+Example workflow:
+
 1. Ask a question that requires web search
 2. LLM offers: "Want me to send you the links?"
 3. Say: "Yes, to my phone" or "Send it to Telegram"
 4. Receive notification with clickable links
+
+#### Device Name Mappings
+
+The send tool uses fuzzy matching to find the right notification service. For best results, add a mapping to your **User System Prompt** (in the integration configuration):
+
+```text
+Device to Notification Service Mappings:
+- "patrics phone" or "my phone" -> notify.mobile_app_pixel_8a
+- "lauras iphone" or "lauras phone" -> notify.mobile_app_lauras_iphone
+- "telegram" -> notify.telegram
+- "family group" -> notify.family_group
+```
+
+Now when you say "Send that to my phone", the assistant knows exactly which service to use.
 
 ### AI Task Platform
 
@@ -203,6 +218,7 @@ Smart Assist provides these tools to the LLM:
 | ---- | ----------- |
 | `get_entities` | Query available entities by domain, area, or name |
 | `get_entity_state` | Get detailed entity state with attributes |
+| `get_entity_history` | Query historical entity states |
 | `control` | Unified control for lights, switches, climate, covers, media players, fans |
 | `run_scene` | Activate scenes |
 | `trigger_automation` | Trigger automations |
@@ -212,6 +228,7 @@ Smart Assist provides these tools to the LLM:
 | `create_calendar_event` | Create new calendar events (fuzzy calendar matching) |
 | `get_weather` | Current weather information |
 | `web_search` | DuckDuckGo web search |
+| `send` | Send links, text, or messages to any notification target |
 
 ## Supported Models
 
