@@ -474,6 +474,14 @@ class SmartAssistConversationEntity(ConversationEntity):
                 )
                 if response.content:
                     iteration_content = response.content
+                    # Important: Add the content to ChatLog so TTS can use it
+                    # (async_add_delta_content_stream would have done this automatically)
+                    chat_log.async_add_assistant_content_without_tools(
+                        conversation.AssistantContent(
+                            agent_id=self.entity_id or "",
+                            content=iteration_content,
+                        )
+                    )
                 if response.tool_calls:
                     for tc in response.tool_calls:
                         tool_calls.append(tc)

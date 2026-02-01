@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.6   | 2026-02-01 |
+| Smart Assist | 1.2.7   | 2026-02-01 |
 
 ## Version History
+
+### v1.2.7 (2026-02-01) - TTS Fallback Fix
+
+**Fix: TTS Not Working After Non-Streaming Fallback**
+
+- Fixed TTS not playing when streaming falls back to non-streaming
+- Fallback response is now properly added to ChatLog for TTS
+- Ensures voice confirmation after multi-tool execution (web_search + send)
 
 ### v1.2.6 (2026-02-01) - Streaming State Fix
 
