@@ -487,15 +487,23 @@ class SmartAssistConversationEntity(ConversationEntity):
                 # If this is the final iteration (has content, no tool calls),
                 # we need to properly trigger TTS streaming for Companion App
                 if iteration_content and not response.tool_calls:
-                    if chat_log.delta_listener:
-                        # Send role first
-                        chat_log.delta_listener(chat_log, {"role": "assistant"})
-                        # Pad content to exceed STREAM_RESPONSE_CHARS threshold (60)
-                        # This triggers tts_start_streaming for Companion App
-                        content_for_delta = iteration_content
-                        if len(content_for_delta) < 65:
-                            content_for_delta = content_for_delta + " " * (65 - len(content_for_delta))
-                        chat_log.delta_listener(chat_log, {"content": content_for_delta})
+                    try:
+                        if chat_log.delta_listener:
+                            # Send role first
+                            chat_log.delta_listener(chat_log, {"role": "assistant"})
+                            # Pad content to exceed STREAM_RESPONSE_CHARS threshold (60)
+                            # This triggers tts_start_streaming for Companion App
+                            content_for_delta = iteration_content
+                            if len(content_for_delta) < 65:
+                                content_for_delta = content_for_delta + " " * (65 - len(content_for_delta))
+                            chat_log.delta_listener(chat_log, {"content": content_for_delta})
+                    except Exception as delta_err:
+                        # delta_listener may throw if ChatLog is in invalid state
+                        # The content was likely already sent, so just log and continue
+                        _LOGGER.debug(
+                            "[USER-REQUEST] delta_listener error (content may still be delivered): %s",
+                            delta_err
+                        )
             
             # Update final content with this iteration's result
             if iteration_content:
