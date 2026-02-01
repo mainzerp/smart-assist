@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.7   | 2026-02-01 |
+| Smart Assist | 1.2.8   | 2026-02-01 |
 
 ## Version History
+
+### v1.2.8 (2026-02-01) - TTS Companion App Fix
+
+**Fix: TTS Hanging on Companion App After Tool Calls**
+
+- Only use streaming in the first LLM iteration
+- Subsequent iterations (after tool calls) use non-streaming
+- Prevents TTS pipeline issues when ChatLog receives multiple streams
+- Companion App now correctly plays TTS after web_search + send
 
 ### v1.2.7 (2026-02-01) - TTS Fallback Fix
 

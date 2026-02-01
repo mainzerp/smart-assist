@@ -435,47 +435,52 @@ class SmartAssistConversationEntity(ConversationEntity):
             iteration_content = ""
             tool_calls: list[ToolCall] = []
             
-            # Use our delta stream generator
-            # Wrap in try-except to handle potential ChatLog state issues
-            # when calling async_add_delta_content_stream multiple times
-            try:
-                async for content_or_result in chat_log.async_add_delta_content_stream(
-                    self.entity_id or "",
-                    self._create_delta_stream(
-                        messages=working_messages,
-                        tools=tools,
-                        cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
-                    ),
-                ):
-                    # async_add_delta_content_stream yields AssistantContent or ToolResultContent
-                    content_type = type(content_or_result).__name__
-                    if content_type == "AssistantContent":
-                        if content_or_result.content:
-                            iteration_content = content_or_result.content
-                        if content_or_result.tool_calls:
-                            # Convert HA ToolInput back to our ToolCall format for tool execution
-                            for tc in content_or_result.tool_calls:
-                                tool_calls.append(ToolCall(
-                                    id=tc.id,
-                                    name=tc.tool_name,
-                                    arguments=tc.tool_args,
-                                ))
-            except Exception as stream_err:
-                # ChatLog may throw "invalid state" on subsequent iterations
-                # Fall back to non-streaming approach for remaining iterations
-                _LOGGER.warning(
-                    "[USER-REQUEST] Stream error in iteration %d: %s. Falling back to non-streaming.",
-                    iteration, stream_err
-                )
-                # Use non-streaming call for this iteration
+            # Only use streaming in the first iteration
+            # Subsequent iterations after tool calls use non-streaming to avoid
+            # issues with ChatLog/TTS pipeline that expects a single stream
+            use_streaming = (iteration == 1)
+            
+            if use_streaming:
+                # Use streaming for the first iteration
+                try:
+                    async for content_or_result in chat_log.async_add_delta_content_stream(
+                        self.entity_id or "",
+                        self._create_delta_stream(
+                            messages=working_messages,
+                            tools=tools,
+                            cached_prefix_length=cached_prefix_length,
+                        ),
+                    ):
+                        # async_add_delta_content_stream yields AssistantContent or ToolResultContent
+                        content_type = type(content_or_result).__name__
+                        if content_type == "AssistantContent":
+                            if content_or_result.content:
+                                iteration_content = content_or_result.content
+                            if content_or_result.tool_calls:
+                                # Convert HA ToolInput back to our ToolCall format for tool execution
+                                for tc in content_or_result.tool_calls:
+                                    tool_calls.append(ToolCall(
+                                        id=tc.id,
+                                        name=tc.tool_name,
+                                        arguments=tc.tool_args,
+                                    ))
+                except Exception as stream_err:
+                    _LOGGER.warning(
+                        "[USER-REQUEST] Stream error in iteration %d: %s. Falling back to non-streaming.",
+                        iteration, stream_err
+                    )
+                    use_streaming = False  # Fall through to non-streaming below
+            
+            if not use_streaming:
+                # Non-streaming for iterations after tool calls
+                # This avoids issues with ChatLog expecting a single stream
                 response = await self._llm_client.chat(
                     messages=working_messages,
                     tools=tools,
                 )
                 if response.content:
                     iteration_content = response.content
-                    # Important: Add the content to ChatLog so TTS can use it
-                    # (async_add_delta_content_stream would have done this automatically)
+                    # Add content to ChatLog so TTS can use it
                     chat_log.async_add_assistant_content_without_tools(
                         conversation.AssistantContent(
                             agent_id=self.entity_id or "",
