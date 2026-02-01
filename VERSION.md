@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.8   | 2026-02-01 |
+| Smart Assist | 1.2.9   | 2026-02-01 |
 
 ## Version History
+
+### v1.2.9 (2026-02-01) - TTS Delta Listener Fix
+
+**Fix: TTS Streaming After Non-Streaming Iterations**
+
+- Non-streaming responses now notify ChatLog's delta_listener
+- TTS stream receives content even when using non-streaming fallback
+- Fixes TTS hanging on Companion App after tool calls (web_search + send)
 
 ### v1.2.8 (2026-02-01) - TTS Companion App Fix
 

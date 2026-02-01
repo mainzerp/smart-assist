@@ -487,6 +487,11 @@ class SmartAssistConversationEntity(ConversationEntity):
                             content=iteration_content,
                         )
                     )
+                    # Important: Notify delta_listener so TTS stream receives the content
+                    # async_add_assistant_content_without_tools doesn't call delta_listener
+                    if chat_log.delta_listener:
+                        chat_log.delta_listener(chat_log, {"role": "assistant"})
+                        chat_log.delta_listener(chat_log, {"content": iteration_content})
                 if response.tool_calls:
                     for tc in response.tool_calls:
                         tool_calls.append(tc)
