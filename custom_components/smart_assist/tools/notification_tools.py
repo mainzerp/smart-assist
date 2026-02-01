@@ -144,9 +144,9 @@ class SendTool(BaseTool):
             if param.enum:
                 prop["enum"] = param.enum
             
-            # Add target enum for better LLM selection (prefer mobile devices)
+            # For target parameter: list available targets in description but don't use enum
+            # This allows fuzzy matching (e.g., "notify.mobile_app_pixel_8a" -> "pixel_8a")
             if param.name == "target" and all_targets:
-                prop["enum"] = all_targets
                 prop["description"] = f"Target device or service. Available: {', '.join(all_targets)}"
             
             properties[param.name] = prop
@@ -175,7 +175,7 @@ class SendTool(BaseTool):
         """Find the notification service matching the target.
         
         Args:
-            target: User-provided target (e.g., 'patrics_iphone', 'patrics_handy')
+            target: User-provided target (e.g., 'patrics_iphone', 'notify.mobile_app_pixel_8a')
             
         Returns:
             Full service name (e.g., 'mobile_app_patrics_iphone') or None
@@ -184,6 +184,14 @@ class SendTool(BaseTool):
         
         # Normalize target for matching
         target_lower = target.lower().replace(" ", "_").replace("-", "_")
+        
+        # 0. Handle full service path: notify.mobile_app_xxx or notify.xxx
+        if target_lower.startswith("notify."):
+            service_name = target_lower.replace("notify.", "", 1)
+            if service_name in notify_services:
+                return service_name
+            # Also try without mobile_app_ prefix in case LLM added it redundantly
+            target_lower = service_name
         
         # 1. Exact match for mobile_app_<target>
         mobile_app_service = f"mobile_app_{target_lower}"
