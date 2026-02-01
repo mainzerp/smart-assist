@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.5   | 2026-01-31 |
+| Smart Assist | 1.2.6   | 2026-02-01 |
 
 ## Version History
+
+### v1.2.6 (2026-02-01) - Streaming State Fix
+
+**Fix: "Invalid State" Error After Multi-Tool Execution**
+
+- Fixed error when LLM performs multiple tool calls (e.g., web_search then send)
+- ChatLog streaming now falls back to non-streaming on subsequent iterations
+- Prevents "invalid state" exception from HA ChatLog API
+- Ensures user gets confirmation after successful tool execution
 
 ### v1.2.5 (2026-01-31) - Language Consistency Fix
 

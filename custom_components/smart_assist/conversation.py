@@ -436,27 +436,47 @@ class SmartAssistConversationEntity(ConversationEntity):
             tool_calls: list[ToolCall] = []
             
             # Use our delta stream generator
-            async for content_or_result in chat_log.async_add_delta_content_stream(
-                self.entity_id or "",
-                self._create_delta_stream(
+            # Wrap in try-except to handle potential ChatLog state issues
+            # when calling async_add_delta_content_stream multiple times
+            try:
+                async for content_or_result in chat_log.async_add_delta_content_stream(
+                    self.entity_id or "",
+                    self._create_delta_stream(
+                        messages=working_messages,
+                        tools=tools,
+                        cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
+                    ),
+                ):
+                    # async_add_delta_content_stream yields AssistantContent or ToolResultContent
+                    content_type = type(content_or_result).__name__
+                    if content_type == "AssistantContent":
+                        if content_or_result.content:
+                            iteration_content = content_or_result.content
+                        if content_or_result.tool_calls:
+                            # Convert HA ToolInput back to our ToolCall format for tool execution
+                            for tc in content_or_result.tool_calls:
+                                tool_calls.append(ToolCall(
+                                    id=tc.id,
+                                    name=tc.tool_name,
+                                    arguments=tc.tool_args,
+                                ))
+            except Exception as stream_err:
+                # ChatLog may throw "invalid state" on subsequent iterations
+                # Fall back to non-streaming approach for remaining iterations
+                _LOGGER.warning(
+                    "[USER-REQUEST] Stream error in iteration %d: %s. Falling back to non-streaming.",
+                    iteration, stream_err
+                )
+                # Use non-streaming call for this iteration
+                response = await self._llm_client.chat(
                     messages=working_messages,
                     tools=tools,
-                    cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
-                ),
-            ):
-                # async_add_delta_content_stream yields AssistantContent or ToolResultContent
-                content_type = type(content_or_result).__name__
-                if content_type == "AssistantContent":
-                    if content_or_result.content:
-                        iteration_content = content_or_result.content
-                    if content_or_result.tool_calls:
-                        # Convert HA ToolInput back to our ToolCall format for tool execution
-                        for tc in content_or_result.tool_calls:
-                            tool_calls.append(ToolCall(
-                                id=tc.id,
-                                name=tc.tool_name,
-                                arguments=tc.tool_args,
-                            ))
+                )
+                if response.content:
+                    iteration_content = response.content
+                if response.tool_calls:
+                    for tc in response.tool_calls:
+                        tool_calls.append(tc)
             
             # Update final content with this iteration's result
             if iteration_content:
