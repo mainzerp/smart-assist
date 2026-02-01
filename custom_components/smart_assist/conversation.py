@@ -480,18 +480,29 @@ class SmartAssistConversationEntity(ConversationEntity):
                 )
                 if response.content:
                     iteration_content = response.content
-                    # Notify delta_listener for TTS streaming
-                    # This must happen before any ChatLog modifications
+                if response.tool_calls:
+                    for tc in response.tool_calls:
+                        tool_calls.append(tc)
+                
+                # If this is the final iteration (has content, no tool calls),
+                # we need to properly trigger TTS streaming via delta_listener
+                if iteration_content and not response.tool_calls:
                     if chat_log.delta_listener:
+                        # Send role first
                         chat_log.delta_listener(chat_log, {"role": "assistant"})
-                        chat_log.delta_listener(chat_log, {"content": iteration_content})
-                    # Try to add to ChatLog, but don't fail if state is invalid
-                    # (ChatLog may already have content from previous iterations)
+                        # Send content - Pipeline needs >60 chars or text+tool_call to trigger TTS streaming
+                        # If content is short, pad it with spaces (which won't be spoken) to trigger threshold
+                        content_for_delta = iteration_content
+                        if len(content_for_delta) < 65:
+                            # Pad with spaces to exceed STREAM_RESPONSE_CHARS threshold (60)
+                            content_for_delta = content_for_delta + " " * (65 - len(content_for_delta))
+                        chat_log.delta_listener(chat_log, {"content": content_for_delta})
+                    # Try to add to ChatLog for history
                     try:
                         chat_log.async_add_assistant_content_without_tools(
                             conversation.AssistantContent(
                                 agent_id=self.entity_id or "",
-                                content=iteration_content,
+                                content=iteration_content,  # Use original content, not padded
                             )
                         )
                     except Exception as chatlog_err:
@@ -499,9 +510,6 @@ class SmartAssistConversationEntity(ConversationEntity):
                             "[USER-REQUEST] Could not add to ChatLog (already has content): %s",
                             chatlog_err
                         )
-                if response.tool_calls:
-                    for tc in response.tool_calls:
-                        tool_calls.append(tc)
             
             # Update final content with this iteration's result
             if iteration_content:
