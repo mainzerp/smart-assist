@@ -486,34 +486,16 @@ class SmartAssistConversationEntity(ConversationEntity):
                 
                 # If this is the final iteration (has content, no tool calls),
                 # we need to properly trigger TTS streaming for Companion App
-                # The Pipeline only starts TTS streaming when it receives deltas through
-                # async_add_delta_content_stream, not through manual delta_listener calls
                 if iteration_content and not response.tool_calls:
-                    # Create a simple async generator that yields the content
-                    async def _final_content_stream():
+                    if chat_log.delta_listener:
+                        # Send role first
+                        chat_log.delta_listener(chat_log, {"role": "assistant"})
                         # Pad content to exceed STREAM_RESPONSE_CHARS threshold (60)
-                        content = iteration_content
-                        if len(content) < 65:
-                            content = content + " " * (65 - len(content))
-                        yield {"role": "assistant"}
-                        yield {"content": content}
-                    
-                    # Stream the final content through ChatLog to trigger TTS
-                    try:
-                        async for _ in chat_log.async_add_delta_content_stream(
-                            self.entity_id or "",
-                            _final_content_stream(),
-                        ):
-                            pass  # Just consume the stream
-                    except Exception as stream_err:
-                        _LOGGER.debug(
-                            "[USER-REQUEST] Could not stream final content: %s. Using fallback.",
-                            stream_err
-                        )
-                        # Fallback: try manual delta_listener
-                        if chat_log.delta_listener:
-                            chat_log.delta_listener(chat_log, {"role": "assistant"})
-                            chat_log.delta_listener(chat_log, {"content": iteration_content})
+                        # This triggers tts_start_streaming for Companion App
+                        content_for_delta = iteration_content
+                        if len(content_for_delta) < 65:
+                            content_for_delta = content_for_delta + " " * (65 - len(content_for_delta))
+                        chat_log.delta_listener(chat_log, {"content": content_for_delta})
             
             # Update final content with this iteration's result
             if iteration_content:
