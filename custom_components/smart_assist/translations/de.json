@@ -29,17 +29,23 @@
         }
       },
       "reconfigure": {
-        "title": "API Keys aktualisieren",
-        "description": "Aktualisiere deine API Keys und Ollama URL. Lasse Felder leer um bestehende Werte zu behalten.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}\n**Ollama URL**: {ollama_status}",
+        "title": "API Keys & Ollama Einstellungen",
+        "description": "Aktualisiere deine API Keys und Ollama Einstellungen. Lasse API Key Felder leer um bestehende Werte zu behalten.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}\n**Ollama URL**: {ollama_status}",
         "data": {
           "groq_api_key": "Neuer Groq API Key",
           "api_key": "Neuer OpenRouter API Key",
-          "ollama_url": "Neue Ollama URL"
+          "ollama_url": "Neue Ollama URL",
+          "ollama_num_ctx": "Kontextfenstergroesse",
+          "ollama_keep_alive": "Modell geladen halten",
+          "ollama_timeout": "Timeout (Sekunden)"
         },
         "data_description": {
           "groq_api_key": "Gib einen neuen Groq API Key ein oder lasse das Feld leer um den aktuellen zu behalten.",
           "api_key": "Gib einen neuen OpenRouter API Key ein oder lasse das Feld leer um den aktuellen zu behalten.",
-          "ollama_url": "Gib eine neue Ollama URL ein oder lasse das Feld leer um die aktuelle zu behalten."
+          "ollama_url": "Gib eine neue Ollama URL ein oder lasse das Feld leer um die aktuelle zu behalten.",
+          "ollama_num_ctx": "Kontextfenstergroesse in Token. Groesser = mehr Kontext aber mehr RAM.",
+          "ollama_keep_alive": "Wie lange das Modell nach einer Anfrage im Speicher geladen bleibt.",
+          "ollama_timeout": "Maximale Wartezeit auf Antwort von Ollama (in Sekunden)."
         }
       }
     },

@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.5   | 2026-02-03 |
+| Smart Assist | 1.4.6   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.6 (2026-02-03) - Ollama Settings in Reconfigure
+
+**Feature: Ollama Settings Configurable via Reconfigure**
+
+- Added Context Window Size (num_ctx) to reconfigure form
+- Added Keep Model Loaded (keep_alive) dropdown to reconfigure form
+- Added Request Timeout to reconfigure form
+- Users can now adjust Ollama settings without removing and re-adding the integration
 
 ### v1.4.5 (2026-02-03) - Tool Call Compatibility Fix
 

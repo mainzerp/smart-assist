@@ -629,6 +629,9 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
         current_groq_key = reconfigure_entry.data.get(CONF_GROQ_API_KEY, "")
         current_openrouter_key = reconfigure_entry.data.get(CONF_API_KEY, "")
         current_ollama_url = reconfigure_entry.data.get(CONF_OLLAMA_URL, "")
+        current_ollama_num_ctx = reconfigure_entry.data.get(CONF_OLLAMA_NUM_CTX, OLLAMA_DEFAULT_NUM_CTX)
+        current_ollama_keep_alive = reconfigure_entry.data.get(CONF_OLLAMA_KEEP_ALIVE, OLLAMA_DEFAULT_KEEP_ALIVE)
+        current_ollama_timeout = reconfigure_entry.data.get(CONF_OLLAMA_TIMEOUT, OLLAMA_DEFAULT_TIMEOUT)
         
         if user_input is not None:
             new_data = dict(reconfigure_entry.data)
@@ -657,6 +660,11 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     errors["ollama_url"] = "ollama_connection_failed"
             
+            # Update Ollama settings (no validation needed, they have defaults)
+            new_data[CONF_OLLAMA_NUM_CTX] = user_input.get(CONF_OLLAMA_NUM_CTX, current_ollama_num_ctx)
+            new_data[CONF_OLLAMA_KEEP_ALIVE] = user_input.get(CONF_OLLAMA_KEEP_ALIVE, current_ollama_keep_alive)
+            new_data[CONF_OLLAMA_TIMEOUT] = user_input.get(CONF_OLLAMA_TIMEOUT, current_ollama_timeout)
+            
             if not errors:
                 return self.async_update_reload_and_abort(
                     reconfigure_entry,
@@ -680,6 +688,24 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_OLLAMA_URL, default=""): TextSelector(
                     TextSelectorConfig(type=TextSelectorType.URL)
+                ),
+                vol.Optional(CONF_OLLAMA_NUM_CTX, default=current_ollama_num_ctx): NumberSelector(
+                    NumberSelectorConfig(min=1024, max=131072, step=1024, mode=NumberSelectorMode.BOX)
+                ),
+                vol.Optional(CONF_OLLAMA_KEEP_ALIVE, default=current_ollama_keep_alive): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            SelectOptionDict(value="-1", label="Forever (keep loaded)"),
+                            SelectOptionDict(value="5m", label="5 minutes"),
+                            SelectOptionDict(value="30m", label="30 minutes"),
+                            SelectOptionDict(value="1h", label="1 hour"),
+                            SelectOptionDict(value="0", label="Unload immediately"),
+                        ],
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Optional(CONF_OLLAMA_TIMEOUT, default=current_ollama_timeout): NumberSelector(
+                    NumberSelectorConfig(min=30, max=600, step=30, mode=NumberSelectorMode.BOX)
                 ),
             }),
             errors=errors,
