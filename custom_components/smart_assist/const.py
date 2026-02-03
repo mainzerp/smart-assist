@@ -32,6 +32,13 @@ CONF_TASK_ENABLE_CACHE_WARMING: Final = "task_enable_cache_warming"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_CALENDAR_CONTEXT: Final = "calendar_context"
 
+# Ollama configuration keys
+CONF_OLLAMA_URL: Final = "ollama_url"
+CONF_OLLAMA_MODEL: Final = "ollama_model"
+CONF_OLLAMA_KEEP_ALIVE: Final = "ollama_keep_alive"
+CONF_OLLAMA_NUM_CTX: Final = "ollama_num_ctx"
+CONF_OLLAMA_TIMEOUT: Final = "ollama_timeout"
+
 # Default values
 DEFAULT_MODEL: Final = "openai/gpt-oss-120b"
 DEFAULT_PROVIDER: Final = "groq"
@@ -88,6 +95,13 @@ OPENROUTER_API_URL: Final = f"{OPENROUTER_API_BASE}/chat/completions"
 GROQ_API_BASE: Final = "https://api.groq.com/openai/v1"
 GROQ_API_URL: Final = f"{GROQ_API_BASE}/chat/completions"
 
+# Ollama API (local)
+OLLAMA_DEFAULT_URL: Final = "http://localhost:11434"
+OLLAMA_DEFAULT_MODEL: Final = "llama3.1:8b"
+OLLAMA_DEFAULT_KEEP_ALIVE: Final = "-1"  # Keep model loaded indefinitely
+OLLAMA_DEFAULT_NUM_CTX: Final = 8192  # Context window size
+OLLAMA_DEFAULT_TIMEOUT: Final = 120  # Seconds (local inference can be slow)
+
 # LLM API Configuration
 LLM_MAX_RETRIES: Final = 3
 LLM_RETRY_BASE_DELAY: Final = 1.0  # seconds
@@ -98,9 +112,11 @@ LLM_RETRIABLE_STATUS_CODES: Final = frozenset({429, 500, 502, 503, 504})
 # LLM Provider types
 LLM_PROVIDER_OPENROUTER: Final = "openrouter"
 LLM_PROVIDER_GROQ: Final = "groq"
+LLM_PROVIDER_OLLAMA: Final = "ollama"
 LLM_PROVIDERS: Final = {
     LLM_PROVIDER_OPENROUTER: "OpenRouter (All Models)",
     LLM_PROVIDER_GROQ: "Groq (Direct, Ultra Fast)",
+    LLM_PROVIDER_OLLAMA: "Ollama (Local, Private)",
 }
 
 # Model prefixes that support prompt caching

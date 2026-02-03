@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Select LLM Provider",
-        "description": "Choose your preferred LLM provider.\n\n**Groq**: Ultra-fast inference with automatic caching (recommended)\n**OpenRouter**: Access to all models (Claude, GPT-4, Llama, etc.)",
+        "description": "Choose your preferred LLM provider.\n\n**Groq**: Ultra-fast inference with automatic caching (recommended)\n**OpenRouter**: Access to all models (Claude, GPT-4, Llama, etc.)\n**Ollama**: Local, private inference (no cloud, no API key needed)",
         "data": {
           "llm_provider": "LLM Provider"
         }
@@ -13,25 +13,40 @@
         "description": "Enter your API key. You can get one at {docs_url}",
         "data": {
           "api_key": "OpenRouter API Key",
-          "groq_api_key": "Groq API Key"
+          "groq_api_key": "Groq API Key",
+          "ollama_url": "Ollama Server URL",
+          "ollama_model": "Ollama Model",
+          "ollama_keep_alive": "Keep Model Loaded",
+          "ollama_num_ctx": "Context Window Size",
+          "ollama_timeout": "Request Timeout (seconds)"
+        },
+        "data_description": {
+          "ollama_url": "URL of your Ollama server (default: http://localhost:11434)",
+          "ollama_model": "Select a model from your local Ollama installation",
+          "ollama_keep_alive": "How long to keep the model in memory (-1 = forever)",
+          "ollama_num_ctx": "Context window size in tokens (default: 8192)",
+          "ollama_timeout": "Maximum time to wait for a response (default: 120s)"
         }
       },
       "reconfigure": {
         "title": "Update API Keys",
-        "description": "Update your API keys. Leave fields empty to keep existing keys.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}",
+        "description": "Update your API keys and Ollama URL. Leave fields empty to keep existing values.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}\n**Ollama URL**: {ollama_status}",
         "data": {
           "groq_api_key": "New Groq API Key",
-          "api_key": "New OpenRouter API Key"
+          "api_key": "New OpenRouter API Key",
+          "ollama_url": "New Ollama URL"
         },
         "data_description": {
           "groq_api_key": "Enter a new Groq API key or leave empty to keep the current one.",
-          "api_key": "Enter a new OpenRouter API key or leave empty to keep the current one."
+          "api_key": "Enter a new OpenRouter API key or leave empty to keep the current one.",
+          "ollama_url": "Enter a new Ollama URL or leave empty to keep the current one."
         }
       }
     },
     "error": {
       "invalid_api_key": "Invalid OpenRouter API key. Please check and try again.",
       "invalid_groq_api_key": "Invalid Groq API key. Please check and try again.",
+      "ollama_connection_failed": "Cannot connect to Ollama server. Make sure Ollama is running at the specified URL.",
       "groq_api_key_required": "Groq API key is required for Groq provider.",
       "no_api_key": "At least one API key (OpenRouter or Groq) is required.",
       "cannot_connect": "Cannot connect to API.",
@@ -65,13 +80,13 @@
       "step": {
         "user": {
           "title": "LLM Provider Selection",
-          "description": "Select the LLM provider for this conversation agent.\n\n**OpenRouter**: Access to all models (Claude, GPT-4, Llama, etc.) via a unified API.\n**Groq**: Direct connection for ultra-fast inference with automatic caching.",
+          "description": "Select the LLM provider for this conversation agent.\n\n**OpenRouter**: Access to all models (Claude, GPT-4, Llama, etc.) via a unified API.\n**Groq**: Direct connection for ultra-fast inference with automatic caching.\n**Ollama**: Local, private inference without cloud dependency.",
           "data": {
             "llm_provider": "LLM Provider",
             "groq_api_key": "Groq API Key"
           },
           "data_description": {
-            "llm_provider": "Select OpenRouter for model variety or Groq for fastest inference.",
+            "llm_provider": "Select OpenRouter for model variety, Groq for fastest inference, or Ollama for local privacy.",
             "groq_api_key": "Enter your Groq API key (get one at console.groq.com)."
           }
         },

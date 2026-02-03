@@ -65,6 +65,11 @@ try:
         CONF_MAX_HISTORY,
         CONF_MAX_TOKENS,
         CONF_MODEL,
+        CONF_OLLAMA_KEEP_ALIVE,
+        CONF_OLLAMA_MODEL,
+        CONF_OLLAMA_NUM_CTX,
+        CONF_OLLAMA_TIMEOUT,
+        CONF_OLLAMA_URL,
         CONF_PROVIDER,
         CONF_TASK_ENABLE_CACHE_WARMING,
         CONF_TASK_ENABLE_PROMPT_CACHING,
@@ -93,8 +98,14 @@ try:
         DOMAIN,
         GROQ_API_URL,
         LLM_PROVIDER_GROQ,
+        LLM_PROVIDER_OLLAMA,
         LLM_PROVIDER_OPENROUTER,
         LLM_PROVIDERS,
+        OLLAMA_DEFAULT_KEEP_ALIVE,
+        OLLAMA_DEFAULT_MODEL,
+        OLLAMA_DEFAULT_NUM_CTX,
+        OLLAMA_DEFAULT_TIMEOUT,
+        OLLAMA_DEFAULT_URL,
         OPENROUTER_API_BASE,
         OPENROUTER_API_URL,
         PROVIDERS,
@@ -233,6 +244,73 @@ async def validate_groq_api_key(api_key: str) -> bool:
                 return response.status == 200
     except (aiohttp.ClientError, TimeoutError):
         return False
+
+
+async def validate_ollama_connection(base_url: str) -> bool:
+    """Validate connection to Ollama server."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{base_url.rstrip('/')}/api/tags",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as response:
+                return response.status == 200
+    except (aiohttp.ClientError, TimeoutError):
+        return False
+
+
+async def fetch_ollama_models(base_url: str) -> list[dict[str, str]]:
+    """Fetch available models from Ollama server.
+    
+    Returns list of {"value": model_name, "label": display_name} dicts.
+    Falls back to default models on error.
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{base_url.rstrip('/')}/api/tags",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as response:
+                if response.status != 200:
+                    _LOGGER.warning("Failed to fetch models from Ollama: %s", response.status)
+                    return _get_ollama_fallback_models()
+                
+                data = await response.json()
+                models = data.get("models", [])
+                
+                if not models:
+                    return _get_ollama_fallback_models()
+                
+                # Format for selector with size info
+                model_options = []
+                for model in sorted(models, key=lambda m: m.get("name", "")):
+                    model_name = model.get("name", "")
+                    size_bytes = model.get("size", 0)
+                    size_gb = size_bytes / (1024 ** 3) if size_bytes else 0
+                    
+                    if size_gb > 0:
+                        label = f"{model_name} ({size_gb:.1f} GB)"
+                    else:
+                        label = model_name
+                    
+                    model_options.append({"value": model_name, "label": label})
+                
+                _LOGGER.debug("Fetched %d models from Ollama", len(model_options))
+                return model_options if model_options else _get_ollama_fallback_models()
+                
+    except (aiohttp.ClientError, TimeoutError, Exception) as err:
+        _LOGGER.warning("Error fetching models from Ollama: %s", err)
+        return _get_ollama_fallback_models()
+
+
+def _get_ollama_fallback_models() -> list[dict[str, str]]:
+    """Get fallback Ollama model list when server is unavailable."""
+    return [
+        {"value": OLLAMA_DEFAULT_MODEL, "label": f"{OLLAMA_DEFAULT_MODEL} (default)"},
+        {"value": "mistral:7b", "label": "mistral:7b"},
+        {"value": "qwen2.5:7b", "label": "qwen2.5:7b"},
+        {"value": "llama3.2:3b", "label": "llama3.2:3b"},
+    ]
 
 
 async def fetch_groq_models(api_key: str) -> list[dict[str, str]]:
@@ -409,6 +487,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
         llm_provider_options = [
             {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
             {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
+            {"value": LLM_PROVIDER_OLLAMA, "label": LLM_PROVIDERS[LLM_PROVIDER_OLLAMA]},
         ]
 
         return self.async_show_form(
@@ -428,7 +507,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_api_key(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle step 2 - API key entry for selected provider."""
+        """Handle step 2 - API key entry or Ollama configuration for selected provider."""
         errors: dict[str, str] = {}
         llm_provider = self._data.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
 
@@ -444,6 +523,20 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                             data=self._data,
                         )
                     errors["base"] = "invalid_groq_api_key"
+                elif llm_provider == LLM_PROVIDER_OLLAMA:
+                    ollama_url = user_input.get(CONF_OLLAMA_URL, OLLAMA_DEFAULT_URL).strip()
+                    if await validate_ollama_connection(ollama_url):
+                        self._data[CONF_OLLAMA_URL] = ollama_url
+                        self._data[CONF_OLLAMA_MODEL] = user_input.get(CONF_OLLAMA_MODEL, OLLAMA_DEFAULT_MODEL)
+                        self._data[CONF_OLLAMA_KEEP_ALIVE] = user_input.get(CONF_OLLAMA_KEEP_ALIVE, OLLAMA_DEFAULT_KEEP_ALIVE)
+                        self._data[CONF_OLLAMA_NUM_CTX] = user_input.get(CONF_OLLAMA_NUM_CTX, OLLAMA_DEFAULT_NUM_CTX)
+                        self._data[CONF_OLLAMA_TIMEOUT] = user_input.get(CONF_OLLAMA_TIMEOUT, OLLAMA_DEFAULT_TIMEOUT)
+                        _LOGGER.info("Smart Assist: Ollama connection valid, creating entry")
+                        return self.async_create_entry(
+                            title="Smart Assist (Ollama)",
+                            data=self._data,
+                        )
+                    errors["base"] = "ollama_connection_failed"
                 else:
                     api_key = user_input.get(CONF_API_KEY, "").strip()
                     if await validate_api_key(api_key):
@@ -455,7 +548,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                         )
                     errors["base"] = "invalid_api_key"
 
-            # Show appropriate API key field based on selected provider
+            # Show appropriate form based on selected provider
             if llm_provider == LLM_PROVIDER_GROQ:
                 schema = vol.Schema({
                     vol.Required(CONF_GROQ_API_KEY): TextSelector(
@@ -463,6 +556,51 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                     ),
                 })
                 placeholders = {"docs_url": "https://console.groq.com/keys"}
+            elif llm_provider == LLM_PROVIDER_OLLAMA:
+                # Fetch available models for the dropdown
+                ollama_url = OLLAMA_DEFAULT_URL
+                ollama_models = await fetch_ollama_models(ollama_url)
+                
+                schema = vol.Schema({
+                    vol.Required(CONF_OLLAMA_URL, default=OLLAMA_DEFAULT_URL): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.URL)
+                    ),
+                    vol.Required(CONF_OLLAMA_MODEL, default=OLLAMA_DEFAULT_MODEL): SelectSelector(
+                        SelectSelectorConfig(
+                            options=ollama_models,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            custom_value=True,
+                        )
+                    ),
+                    vol.Optional(CONF_OLLAMA_KEEP_ALIVE, default=OLLAMA_DEFAULT_KEEP_ALIVE): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                {"value": "-1", "label": "Keep loaded (recommended)"},
+                                {"value": "5m", "label": "5 minutes"},
+                                {"value": "30m", "label": "30 minutes"},
+                                {"value": "1h", "label": "1 hour"},
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                    vol.Optional(CONF_OLLAMA_NUM_CTX, default=OLLAMA_DEFAULT_NUM_CTX): NumberSelector(
+                        NumberSelectorConfig(
+                            min=1024,
+                            max=131072,
+                            step=1024,
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Optional(CONF_OLLAMA_TIMEOUT, default=OLLAMA_DEFAULT_TIMEOUT): NumberSelector(
+                        NumberSelectorConfig(
+                            min=30,
+                            max=600,
+                            step=10,
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                })
+                placeholders = {"docs_url": "https://ollama.com/download"}
             else:
                 schema = vol.Schema({
                     vol.Required(CONF_API_KEY): TextSelector(
@@ -484,12 +622,13 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle reconfiguration of API keys."""
+        """Handle reconfiguration of API keys and Ollama settings."""
         errors: dict[str, str] = {}
         
         reconfigure_entry = self._get_reconfigure_entry()
         current_groq_key = reconfigure_entry.data.get(CONF_GROQ_API_KEY, "")
         current_openrouter_key = reconfigure_entry.data.get(CONF_API_KEY, "")
+        current_ollama_url = reconfigure_entry.data.get(CONF_OLLAMA_URL, "")
         
         if user_input is not None:
             new_data = dict(reconfigure_entry.data)
@@ -510,6 +649,14 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     errors["api_key"] = "invalid_api_key"
             
+            # Validate and update Ollama URL if provided
+            new_ollama_url = user_input.get(CONF_OLLAMA_URL, "").strip()
+            if new_ollama_url:
+                if await validate_ollama_connection(new_ollama_url):
+                    new_data[CONF_OLLAMA_URL] = new_ollama_url
+                else:
+                    errors["ollama_url"] = "ollama_connection_failed"
+            
             if not errors:
                 return self.async_update_reload_and_abort(
                     reconfigure_entry,
@@ -520,6 +667,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
         # Mask existing keys to show they are configured
         groq_hint = "(configured)" if current_groq_key else "(not set)"
         openrouter_hint = "(configured)" if current_openrouter_key else "(not set)"
+        ollama_hint = f"({current_ollama_url})" if current_ollama_url else "(not set)"
         
         return self.async_show_form(
             step_id="reconfigure",
@@ -530,11 +678,15 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_API_KEY, default=""): TextSelector(
                     TextSelectorConfig(type=TextSelectorType.PASSWORD)
                 ),
+                vol.Optional(CONF_OLLAMA_URL, default=""): TextSelector(
+                    TextSelectorConfig(type=TextSelectorType.URL)
+                ),
             }),
             errors=errors,
             description_placeholders={
                 "groq_status": groq_hint,
                 "openrouter_status": openrouter_hint,
+                "ollama_status": ollama_hint,
             },
         )
 
@@ -561,10 +713,29 @@ class SmartAssistSubentryFlowHandler(ConfigSubentryFlow):
                 _LOGGER.debug("Using legacy API key location for Groq")
         return groq_key
     
+    def _get_ollama_config(self) -> dict[str, Any]:
+        """Get Ollama configuration from parent config entry."""
+        entry = self._get_entry()
+        return {
+            CONF_OLLAMA_URL: entry.data.get(CONF_OLLAMA_URL, OLLAMA_DEFAULT_URL),
+            CONF_OLLAMA_MODEL: entry.data.get(CONF_OLLAMA_MODEL, OLLAMA_DEFAULT_MODEL),
+            CONF_OLLAMA_KEEP_ALIVE: entry.data.get(CONF_OLLAMA_KEEP_ALIVE, OLLAMA_DEFAULT_KEEP_ALIVE),
+            CONF_OLLAMA_NUM_CTX: entry.data.get(CONF_OLLAMA_NUM_CTX, OLLAMA_DEFAULT_NUM_CTX),
+            CONF_OLLAMA_TIMEOUT: entry.data.get(CONF_OLLAMA_TIMEOUT, OLLAMA_DEFAULT_TIMEOUT),
+        }
+    
+    def _is_ollama_configured(self) -> bool:
+        """Check if Ollama is configured in the parent config entry."""
+        entry = self._get_entry()
+        return bool(entry.data.get(CONF_OLLAMA_URL))
+    
     async def _fetch_models(self, llm_provider: str = LLM_PROVIDER_OPENROUTER) -> list[dict[str, str]]:
         """Fetch available models based on LLM provider."""
         if llm_provider == LLM_PROVIDER_GROQ:
             return await fetch_groq_models(self._get_groq_api_key())
+        elif llm_provider == LLM_PROVIDER_OLLAMA:
+            ollama_config = self._get_ollama_config()
+            return await fetch_ollama_models(ollama_config[CONF_OLLAMA_URL])
         return await fetch_openrouter_models(self._get_api_key())
     
     async def _fetch_providers(self, model_id: str) -> list[dict[str, str]]:
@@ -602,11 +773,12 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             if not errors:
                 return await self.async_step_model()
         
-        # Check which API keys are already configured
+        # Check which API keys/providers are already configured
         has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
+        has_ollama = self._is_ollama_configured()
         
-        # Build provider options based on configured API keys
+        # Build provider options based on configured providers
         llm_provider_options = []
         if has_groq_key:
             llm_provider_options.append(
@@ -615,6 +787,10 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         if has_openrouter_key:
             llm_provider_options.append(
                 {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        if has_ollama:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OLLAMA, "label": LLM_PROVIDERS[LLM_PROVIDER_OLLAMA]}
             )
         
         # If only one provider is configured, skip selection and go directly to model
@@ -626,8 +802,13 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         if not llm_provider_options:
             return self.async_abort(reason="no_api_keys_configured")
         
-        # Default to Groq if available, otherwise OpenRouter
-        default_provider = LLM_PROVIDER_GROQ if has_groq_key else LLM_PROVIDER_OPENROUTER
+        # Default to Groq if available, then Ollama, then OpenRouter
+        if has_groq_key:
+            default_provider = LLM_PROVIDER_GROQ
+        elif has_ollama:
+            default_provider = LLM_PROVIDER_OLLAMA
+        else:
+            default_provider = LLM_PROVIDER_OPENROUTER
         
         schema_dict = {
             vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(
@@ -657,11 +838,18 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         if self._available_models is None:
             self._available_models = await self._fetch_models(llm_provider)
         
+        # Determine default model based on provider
+        if llm_provider == LLM_PROVIDER_OLLAMA:
+            ollama_config = self._get_ollama_config()
+            default_model = ollama_config.get(CONF_OLLAMA_MODEL, OLLAMA_DEFAULT_MODEL)
+        else:
+            default_model = DEFAULT_MODEL
+        
         return self.async_show_form(
             step_id="model",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_MODEL, default=DEFAULT_MODEL): SelectSelector(
+                    vol.Required(CONF_MODEL, default=default_model): SelectSelector(
                         SelectSelectorConfig(
                             options=self._available_models,
                             mode=SelectSelectorMode.DROPDOWN,

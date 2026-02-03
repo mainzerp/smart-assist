@@ -4,9 +4,36 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.3.1   | 2026-02-03 |
+| Smart Assist | 1.4.0   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.0 (2026-02-03) - Ollama Integration
+
+**Feature: Local LLM Support with Ollama**
+
+- Added Ollama as third LLM provider for local, private inference
+- No API key required - runs entirely on your hardware
+- Full tool calling support (llama3.1+, mistral, qwen2.5, command-r)
+- Automatic model discovery from local Ollama installation
+- Configurable context window size (num_ctx)
+- Model persistence with keep_alive setting (-1 = stay loaded)
+- KV cache optimization for faster repeated queries
+
+**Configuration Options**
+
+- Ollama server URL (default: http://localhost:11434)
+- Model selection with size information
+- Keep-alive duration for model persistence
+- Context window size (1024-131072 tokens)
+- Request timeout (30-600 seconds)
+
+**Privacy Benefits**
+
+- All data stays local - no cloud transmission
+- No API costs - only electricity
+- 100% availability - no service dependencies
+- Full control over model versions
 
 ### v1.3.1 (2026-02-03) - Async Fix
 

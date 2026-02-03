@@ -71,6 +71,11 @@ try:
         CONF_MAX_HISTORY,
         CONF_MAX_TOKENS,
         CONF_MODEL,
+        CONF_OLLAMA_KEEP_ALIVE,
+        CONF_OLLAMA_MODEL,
+        CONF_OLLAMA_NUM_CTX,
+        CONF_OLLAMA_TIMEOUT,
+        CONF_OLLAMA_URL,
         CONF_PROVIDER,
         CONF_TEMPERATURE,
         CONF_USER_SYSTEM_PROMPT,
@@ -87,8 +92,14 @@ try:
         DEFAULT_USER_SYSTEM_PROMPT,
         DOMAIN,
         LLM_PROVIDER_GROQ,
+        LLM_PROVIDER_OLLAMA,
         LOCALE_TO_LANGUAGE,
         MAX_CONSECUTIVE_FOLLOWUPS,
+        OLLAMA_DEFAULT_KEEP_ALIVE,
+        OLLAMA_DEFAULT_MODEL,
+        OLLAMA_DEFAULT_NUM_CTX,
+        OLLAMA_DEFAULT_TIMEOUT,
+        OLLAMA_DEFAULT_URL,
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
@@ -170,9 +181,18 @@ class SmartAssistConversationEntity(ConversationEntity):
         if llm_provider == LLM_PROVIDER_GROQ:
             # Use Groq API key from subentry or main entry
             api_key = get_config(CONF_GROQ_API_KEY) or get_config_value(entry, CONF_GROQ_API_KEY, "")
+        elif llm_provider == LLM_PROVIDER_OLLAMA:
+            # Ollama doesn't need an API key
+            api_key = ""
         else:
             # Use OpenRouter API key from main entry
             api_key = get_config_value(entry, CONF_API_KEY, "")
+        
+        # Get Ollama-specific configuration from main entry
+        ollama_url = get_config_value(entry, CONF_OLLAMA_URL, OLLAMA_DEFAULT_URL)
+        ollama_keep_alive = get_config_value(entry, CONF_OLLAMA_KEEP_ALIVE, OLLAMA_DEFAULT_KEEP_ALIVE)
+        ollama_num_ctx = get_config_value(entry, CONF_OLLAMA_NUM_CTX, OLLAMA_DEFAULT_NUM_CTX)
+        ollama_timeout = get_config_value(entry, CONF_OLLAMA_TIMEOUT, OLLAMA_DEFAULT_TIMEOUT)
         
         # Initialize LLM client using factory
         self._llm_client = create_llm_client(
@@ -182,6 +202,10 @@ class SmartAssistConversationEntity(ConversationEntity):
             temperature=get_config(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
             max_tokens=get_config(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
             openrouter_provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
+            ollama_url=ollama_url,
+            ollama_keep_alive=ollama_keep_alive,
+            ollama_num_ctx=ollama_num_ctx,
+            ollama_timeout=ollama_timeout,
         )
         
         # For OpenRouterClient, set additional caching options

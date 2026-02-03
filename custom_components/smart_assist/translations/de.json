@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "LLM Anbieter waehlen",
-        "description": "Waehle deinen bevorzugten LLM Anbieter.\n\n**Groq**: Ultraschnelle Inferenz mit automatischem Caching (empfohlen)\n**OpenRouter**: Zugang zu allen Modellen (Claude, GPT-4, Llama, etc.)",
+        "description": "Waehle deinen bevorzugten LLM Anbieter.\n\n**Groq**: Ultraschnelle Inferenz mit automatischem Caching (empfohlen)\n**OpenRouter**: Zugang zu allen Modellen (Claude, GPT-4, Llama, etc.)\n**Ollama**: Lokale, private Inferenz (keine Cloud, kein API Key noetig)",
         "data": {
           "llm_provider": "LLM Anbieter"
         }
@@ -13,25 +13,40 @@
         "description": "Gib deinen API Key ein. Du kannst einen bei {docs_url} erstellen.",
         "data": {
           "api_key": "OpenRouter API Key",
-          "groq_api_key": "Groq API Key"
+          "groq_api_key": "Groq API Key",
+          "ollama_url": "Ollama Server URL",
+          "ollama_model": "Ollama Modell",
+          "ollama_keep_alive": "Modell geladen halten",
+          "ollama_num_ctx": "Kontextfenstergroesse",
+          "ollama_timeout": "Anfrage-Timeout (Sekunden)"
+        },
+        "data_description": {
+          "ollama_url": "URL deines Ollama Servers (Standard: http://localhost:11434)",
+          "ollama_model": "Waehle ein Modell aus deiner lokalen Ollama Installation",
+          "ollama_keep_alive": "Wie lange das Modell im Speicher bleiben soll (-1 = dauerhaft)",
+          "ollama_num_ctx": "Kontextfenstergroesse in Token (Standard: 8192)",
+          "ollama_timeout": "Maximale Wartezeit fuer eine Antwort (Standard: 120s)"
         }
       },
       "reconfigure": {
         "title": "API Keys aktualisieren",
-        "description": "Aktualisiere deine API Keys. Lasse Felder leer um bestehende Keys zu behalten.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}",
+        "description": "Aktualisiere deine API Keys und Ollama URL. Lasse Felder leer um bestehende Werte zu behalten.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}\n**Ollama URL**: {ollama_status}",
         "data": {
           "groq_api_key": "Neuer Groq API Key",
-          "api_key": "Neuer OpenRouter API Key"
+          "api_key": "Neuer OpenRouter API Key",
+          "ollama_url": "Neue Ollama URL"
         },
         "data_description": {
           "groq_api_key": "Gib einen neuen Groq API Key ein oder lasse das Feld leer um den aktuellen zu behalten.",
-          "api_key": "Gib einen neuen OpenRouter API Key ein oder lasse das Feld leer um den aktuellen zu behalten."
+          "api_key": "Gib einen neuen OpenRouter API Key ein oder lasse das Feld leer um den aktuellen zu behalten.",
+          "ollama_url": "Gib eine neue Ollama URL ein oder lasse das Feld leer um die aktuelle zu behalten."
         }
       }
     },
     "error": {
       "invalid_api_key": "Ungueltiger OpenRouter API Key. Bitte ueberpruefen und erneut versuchen.",
       "invalid_groq_api_key": "Ungueltiger Groq API Key. Bitte ueberpruefen und erneut versuchen.",
+      "ollama_connection_failed": "Verbindung zum Ollama Server nicht moeglich. Stelle sicher, dass Ollama unter der angegebenen URL laeuft.",
       "groq_api_key_required": "Groq API Key wird fuer den Groq Provider benoetigt.",
       "no_api_key": "Mindestens ein API Key (OpenRouter oder Groq) ist erforderlich.",
       "cannot_connect": "Verbindung zur API nicht moeglich.",
@@ -65,13 +80,13 @@
       "step": {
         "user": {
           "title": "LLM Provider Auswahl",
-          "description": "Waehle den LLM Provider fuer diesen Konversations-Agenten.\n\n**OpenRouter**: Zugang zu allen Modellen (Claude, GPT-4, Llama, etc.) ueber eine einheitliche API.\n**Groq**: Direkte Verbindung fuer ultraschnelle Inferenz mit automatischem Caching.",
+          "description": "Waehle den LLM Provider fuer diesen Konversations-Agenten.\n\n**OpenRouter**: Zugang zu allen Modellen (Claude, GPT-4, Llama, etc.) ueber eine einheitliche API.\n**Groq**: Direkte Verbindung fuer ultraschnelle Inferenz mit automatischem Caching.\n**Ollama**: Lokale, private Inferenz ohne Cloud-Abhaengigkeit.",
           "data": {
             "llm_provider": "LLM Provider",
             "groq_api_key": "Groq API Key"
           },
           "data_description": {
-            "llm_provider": "Waehle OpenRouter fuer Modellvielfalt oder Groq fuer schnellste Inferenz.",
+            "llm_provider": "Waehle OpenRouter fuer Modellvielfalt, Groq fuer schnellste Inferenz, oder Ollama fuer lokalen Datenschutz.",
             "groq_api_key": "Gib deinen Groq API Key ein (erhaltbar bei console.groq.com)."
           }
         },
