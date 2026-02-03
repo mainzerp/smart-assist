@@ -89,8 +89,13 @@ class OllamaClient:
     TOOL_CAPABLE_MODELS = [
         "llama3.1", "llama3.2", "llama3.3",
         "mistral", "mistral-nemo",
-        "qwen2.5",
+        "qwen2.5", "qwen3",
         "command-r", "command-r-plus",
+        "gpt-oss",  # OpenAI open-weight reasoning models
+        "granite3",  # IBM Granite
+        "phi4",  # Microsoft Phi-4
+        "deepseek-r1",  # DeepSeek reasoning models
+        "gemma3",  # Google Gemma 3
     ]
 
     def __init__(

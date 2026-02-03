@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.8   | 2026-02-03 |
+| Smart Assist | 1.4.9   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.9 (2026-02-03) - Expanded Tool-Capable Models
+
+**Feature: Added More Models to Tool-Calling List**
+
+- Added `gpt-oss` (OpenAI open-weight reasoning models)
+- Added `qwen3` (Alibaba Qwen 3)
+- Added `granite3` (IBM Granite)
+- Added `phi4` (Microsoft Phi-4)
+- Added `deepseek-r1` (DeepSeek reasoning models)
+- Added `gemma3` (Google Gemma 3)
+- These models now get native tool calling support in Ollama
 
 ### v1.4.8 (2026-02-03) - Improved Reconfigure UI
 
