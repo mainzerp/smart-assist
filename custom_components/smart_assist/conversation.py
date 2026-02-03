@@ -1004,13 +1004,13 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             if recent_entities_context:
                 _LOGGER.debug("Recent entities context: %s", recent_entities_context)
         
-        # Build base messages synchronously
-        return self._build_messages_for_llm(
+        # Build base messages (now async due to tool registry access)
+        return await self._build_messages_for_llm(
             user_text, chat_log, calendar_context, satellite_id, device_id,
             recent_entities_context
         )
 
-    def _build_messages_for_llm(
+    async def _build_messages_for_llm(
         self,
         user_text: str,
         chat_log: ChatLog | None = None,
