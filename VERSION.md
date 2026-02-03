@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.2   | 2026-02-03 |
+| Smart Assist | 1.4.3   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.3 (2026-02-03) - Ollama Cache Warming Fix
+
+**Fix: Cache Warming Error**
+
+- Added optional `cached_prefix_length` parameter to `chat_stream()` method
+- Parameter is ignored (Ollama handles caching via KV cache)
+- Fixes `unexpected keyword argument 'cached_prefix_length'` error during cache warming
 
 ### v1.4.2 (2026-02-03) - Ollama Bug Fixes
 

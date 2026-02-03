@@ -509,12 +509,14 @@ class OllamaClient:
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
+        cached_prefix_length: int = 0,
     ) -> AsyncGenerator[str, None]:
         """Stream a chat completion response.
         
         Args:
             messages: Conversation messages
             tools: Optional tool definitions
+            cached_prefix_length: Ignored (Ollama handles caching internally via KV cache)
             
         Yields:
             Content chunks as they arrive
