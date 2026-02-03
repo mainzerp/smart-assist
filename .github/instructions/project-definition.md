@@ -9,13 +9,13 @@ A Home Assistant custom integration that connects LLMs (via Groq) with Home Assi
 
 ## Groq Docs
 
-https://console.groq.com/docs/overview
-https://console.groq.com/docs/api-reference/chat/create
+- [Groq Overview](https://console.groq.com/docs/overview)
+- [Chat Completions API](https://console.groq.com/docs/api-reference/chat/create)
 
 ## OpenRouter Docs (Reference)
 
-https://openrouter.ai/docs/api/reference/overview
-https://openrouter.ai/docs/guides/best-practices/prompt-caching
+- [API Reference](https://openrouter.ai/docs/api/reference/overview)
+- [Prompt Caching Guide](https://openrouter.ai/docs/guides/best-practices/prompt-caching)
 
 **Version**: 1.7.9  
 **Last Updated**: January 28, 2026
@@ -45,7 +45,7 @@ https://openrouter.ai/docs/guides/best-practices/prompt-caching
 
 ### Project Structure
 
-```
+```text
 custom_components/smart_assist/
     __init__.py           # Integration setup, cache warming timer, session cleanup
     manifest.json         # HA integration manifest
@@ -80,7 +80,7 @@ custom_components/smart_assist/
 
 ### Component Overview
 
-```
+```text
 +---------------------------------------------------------------------+
 |                         Home Assistant                               |
 |  +---------------------------------------------------------------+  |
@@ -131,7 +131,7 @@ custom_components/smart_assist/
 
 OpenRouter supports prompt caching for compatible models. The cache works on the **prefix** of the prompt.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │  CACHED PREFIX (identical on every request)                 │
 │  ┌───────────────────────────────────────────────────────┐  │
@@ -161,7 +161,7 @@ OpenRouter supports prompt caching for compatible models. The cache works on the
 ### 2. Provider-Specific Caching
 
 | Provider | Caching Type | TTL | Implementation |
-|----------|--------------|-----|----------------|
+| -------- | ------------ | --- | -------------- |
 | **Groq** | **Automatic** | **2 hours** | **No special handling - prefix matching** |
 | Anthropic | Explicit | 5 min / 1 hour | `cache_control: {type: "ephemeral"}` |
 | OpenAI | Automatic | ~1 hour | No special handling needed |
@@ -172,7 +172,7 @@ OpenRouter supports prompt caching for compatible models. The cache works on the
 
 When modifying prompt construction, **ALWAYS maintain the static-to-dynamic order**:
 
-```
+```text
 STATIC  (cached, identical across requests)
   1. Technical System Prompt (tool schemas, rules)
   2. User System Prompt (personality, language)
@@ -186,12 +186,14 @@ DYNAMIC (changes between requests, breaks cache if in prefix)
 ```
 
 **Why this matters:**
+
 - LLM providers cache based on **prefix matching**
 - If dynamic content appears BEFORE static content, the cache is invalidated
 - Even a single character difference in the prefix breaks caching
 - Cache misses = higher latency + higher cost
 
 **Rules for changes:**
+
 1. New static context (e.g., room descriptions) goes AFTER Entity Index, BEFORE Calendar Context
 2. New dynamic context (e.g., current time) goes AFTER Entity Index
 3. Never inject timestamps, random IDs, or changing values in the static prefix (items 1-3)
@@ -201,7 +203,7 @@ DYNAMIC (changes between requests, breaks cache if in prefix)
 
 Long-term memory for user preferences, learned patterns, and named entities.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │  PROMPT STRUCTURE WITH MEMORY                               │
 ├─────────────────────────────────────────────────────────────┤
@@ -265,7 +267,7 @@ Smart Assist uses a **unified control tool** approach to minimize token usage wh
 ### Core Tools
 
 | Tool | Parameters | Description |
-|------|------------|-------------|
+| ---- | ---------- | ----------- |
 | `get_entities` | domain, area, name_filter | Query available entities |
 | `get_entity_state` | entity_id | Get detailed entity state |
 | `control` | entity_id, action, [domain-specific params] | Unified control for all entity types |
@@ -275,7 +277,7 @@ Smart Assist uses a **unified control tool** approach to minimize token usage wh
 The `control` tool auto-detects domain from entity_id and supports:
 
 | Domain | Supported Actions/Parameters |
-|--------|------------------------------|
+| ------ | ---------------------------- |
 | `light.*` | turn_on, turn_off, toggle, brightness (0-100), color_temp, rgb_color |
 | `climate.*` | turn_on, turn_off, set temperature, hvac_mode, preset |
 | `media_player.*` | play, pause, stop, next, previous, volume (0-100), source |
@@ -286,19 +288,20 @@ The `control` tool auto-detects domain from entity_id and supports:
 
 ### Scene Tools
 
-| Tool | Parameters | Description |
-|------|------------|-------------|
-| `run_scene` | scene_id | Activate scene |
+| Tool                 | Parameters    | Description        |
+| -------------------- | ------------- | ------------------ |
+| `run_scene`          | scene_id      | Activate scene     |
 | `trigger_automation` | automation_id | Trigger automation |
 
 ### Calendar Tools
 
-| Tool | Parameters | Description |
-|------|------------|-------------|
-| `get_calendar_events` | time_range, calendar_id, max_events | Query upcoming events |
-| `create_calendar_event` | calendar_id, summary, start_date_time/start_date, description, location | Create new event with fuzzy calendar matching |
+| Tool                    | Parameters                                                               | Description                                   |
+| ----------------------- | ------------------------------------------------------------------------ | --------------------------------------------- |
+| `get_calendar_events`   | time_range, calendar_id, max_events                                      | Query upcoming events                         |
+| `create_calendar_event` | calendar_id, summary, start_date_time/start_date, description, location  | Create new event with fuzzy calendar matching |
 
 **Calendar Features:**
+
 - **Read Access**: Query events from all calendars or specific calendar
 - **Write Access**: Create timed or all-day events
 - **Fuzzy Matching**: Calendar names like "Patrick" match `calendar.patric`
@@ -308,7 +311,7 @@ The `control` tool auto-detects domain from entity_id and supports:
 ### Utility Tools
 
 | Tool | Parameters | Description |
-|------|------------|-------------|
+| ---- | ---------- | ----------- |
 | `get_weather` | location (optional) | Current weather |
 | `web_search` | query, max_results | DuckDuckGo search |
 
@@ -318,7 +321,7 @@ The `control` tool auto-detects domain from entity_id and supports:
 
 ### Config Flow
 
-```
+```text
 Main Entry:
   - Groq API Key (validated)
 
@@ -346,7 +349,7 @@ Subentry (Conversation Agent / AI Task):
 ### Configuration Keys
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| --- | ---- | ------- | ----------- |
 | `api_key` | string | - | Groq API key |
 | `model` | string | llama-3.3-70b-versatile | LLM model |
 | `provider` | string | groq | LLM provider (groq = primary) |
@@ -375,14 +378,17 @@ Subentry (Conversation Agent / AI Task):
 ## Security Considerations
 
 ### Entity Access Control
+
 - **Exposed Entities Only**: Respects HA's exposed entity settings
 - **Domain Filtering**: Only supported domains included
 
 ### Action Safety
+
 - **Confirmation Required**: Critical actions (locks, alarms) need confirmation
 - **Audit Logging**: All commands logged
 
 ### API Security
+
 - **Encrypted Storage**: API keys stored in HA's credential store
 - **No Key Exposure**: Keys never sent to LLM
 
@@ -393,7 +399,7 @@ Subentry (Conversation Agent / AI Task):
 ### Tech Stack
 
 | Component | Technology |
-|-----------|------------|
+| --------- | ---------- |
 | Runtime | Python 3.12+ |
 | Framework | Home Assistant Custom Integration |
 | LLM API | Groq (primary), OpenRouter (legacy/fallback) |

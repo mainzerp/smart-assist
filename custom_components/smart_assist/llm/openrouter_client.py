@@ -11,17 +11,19 @@ from typing import Any, AsyncGenerator
 
 import aiohttp
 
-from ..const import OPENROUTER_API_URL, PROVIDER_CACHING_SUPPORT, supports_prompt_caching
+from ..const import (
+    LLM_MAX_RETRIES,
+    LLM_RETRIABLE_STATUS_CODES,
+    LLM_RETRY_BASE_DELAY,
+    LLM_RETRY_MAX_DELAY,
+    LLM_STREAM_CHUNK_TIMEOUT,
+    OPENROUTER_API_URL,
+    PROVIDER_CACHING_SUPPORT,
+    supports_prompt_caching,
+)
 from .models import ChatMessage, ChatResponse, MessageRole, ToolCall
 
 _LOGGER = logging.getLogger(__name__)
-
-# Retry configuration
-MAX_RETRIES = 3
-RETRY_BASE_DELAY = 1.0  # seconds
-RETRY_MAX_DELAY = 10.0  # seconds
-RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
-STREAM_CHUNK_TIMEOUT = 30.0  # seconds - max time to wait for next chunk
 
 
 @dataclass
@@ -148,6 +150,14 @@ class OpenRouterClient:
             await self._session.close()
             self._session = None
     
+    async def __aenter__(self) -> "OpenRouterClient":
+        """Async context manager entry."""
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit - ensures session cleanup."""
+        await self.close()
+    
     @property
     def metrics(self) -> LLMMetrics:
         """Get current metrics."""
@@ -178,12 +188,12 @@ class OpenRouterClient:
         """
         last_error: Exception | None = None
         
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(LLM_MAX_RETRIES):
             try:
                 response = await session.post(OPENROUTER_API_URL, json=payload)
                 
                 # Success or non-retriable error
-                if response.status == 200 or response.status not in RETRIABLE_STATUS_CODES:
+                if response.status == 200 or response.status not in LLM_RETRIABLE_STATUS_CODES:
                     return response
                 
                 # Retriable error - close response and retry
@@ -191,22 +201,22 @@ class OpenRouterClient:
                 response.close()
                 last_error = OpenRouterError(f"API error: {response.status} - {error_text}")
                 
-                if attempt < MAX_RETRIES - 1:
-                    delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                if attempt < LLM_MAX_RETRIES - 1:
+                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
                         "OpenRouter API error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES, response.status, delay
+                        attempt + 1, LLM_MAX_RETRIES, response.status, delay
                     )
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)
                     
             except aiohttp.ClientError as err:
                 last_error = OpenRouterError(f"Network error: {err}")
-                if attempt < MAX_RETRIES - 1:
-                    delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                if attempt < LLM_MAX_RETRIES - 1:
+                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
                         "Network error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES, err, delay
+                        attempt + 1, LLM_MAX_RETRIES, err, delay
                     )
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)
@@ -395,7 +405,7 @@ class OpenRouterClient:
         last_error: Exception | None = None
 
         # Retry loop for empty responses
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(LLM_MAX_RETRIES):
             received_content = False
             stream_completed = False
 
@@ -448,11 +458,11 @@ class OpenRouterClient:
                     self._metrics.empty_responses += 1
                     last_error = OpenRouterError("Empty response: stream completed without content")
                     
-                    if attempt < MAX_RETRIES - 1:
-                        delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                    if attempt < LLM_MAX_RETRIES - 1:
+                        delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                         _LOGGER.warning(
                             "Empty stream response (attempt %d/%d). Retrying in %.1fs",
-                            attempt + 1, MAX_RETRIES, delay
+                            attempt + 1, LLM_MAX_RETRIES, delay
                         )
                         self._metrics.total_retries += 1
                         await asyncio.sleep(delay)
@@ -468,11 +478,11 @@ class OpenRouterClient:
                 self._metrics.stream_timeouts += 1
                 last_error = OpenRouterError("Stream timeout")
                 
-                if attempt < MAX_RETRIES - 1:
-                    delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                if attempt < LLM_MAX_RETRIES - 1:
+                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
                         "Stream timeout (attempt %d/%d). Retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES, delay
+                        attempt + 1, LLM_MAX_RETRIES, delay
                     )
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)
@@ -564,7 +574,7 @@ class OpenRouterClient:
         last_error: Exception | None = None
 
         # Retry loop for empty responses and stream failures
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(LLM_MAX_RETRIES):
             # Track tool calls being built
             pending_tool_calls: dict[int, dict[str, Any]] = {}
             received_content = False
@@ -689,11 +699,11 @@ class OpenRouterClient:
                     self._metrics.empty_responses += 1
                     last_error = OpenRouterError("Empty response: stream completed without content or tool calls")
                     
-                    if attempt < MAX_RETRIES - 1:
-                        delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                    if attempt < LLM_MAX_RETRIES - 1:
+                        delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                         _LOGGER.warning(
                             "Empty stream response (attempt %d/%d). Retrying in %.1fs",
-                            attempt + 1, MAX_RETRIES, delay
+                            attempt + 1, LLM_MAX_RETRIES, delay
                         )
                         self._metrics.total_retries += 1
                         await asyncio.sleep(delay)
@@ -709,11 +719,11 @@ class OpenRouterClient:
                 self._metrics.stream_timeouts += 1
                 last_error = OpenRouterError("Stream timeout: no data received within timeout period")
                 
-                if attempt < MAX_RETRIES - 1:
-                    delay = min(RETRY_BASE_DELAY * (2 ** attempt), RETRY_MAX_DELAY)
+                if attempt < LLM_MAX_RETRIES - 1:
+                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
                         "Stream timeout (attempt %d/%d). Retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES, delay
+                        attempt + 1, LLM_MAX_RETRIES, delay
                     )
                     self._metrics.total_retries += 1
                     await asyncio.sleep(delay)

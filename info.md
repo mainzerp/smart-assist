@@ -1,13 +1,24 @@
 # Smart Assist
 
-**Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
+**Fast, LLM-powered smart home assistant for Home Assistant with dual provider support.**
 
-Control your smart home with natural language. Uses **Groq API** or **OpenRouter** for ultra-fast inference with automatic prompt caching, achieving **~90% cache hit rates** and response times under 500ms.
+Control your smart home with natural language. Supports **Groq API** for ultra-fast inference and **OpenRouter** for access to 200+ models (Claude, GPT-4, Llama, Mistral, etc.).
 
 ## Features
 
+### Dual Provider Support
+
+| Provider | Best For | Caching |
+| -------- | -------- | ------- |
+| **Groq** | Speed | Automatic prompt caching (2h TTL, ~90% hit rate) |
+| **OpenRouter** | Model variety | Native caching for Anthropic models only |
+
+> **Note**: Prompt caching works best with native provider APIs. Groq has automatic caching for all models. OpenRouter supports caching only for Anthropic models via `cache_control` headers.
+
+### Core Features
+
 - **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
-- **OpenRouter Integration**: Access 200+ models via OpenRouter API
+- **OpenRouter Integration**: Access 200+ models (Claude, GPT-4, Llama, Mistral, Gemini, etc.)
 - **Natural Language Control**: Talk to your smart home naturally
 - **Unified Control Tool**: Single efficient tool for all entity types
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently

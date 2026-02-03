@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import traceback
 from typing import Any
 
 # Set up logging FIRST, before any other operations
@@ -42,8 +41,7 @@ try:
     )
     _LOGGER.debug("Smart Assist config_flow.py: HA imports done")
 except ImportError as e:
-    _LOGGER.error("Smart Assist config_flow.py: Failed to import HA modules: %s", e)
-    _LOGGER.error("Traceback: %s", traceback.format_exc())
+    _LOGGER.error("Smart Assist config_flow.py: Failed to import HA modules: %s", e, exc_info=True)
     raise
 
 try:
@@ -97,14 +95,14 @@ try:
         LLM_PROVIDER_GROQ,
         LLM_PROVIDER_OPENROUTER,
         LLM_PROVIDERS,
+        OPENROUTER_API_BASE,
         OPENROUTER_API_URL,
         PROVIDERS,
         supports_prompt_caching,
     )
     from .utils import apply_debug_logging
 except ImportError as e:
-    _LOGGER.error("Smart Assist: Failed to import const module: %s", e)
-    _LOGGER.error("Traceback: %s", traceback.format_exc())
+    _LOGGER.error("Smart Assist: Failed to import const module: %s", e, exc_info=True)
     raise
 
 # Log that the module was loaded successfully
@@ -137,7 +135,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
     }
 
     try:
-        url = f"https://openrouter.ai/api/v1/models/{model_id}/endpoints"
+        url = f"{OPENROUTER_API_BASE}/models/{model_id}/endpoints"
         _LOGGER.debug("fetch_model_providers: Fetching from %s", url)
         
         async with aiohttp.ClientSession() as session:
@@ -209,7 +207,7 @@ async def validate_api_key(api_key: str) -> bool:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                "https://openrouter.ai/api/v1/models",
+                f"{OPENROUTER_API_BASE}/models",
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as response:
@@ -309,7 +307,7 @@ async def fetch_openrouter_models(api_key: str) -> list[dict[str, str]]:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                "https://openrouter.ai/api/v1/models",
+                f"{OPENROUTER_API_BASE}/models",
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as response:
@@ -608,20 +606,28 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
         
-        # Currently only Groq is exposed in UI (OpenRouter code kept for backwards compatibility)
-        # If Groq key exists, go directly to model selection
+        # Build provider options based on configured API keys
+        llm_provider_options = []
         if has_groq_key:
-            self._data[CONF_LLM_PROVIDER] = LLM_PROVIDER_GROQ
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+            )
+        if has_openrouter_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        
+        # If only one provider is configured, skip selection and go directly to model
+        if len(llm_provider_options) == 1:
+            self._data[CONF_LLM_PROVIDER] = llm_provider_options[0]["value"]
             return await self.async_step_model()
         
-        # No API key configured - this shouldn't happen as main config requires Groq key
-        # Fall back to showing form (edge case)
-        llm_provider_options = [
-            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
-        ]
+        # If no providers configured, show error
+        if not llm_provider_options:
+            return self.async_abort(reason="no_api_keys_configured")
         
-        # Default to Groq
-        default_provider = LLM_PROVIDER_GROQ
+        # Default to Groq if available, otherwise OpenRouter
+        default_provider = LLM_PROVIDER_GROQ if has_groq_key else LLM_PROVIDER_OPENROUTER
         
         schema_dict = {
             vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(
@@ -772,21 +778,16 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         errors: dict[str, str] = {}
         
         if user_input is not None:
-            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_OPENROUTER)
+            llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_GROQ)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
-            # If Groq selected, validate the API key if provided (but don't store in subentry)
+            # Validate API key availability for selected provider
             if llm_provider == LLM_PROVIDER_GROQ:
-                groq_key = user_input.get(CONF_GROQ_API_KEY, "")
-                if groq_key:
-                    if not await validate_groq_api_key(groq_key):
-                        errors["base"] = "invalid_groq_api_key"
-                    # Note: New API key would need parent entry update, not supported in subentry reconfigure
-                    # For now, just validate and continue - the parent entry key is used
-                else:
-                    stored_key = self._get_groq_api_key()
-                    if not stored_key:
-                        errors["base"] = "groq_api_key_required"
+                if not self._get_groq_api_key():
+                    errors["base"] = "groq_api_key_required"
+            elif llm_provider == LLM_PROVIDER_OPENROUTER:
+                if not self._get_api_key():
+                    errors["base"] = "openrouter_api_key_required"
             
             if not errors:
                 # Reset models so they get refetched for new provider
@@ -794,13 +795,23 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 self._available_providers = None
                 return await self.async_step_reconfigure_model()
         
-        # Check if Groq API key is already configured
+        # Build provider options based on configured API keys
         has_groq_key = bool(self._get_groq_api_key())
+        has_openrouter_key = bool(self._get_api_key())
         
-        # Currently only Groq is exposed in UI
-        llm_provider_options = [
-            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
-        ]
+        llm_provider_options = []
+        if has_groq_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+            )
+        if has_openrouter_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        
+        # If no providers configured, abort
+        if not llm_provider_options:
+            return self.async_abort(reason="no_api_keys_configured")
         
         schema_dict: dict[Any, Any] = {
             vol.Required(CONF_LLM_PROVIDER): SelectSelector(
@@ -810,11 +821,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 )
             ),
         }
-        
-        if not has_groq_key:
-            schema_dict[vol.Optional(CONF_GROQ_API_KEY, default="")] = TextSelector(
-                TextSelectorConfig(type=TextSelectorType.PASSWORD)
-            )
         
         return self.async_show_form(
             step_id="reconfigure",
@@ -972,18 +978,28 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
         
-        # Currently only Groq is exposed in UI (OpenRouter code kept for backwards compatibility)
-        # If Groq key exists, go directly to model selection
+        # Build provider options based on configured API keys
+        llm_provider_options = []
         if has_groq_key:
-            self._data[CONF_LLM_PROVIDER] = LLM_PROVIDER_GROQ
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+            )
+        if has_openrouter_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        
+        # If only one provider is configured, skip selection and go directly to model
+        if len(llm_provider_options) == 1:
+            self._data[CONF_LLM_PROVIDER] = llm_provider_options[0]["value"]
             return await self.async_step_model()
         
-        # No API key configured - show form (edge case)
-        llm_provider_options = [
-            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
-        ]
+        # If no providers configured, show error
+        if not llm_provider_options:
+            return self.async_abort(reason="no_api_keys_configured")
         
-        default_provider = LLM_PROVIDER_GROQ
+        # Default to Groq if available, otherwise OpenRouter
+        default_provider = LLM_PROVIDER_GROQ if has_groq_key else LLM_PROVIDER_OPENROUTER
         
         schema_dict: dict[Any, Any] = {
             vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(

@@ -158,6 +158,14 @@ class GroqClient:
             await self._session.close()
             self._session = None
     
+    async def __aenter__(self) -> "GroqClient":
+        """Async context manager entry."""
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit - ensures session cleanup."""
+        await self.close()
+    
     @property
     def metrics(self) -> GroqMetrics:
         """Get current metrics."""

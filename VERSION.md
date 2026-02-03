@@ -4,9 +4,32 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.2.9   | 2026-02-01 |
+| Smart Assist | 1.3.0   | 2026-02-03 |
 
 ## Version History
+
+### v1.3.0 (2026-02-03) - OpenRouter Integration
+
+**Feature: Dual LLM Provider Support**
+
+- Added OpenRouter as alternative LLM provider alongside Groq
+- Access to 200+ models (Claude, GPT-4, Llama, Mistral, Gemini, etc.)
+- Provider selection in Conversation Agent and AI Task configuration
+- Dynamic model list fetched from provider APIs
+- OpenRouter-specific provider routing (choose specific cloud providers)
+- Automatic provider detection based on configured API keys
+
+**Code Quality Improvements**
+
+- Added asyncio.Lock for thread-safe tool registry initialization
+- Created BaseLLMClient abstract class for LLM client code reuse
+- Centralized LLM constants (retry logic, timeouts)
+- Added ToolParameterType enum for type-safe tool definitions
+- Added async context manager support for LLM clients
+- Unified logging with exc_info=True pattern
+- Fixed mutable default argument anti-pattern
+- Created test infrastructure (pytest fixtures, unit tests)
+- Fixed 63 markdown linting errors in documentation
 
 ### v1.2.9 (2026-02-01) - TTS Delta Listener Fix
 

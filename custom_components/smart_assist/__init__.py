@@ -101,30 +101,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.info("HA running, starting cache warming for %s...", subentry.title)
                 hass.async_create_task(_initial_cache_warming(hass, entry, subentry_id, subentry))
             else:
-                # Track whether the listener has been called
-                listener_called = {"value": False}
+                # Create callback using closure to properly capture subentry context
+                # Avoids mutable default argument anti-pattern
+                def _create_cache_warming_callback(
+                    se_id: str,
+                    se: ConfigSubentry,
+                ) -> tuple[callable, callable]:
+                    """Create cache warming callback with proper closure."""
+                    listener_called = False
+                    
+                    async def callback(event: Event) -> None:
+                        nonlocal listener_called
+                        listener_called = True
+                        _LOGGER.info("Starting initial cache warming for %s...", se.title)
+                        await _initial_cache_warming(hass, entry, se_id, se)
+                    
+                    def safe_unsub(unsub_func: callable) -> callable:
+                        def _unsub() -> None:
+                            nonlocal listener_called
+                            if not listener_called:
+                                unsub_func()
+                        return _unsub
+                    
+                    return callback, safe_unsub
                 
-                async def _cache_warming_callback(
-                    event: Event,
-                    se_id: str = subentry_id,
-                    se: ConfigSubentry = subentry,
-                    called: dict = listener_called,
-                ) -> None:
-                    """Perform cache warming after Home Assistant starts."""
-                    called["value"] = True
-                    _LOGGER.info("Starting initial cache warming for %s...", se.title)
-                    await _initial_cache_warming(hass, entry, se_id, se)
-                
-                unsub = hass.bus.async_listen_once(
-                    EVENT_HOMEASSISTANT_STARTED, _cache_warming_callback
+                callback, safe_unsub_factory = _create_cache_warming_callback(
+                    subentry_id, subentry
                 )
-                
-                def _safe_unsub() -> None:
-                    """Only unsubscribe if listener hasn't been called yet."""
-                    if not listener_called["value"]:
-                        unsub()
-                
-                entry.async_on_unload(_safe_unsub)
+                unsub = hass.bus.async_listen_once(
+                    EVENT_HOMEASSISTANT_STARTED, callback
+                )
+                entry.async_on_unload(safe_unsub_factory(unsub))
 
     _LOGGER.info("Smart Assist integration setup complete")
     return True

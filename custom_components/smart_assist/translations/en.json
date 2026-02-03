@@ -167,7 +167,12 @@
         }
       },
       "abort": {
-        "reconfigure_successful": "Settings updated successfully."
+        "reconfigure_successful": "Settings updated successfully.",
+        "no_api_keys_configured": "No API keys configured. Please add at least one API key in the main integration settings."
+      },
+      "error": {
+        "groq_api_key_required": "Groq API key is required for Groq provider.",
+        "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider."
       }
     },
     "ai_task": {
@@ -253,7 +258,12 @@
         }
       },
       "abort": {
-        "reconfigure_successful": "Settings updated successfully."
+        "reconfigure_successful": "Settings updated successfully.",
+        "no_api_keys_configured": "No API keys configured. Please add at least one API key in the main integration settings."
+      },
+      "error": {
+        "groq_api_key_required": "Groq API key is required for Groq provider.",
+        "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider."
       }
     }
   }

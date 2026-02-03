@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Union
 
-from .openrouter_client import LLMMetrics, OpenRouterClient
+from .base_client import BaseLLMClient, LLMClientError, LLMMetrics
+from .openrouter_client import OpenRouterClient, OpenRouterError
 from .groq_client import GroqClient, GroqError, GroqMetrics
 from .models import ChatMessage, ChatResponse, LLMConfigurationError, LLMError, ToolCall
 
@@ -12,16 +13,23 @@ if TYPE_CHECKING:
     LLMClient = Union[OpenRouterClient, GroqClient]
 
 __all__ = [
+    # Base classes
+    "BaseLLMClient",
+    "LLMClientError",
     "LLMMetrics",
+    # Clients
     "OpenRouterClient",
+    "OpenRouterError",
     "GroqClient",
     "GroqError",
     "GroqMetrics",
+    # Models
     "ChatMessage",
     "ChatResponse",
     "LLMError",
     "LLMConfigurationError",
     "ToolCall",
+    # Factory
     "create_llm_client",
 ]
 

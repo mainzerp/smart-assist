@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import traceback
 from collections.abc import AsyncGenerator
 from typing import Any, Literal, TYPE_CHECKING
 
@@ -21,8 +20,7 @@ try:
     )
     _LOGGER.debug("Smart Assist: Successfully imported conversation components")
 except ImportError as e:
-    _LOGGER.error("Smart Assist: Failed to import conversation components: %s", e)
-    _LOGGER.error("Traceback: %s", traceback.format_exc())
+    _LOGGER.error("Smart Assist: Failed to import conversation components: %s", e, exc_info=True)
     raise
 
 # These imports may not exist in older HA versions
@@ -100,8 +98,7 @@ try:
     from .tools import create_tool_registry, ToolRegistry
     from .utils import clean_for_tts, get_config_value
 except ImportError as e:
-    _LOGGER.error("Smart Assist: Failed to import local modules: %s", e)
-    _LOGGER.error("Traceback: %s", traceback.format_exc())
+    _LOGGER.error("Smart Assist: Failed to import local modules: %s", e, exc_info=True)
     raise
 
 _LOGGER.info("Smart Assist: conversation.py module loaded successfully")
@@ -211,6 +208,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Tool registry - lazy loaded to ensure all domains are available
         # Created on first access (after HA startup delay)
         self._tool_registry: ToolRegistry | None = None
+        self._tool_registry_lock = asyncio.Lock()  # Thread-safe initialization
         self._entry = entry  # Store for lazy loading
 
         # Cache for entity index
@@ -228,14 +226,16 @@ class SmartAssistConversationEntity(ConversationEntity):
             max_history=get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
         )
 
-    def _get_tool_registry(self) -> ToolRegistry:
-        """Get tool registry, creating it lazily if needed.
+    async def _get_tool_registry(self) -> ToolRegistry:
+        """Get tool registry, creating it lazily if needed (thread-safe).
         
         This ensures the registry is created after HA startup when all
         domains (scene, automation, etc.) are fully loaded.
+        Uses asyncio.Lock to prevent race conditions on parallel requests.
         """
-        if self._tool_registry is None:
-            self._tool_registry = create_tool_registry(self.hass, self._entry)
+        async with self._tool_registry_lock:
+            if self._tool_registry is None:
+                self._tool_registry = create_tool_registry(self.hass, self._entry)
         return self._tool_registry
 
     def _get_config(self, key: str, default: Any = None) -> Any:
@@ -261,7 +261,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             # Build messages using async version (same path as real requests)
             # This ensures calendar context loading is included in the code path
             messages, cached_prefix_length = await self._build_messages_for_llm_async("ping", chat_log=None)
-            tools = self._get_tool_registry().get_schemas()
+            tools = (await self._get_tool_registry()).get_schemas()
             
             # Log registered tools for debugging cache issues
             tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
@@ -330,7 +330,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             device_id=device_id,
             conversation_id=user_input.conversation_id,
         )
-        tools = self._get_tool_registry().get_schemas()
+        tools = (await self._get_tool_registry()).get_schemas()
         
         # Log registered tools for debugging cache issues
         tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
@@ -579,7 +579,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                 async def execute_tool(tool_call: ToolCall) -> tuple[ToolCall, Any]:
                     """Execute a single tool and return result with metadata."""
                     _LOGGER.debug("Executing tool: %s", tool_call.name)
-                    result = await self._get_tool_registry().execute(
+                    result = await (await self._get_tool_registry()).execute(
                         tool_call.name, tool_call.arguments
                     )
                     return (tool_call, result)
@@ -728,7 +728,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             action,
         )
 
-    def _build_system_prompt(self) -> str:
+    async def _build_system_prompt(self) -> str:
         """Build or return cached system prompt based on configuration.
         
         System prompt is always in English (best LLM performance).
@@ -839,7 +839,7 @@ Use 'control' tool for lights, switches, covers, fans, climate, locks, etc.
 Domain auto-detected from entity_id.""")
 
         # Music/Radio instructions - only if music_assistant tool is registered
-        if self._get_tool_registry().has_tool("music_assistant"):
+        if (await self._get_tool_registry()).has_tool("music_assistant"):
             parts.append("""
 ## Music/Radio Playback [IMPORTANT]
 For ALL music, radio, or media playback requests, use the 'music_assistant' tool:
@@ -848,7 +848,7 @@ For ALL music, radio, or media playback requests, use the 'music_assistant' tool
 - Do NOT use 'control' tool for music/radio - it cannot search or stream content""")
         
         # Send/notification instructions - only if send tool is registered
-        if self._get_tool_registry().has_tool("send"):
+        if (await self._get_tool_registry()).has_tool("send"):
             parts.append("""
 ## Sending Content
 You can send content (links, text, messages) to devices using the 'send' tool.
@@ -1044,7 +1044,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         cached_prefix_length = 0  # Track how many messages are static/cacheable
 
         # 1. Technical system prompt (cached)
-        system_prompt = self._build_system_prompt()
+        system_prompt = await self._build_system_prompt()
         messages.append(
             ChatMessage(role=MessageRole.SYSTEM, content=system_prompt)
         )
@@ -1230,7 +1230,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
 
             if len(matches) == 1:
                 entity = matches[0]
-                result = await self._get_tool_registry().execute(
+                result = await (await self._get_tool_registry()).execute(
                     "control",
                     {"entity_id": entity.entity_id, "action": action},
                 )

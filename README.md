@@ -6,13 +6,15 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Control your smart home with natural language. Uses **Groq API** for ultra-fast inference with automatic prompt caching, achieving **~90% cache hit rates** and response times under 500ms.
+Control your smart home with natural language. Supports **Groq API** for ultra-fast inference and **OpenRouter** for access to 200+ models (Claude, GPT-4, Llama, Mistral, etc.).
 
 ## Features
 
 ### Core Features
 
-- **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
+- **Dual Provider Support**: Choose between Groq (fastest) or OpenRouter (most models)
+- **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL, ~90% cache hit rate)
+- **OpenRouter Integration**: Access to 200+ models including Claude, GPT-4, Llama, Mistral, and more
 - **Natural Language Control**: Talk to your smart home naturally
 - **Unified Control Tool**: Single efficient tool for all entity types (lights, switches, climate, covers, media players, fans)
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently for faster responses
@@ -122,17 +124,27 @@ When you add these mappings, the LLM will use them directly from the system prom
 2. Click **Add Integration**
 3. Search for "Smart Assist"
 4. Follow the setup wizard:
-   - Enter your Groq API key ([get one here](https://console.groq.com/keys))
-   - Select your preferred model
-   - Configure behavior and caching settings
+   - **Step 1**: Choose your LLM provider (Groq or OpenRouter)
+   - **Step 2**: Enter your API key
+     - Groq: [Get API key](https://console.groq.com/keys)
+     - OpenRouter: [Get API key](https://openrouter.ai/keys)
+5. Add a **Conversation Agent** or **AI Task** via the integration's subentries
+6. If both API keys are configured, you can create agents with different providers
 
 ## Configuration Options
+
+### Provider Settings
+
+| Provider | Best For | Features |
+| -------- | -------- | -------- |
+| Groq | Speed | Ultra-fast inference, automatic caching, ~90% cache hit rate |
+| OpenRouter | Model Variety | 200+ models, provider routing, Claude/GPT-4/Llama access |
 
 ### Model Settings
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| Model | Groq model ID | openai/gpt-oss-120b |
+| Model | LLM model ID (fetched dynamically from provider) | llama-3.3-70b-versatile |
 | Temperature | Response creativity (0-1) | 0.5 |
 | Max Tokens | Maximum response length | 500 |
 
@@ -167,14 +179,20 @@ When you add these mappings, the LLM will use them directly from the system prom
 
 ## Prompt Caching
 
-Smart Assist uses Groq's **automatic prompt caching** to reduce latency and costs.
+Smart Assist supports prompt caching to reduce latency and costs.
 
-### How It Works
+### Provider Caching Comparison
+
+| Provider | Caching Type | TTL | Models |
+| -------- | ------------ | --- | ------ |
+| **Groq** | Automatic | 2 hours | All models |
+| **OpenRouter** | Explicit | 5 min / 1 hour | some models |
+
+> **Recommendation**: For best caching performance, use **Groq** as your provider.
+### How It Works (Groq)
 
 1. **Prefix Matching**: Groq caches the prefix of your prompt (system prompt, tools, entity index)
 2. **Automatic**: No configuration needed - caching happens automatically
-3. **2-Hour TTL**: Cached data expires after 2 hours without use
-4. **~90% Hit Rate**: Typical cache hit rates in production
 
 ### Cache Statistics
 

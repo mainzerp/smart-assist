@@ -167,7 +167,12 @@
         }
       },
       "abort": {
-        "reconfigure_successful": "Einstellungen erfolgreich aktualisiert."
+        "reconfigure_successful": "Einstellungen erfolgreich aktualisiert.",
+        "no_api_keys_configured": "Keine API-Schluessel konfiguriert. Bitte fuege mindestens einen API-Schluessel in den Haupteinstellungen hinzu."
+      },
+      "error": {
+        "groq_api_key_required": "Groq API-Schluessel wird fuer den Groq Provider benoetigt.",
+        "openrouter_api_key_required": "OpenRouter API-Schluessel wird fuer den OpenRouter Provider benoetigt."
       }
     },
     "ai_task": {
@@ -253,7 +258,12 @@
         }
       },
       "abort": {
-        "reconfigure_successful": "Einstellungen erfolgreich aktualisiert."
+        "reconfigure_successful": "Einstellungen erfolgreich aktualisiert.",
+        "no_api_keys_configured": "Keine API-Schluessel konfiguriert. Bitte fuege mindestens einen API-Schluessel in den Haupteinstellungen hinzu."
+      },
+      "error": {
+        "groq_api_key_required": "Groq API-Schluessel wird fuer den Groq Provider benoetigt.",
+        "openrouter_api_key_required": "OpenRouter API-Schluessel wird fuer den OpenRouter Provider benoetigt."
       }
     }
   }

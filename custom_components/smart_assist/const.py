@@ -81,10 +81,12 @@ LOCALE_TO_LANGUAGE: Final = {
 }
 
 # OpenRouter API
-OPENROUTER_API_URL: Final = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_API_BASE: Final = "https://openrouter.ai/api/v1"
+OPENROUTER_API_URL: Final = f"{OPENROUTER_API_BASE}/chat/completions"
 
 # Groq API (direct)
-GROQ_API_URL: Final = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_API_BASE: Final = "https://api.groq.com/openai/v1"
+GROQ_API_URL: Final = f"{GROQ_API_BASE}/chat/completions"
 
 # LLM API Configuration
 LLM_MAX_RETRIES: Final = 3
