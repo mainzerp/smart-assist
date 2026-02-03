@@ -85,6 +85,14 @@ EMOJI_PATTERN: Final = re.compile(
     flags=re.UNICODE,
 )
 
+# Reasoning/thinking block pattern - used by DeepSeek-R1, QwQ, and other 
+# Chain-of-Thought reasoning models that output their thinking process
+# Matches <think>...</think> blocks including nested content and newlines
+THINKING_BLOCK_PATTERN: Final = re.compile(
+    r"<think>[\s\S]*?</think>",
+    flags=re.IGNORECASE,
+)
+
 # URL pattern
 URL_PATTERN: Final = re.compile(
     r"https?://[^\s\)\]\>]+|www\.[^\s\)\]\>]+",
@@ -173,7 +181,8 @@ def clean_for_tts(text: str, language: str = "") -> str:
     - Emojis
     - Markdown formatting
     - URLs
-    - Status tags in brackets like [Keine weitere Aktion nötig], [No action needed], etc.
+    - Status tags in brackets like [Keine weitere Aktion noetig], [No action needed], etc.
+    - Reasoning/thinking blocks (<think>...</think>) from reasoning models like DeepSeek-R1, QwQ
 
     Converts:
     - Symbols to spoken words (e.g., degrees Celsius -> Grad Celsius for German)
@@ -192,14 +201,18 @@ def clean_for_tts(text: str, language: str = "") -> str:
     result = text
 
     # Remove status tags in brackets (LLM action indicators)
-    # Supports: German (Aktion), English (action), French (action), Spanish (acción), 
-    # Italian (azione), Dutch (actie), Portuguese (ação)
+    # Supports: German (Aktion), English (action), French (action), Spanish (accion), 
+    # Italian (azione), Dutch (actie), Portuguese (acao)
     result = re.sub(
-        r'\s*\[[^\]]*(?:Aktion|action|acción|azione|actie|ação|Handlung|needed|nötig|required|erforderlich|nécessaire|necesario|necessario|nodig|necessário)[^\]]*\]\s*',
+        r'\s*\[[^\]]*(?:Aktion|action|accion|azione|actie|acao|Handlung|needed|noetig|required|erforderlich|necessaire|necesario|necessario|nodig|necessario)[^\]]*\]\s*',
         ' ',
         result,
         flags=re.IGNORECASE
     )
+
+    # Remove <think>...</think> reasoning blocks from reasoning models
+    # (DeepSeek-R1, QwQ, Qwen with thinking, etc.)
+    result = THINKING_BLOCK_PATTERN.sub("", result)
     
     # Remove emojis
     result = EMOJI_PATTERN.sub("", result)

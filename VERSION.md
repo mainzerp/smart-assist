@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.0   | 2026-02-03 |
+| Smart Assist | 1.4.1   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.1 (2026-02-03) - Reasoning Model Output Cleanup
+
+**Fix: Filter `<think>` Tags from Reasoning Models**
+
+- Added `THINKING_BLOCK_PATTERN` to filter `<think>...</think>` reasoning blocks
+- Affects DeepSeek-R1, QwQ, Qwen with thinking, and other Chain-of-Thought models
+- TTS output now clean without internal reasoning steps being spoken
+- Regex is case-insensitive and handles multi-line content
 
 ### v1.4.0 (2026-02-03) - Ollama Integration
 
