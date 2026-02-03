@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.1   | 2026-02-03 |
+| Smart Assist | 1.4.2   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.2 (2026-02-03) - Ollama Bug Fixes
+
+**Fix: Ollama keep_alive Duration Parsing Error**
+
+- Fixed `time: missing unit in duration "-1"` error
+- Added `_format_keep_alive()` helper to send -1 as integer instead of string
+- Ollama API now correctly receives keep_alive values
+
+**Fix: Missing chat_stream_full Method**
+
+- Added `chat_stream_full()` method to OllamaClient
+- Required for TTS streaming in conversation system
+- Returns structured delta events compatible with Groq/OpenRouter clients
 
 ### v1.4.1 (2026-02-03) - Reasoning Model Output Cleanup
 

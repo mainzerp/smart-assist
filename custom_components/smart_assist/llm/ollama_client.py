@@ -239,7 +239,7 @@ class OllamaClient:
             
             payload = {
                 "model": self._model,
-                "keep_alive": self._keep_alive,
+                "keep_alive": self._format_keep_alive(),
             }
             
             async with session.post(
@@ -363,6 +363,27 @@ class OllamaClient:
         # Ollama uses OpenAI-compatible format
         return tools
 
+    def _format_keep_alive(self) -> int | str:
+        """Format keep_alive value for Ollama API.
+        
+        Ollama accepts:
+        - Integer (seconds): 0 = unload immediately, -1 = keep forever
+        - String with unit: "5m", "1h", "24h"
+        
+        The string "-1" causes a parse error, so we convert to int.
+        
+        Returns:
+            Formatted keep_alive value
+        """
+        # Handle -1 specially - must be sent as integer, not string
+        if self._keep_alive == "-1" or self._keep_alive == -1:
+            return -1
+        # Handle 0 as integer for immediate unload
+        if self._keep_alive == "0" or self._keep_alive == 0:
+            return 0
+        # Otherwise return as-is (string like "5m", "1h")
+        return self._keep_alive
+
     async def chat(
         self,
         messages: list[ChatMessage],
@@ -389,7 +410,7 @@ class OllamaClient:
                 "model": self._model,
                 "messages": self._convert_messages(messages),
                 "stream": False,  # Streaming not yet implemented
-                "keep_alive": self._keep_alive,
+                "keep_alive": self._format_keep_alive(),
                 "options": {
                     "temperature": self._temperature,
                     "num_predict": self._max_tokens,
@@ -508,7 +529,7 @@ class OllamaClient:
                 "model": self._model,
                 "messages": self._convert_messages(messages),
                 "stream": True,
-                "keep_alive": self._keep_alive,
+                "keep_alive": self._format_keep_alive(),
                 "options": {
                     "temperature": self._temperature,
                     "num_predict": self._max_tokens,
@@ -560,6 +581,133 @@ class OllamaClient:
                         
         except OllamaError:
             raise
+        except Exception as e:
+            self._metrics.failed_requests += 1
+            raise OllamaError(f"Streaming error: {e}")
+
+    async def chat_stream_full(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict[str, Any]] | None = None,
+        cached_prefix_length: int = 0,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Stream a chat completion response with full delta events.
+        
+        This method is used by the conversation system for TTS streaming.
+        Yields structured delta events compatible with Groq/OpenRouter clients.
+        
+        Args:
+            messages: Conversation messages
+            tools: Optional tool definitions
+            cached_prefix_length: Ignored (Ollama handles caching internally)
+            
+        Yields:
+            dict with keys:
+            - {"content": str} for content chunks
+            - {"tool_calls": list[ToolCall]} when tool calls are complete
+            - {"finish_reason": str} when stream is done
+        """
+        self._metrics.total_requests += 1
+        start_time = time.perf_counter()
+        
+        try:
+            session = await self._get_session()
+            
+            payload: dict[str, Any] = {
+                "model": self._model,
+                "messages": self._convert_messages(messages),
+                "stream": True,
+                "keep_alive": self._format_keep_alive(),
+                "options": {
+                    "temperature": self._temperature,
+                    "num_predict": self._max_tokens,
+                    "num_ctx": self._num_ctx,
+                },
+            }
+            
+            if tools and self.supports_tools():
+                payload["tools"] = self._convert_tools(tools)
+            elif tools and not self.supports_tools():
+                _LOGGER.warning(
+                    "Model '%s' may not support tool calling. "
+                    "Consider using llama3.1+, mistral, or qwen2.5",
+                    self._model
+                )
+            
+            async with session.post(
+                f"{self._base_url}/api/chat",
+                json=payload,
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    self._metrics.failed_requests += 1
+                    raise OllamaError(
+                        f"Ollama API error: {response.status} - {error_text}",
+                        response.status
+                    )
+                
+                # Track tool calls from stream
+                pending_tool_calls: list[dict[str, Any]] = []
+                
+                async for line in response.content:
+                    if not line:
+                        continue
+                    
+                    try:
+                        data = json.loads(line.decode("utf-8"))
+                        message = data.get("message", {})
+                        content = message.get("content", "")
+                        
+                        # Yield content chunks
+                        if content:
+                            yield {"content": content}
+                        
+                        # Capture tool calls (usually in final message)
+                        if "tool_calls" in message:
+                            for tc in message["tool_calls"]:
+                                function = tc.get("function", {})
+                                pending_tool_calls.append({
+                                    "id": tc.get("id", f"call_{len(pending_tool_calls)}"),
+                                    "name": function.get("name", ""),
+                                    "arguments": function.get("arguments", {}),
+                                })
+                        
+                        # Check if stream is done
+                        if data.get("done"):
+                            elapsed_ms = (time.perf_counter() - start_time) * 1000
+                            self._metrics.successful_requests += 1
+                            self._metrics.total_response_time_ms += elapsed_ms
+                            self._metrics.total_prompt_tokens += data.get("prompt_eval_count", 0)
+                            self._metrics.total_completion_tokens += data.get("eval_count", 0)
+                            self._model_loaded = True
+                            
+                            # Emit tool calls if any
+                            if pending_tool_calls:
+                                tool_calls = [
+                                    ToolCall(
+                                        id=tc["id"],
+                                        name=tc["name"],
+                                        arguments=tc["arguments"],
+                                    )
+                                    for tc in pending_tool_calls
+                                ]
+                                yield {"tool_calls": tool_calls}
+                            
+                            # Emit finish reason
+                            yield {"finish_reason": data.get("done_reason", "stop")}
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+                        
+        except OllamaError:
+            raise
+        except asyncio.TimeoutError:
+            self._metrics.failed_requests += 1
+            raise OllamaError(
+                f"Ollama streaming request timed out after {self._timeout}s.",
+                status_code=408
+            )
         except Exception as e:
             self._metrics.failed_requests += 1
             raise OllamaError(f"Streaming error: {e}")
