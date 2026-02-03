@@ -695,11 +695,11 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_OLLAMA_KEEP_ALIVE, default=current_ollama_keep_alive): SelectSelector(
                     SelectSelectorConfig(
                         options=[
-                            SelectOptionDict(value="-1", label="Forever (keep loaded)"),
-                            SelectOptionDict(value="5m", label="5 minutes"),
-                            SelectOptionDict(value="30m", label="30 minutes"),
-                            SelectOptionDict(value="1h", label="1 hour"),
-                            SelectOptionDict(value="0", label="Unload immediately"),
+                            {"value": "-1", "label": "Forever (keep loaded)"},
+                            {"value": "5m", "label": "5 minutes"},
+                            {"value": "30m", "label": "30 minutes"},
+                            {"value": "1h", "label": "1 hour"},
+                            {"value": "0", "label": "Unload immediately"},
                         ],
                         mode=SelectSelectorMode.DROPDOWN,
                     )

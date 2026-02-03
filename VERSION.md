@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.6   | 2026-02-03 |
+| Smart Assist | 1.4.7   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.7 (2026-02-03) - Fix Reconfigure Error
+
+**Fix: 500 Internal Server Error in Reconfigure**
+
+- Fixed SelectOptionDict not imported error
+- Reconfigure flow now works correctly
 
 ### v1.4.6 (2026-02-03) - Ollama Settings in Reconfigure
 
