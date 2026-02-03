@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.3   | 2026-02-03 |
+| Smart Assist | 1.4.4   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.4 (2026-02-03) - Reconfigure Flow Ollama Support
+
+**Fix: Ollama Not Showing in Reconfigure Dropdown**
+
+- Added Ollama to the LLM provider options in reconfigure flow
+- Users can now switch to Ollama when reconfiguring conversation agents
+- Added validation to ensure Ollama is configured before selection
+- Added `ollama_not_configured` error message to all translation files
 
 ### v1.4.3 (2026-02-03) - Ollama Cache Warming Fix
 

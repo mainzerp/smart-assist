@@ -969,13 +969,16 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             llm_provider = user_input.get(CONF_LLM_PROVIDER, LLM_PROVIDER_GROQ)
             self._data[CONF_LLM_PROVIDER] = llm_provider
             
-            # Validate API key availability for selected provider
+            # Validate API key/configuration availability for selected provider
             if llm_provider == LLM_PROVIDER_GROQ:
                 if not self._get_groq_api_key():
                     errors["base"] = "groq_api_key_required"
             elif llm_provider == LLM_PROVIDER_OPENROUTER:
                 if not self._get_api_key():
                     errors["base"] = "openrouter_api_key_required"
+            elif llm_provider == LLM_PROVIDER_OLLAMA:
+                if not self._is_ollama_configured():
+                    errors["base"] = "ollama_not_configured"
             
             if not errors:
                 # Reset models so they get refetched for new provider
@@ -983,9 +986,10 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 self._available_providers = None
                 return await self.async_step_reconfigure_model()
         
-        # Build provider options based on configured API keys
+        # Build provider options based on configured API keys/providers
         has_groq_key = bool(self._get_groq_api_key())
         has_openrouter_key = bool(self._get_api_key())
+        has_ollama = self._is_ollama_configured()
         
         llm_provider_options = []
         if has_groq_key:
@@ -995,6 +999,10 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         if has_openrouter_key:
             llm_provider_options.append(
                 {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        if has_ollama:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OLLAMA, "label": LLM_PROVIDERS[LLM_PROVIDER_OLLAMA]}
             )
         
         # If no providers configured, abort

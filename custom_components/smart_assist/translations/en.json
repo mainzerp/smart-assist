@@ -47,7 +47,9 @@
       "invalid_api_key": "Invalid OpenRouter API key. Please check and try again.",
       "invalid_groq_api_key": "Invalid Groq API key. Please check and try again.",
       "ollama_connection_failed": "Cannot connect to Ollama server. Make sure Ollama is running at the specified URL.",
+      "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings.",
       "groq_api_key_required": "Groq API key is required for Groq provider.",
+      "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider.",
       "no_api_key": "At least one API key (OpenRouter or Groq) is required.",
       "cannot_connect": "Cannot connect to API.",
       "unknown": "An unexpected error occurred."
@@ -187,7 +189,8 @@
       },
       "error": {
         "groq_api_key_required": "Groq API key is required for Groq provider.",
-        "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider."
+        "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider.",
+        "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings."
       }
     },
     "ai_task": {
@@ -278,7 +281,8 @@
       },
       "error": {
         "groq_api_key_required": "Groq API key is required for Groq provider.",
-        "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider."
+        "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider.",
+        "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings."
       }
     }
   }
