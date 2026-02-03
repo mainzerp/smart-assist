@@ -137,7 +137,7 @@ class UnifiedControlTool(BaseTool):
     async def execute(
         self,
         entity_id: str,
-        action: str,
+        action: str | None = None,
         brightness: int | None = None,
         color_temp: int | None = None,
         rgb_color: list[int] | None = None,
@@ -147,8 +147,17 @@ class UnifiedControlTool(BaseTool):
         volume: int | None = None,
         source: str | None = None,
         position: int | None = None,
+        state: str | None = None,  # Alias for 'action' (some models use this)
     ) -> ToolResult:
         """Execute unified control based on entity domain."""
+        # Handle 'state' as alias for 'action' (some models incorrectly use this)
+        if action is None and state is not None:
+            action = "turn_on" if state in ("on", "true", "1") else "turn_off" if state in ("off", "false", "0") else state
+            _LOGGER.debug("Mapped 'state=%s' to 'action=%s'", state, action)
+        
+        if action is None:
+            return ToolResult(success=False, error="Missing required parameter: 'action'")
+        
         domain = entity_id.split(".")[0]
         
         # Validate and clamp numeric parameters

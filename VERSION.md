@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.4   | 2026-02-03 |
+| Smart Assist | 1.4.5   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.5 (2026-02-03) - Tool Call Compatibility Fix
+
+**Fix: UnifiedControlTool 'state' Parameter Alias**
+
+- Added `state` as an alias for `action` parameter in UnifiedControlTool
+- Some models (especially local/non-native tool calling) pass `state` instead of `action`
+- Maps `state: "on"/"off"` to `action: "turn_on"/"turn_off"` automatically
+- Improves compatibility with models that don't strictly follow tool schemas
 
 ### v1.4.4 (2026-02-03) - Reconfigure Flow Ollama Support
 
