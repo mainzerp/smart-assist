@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.9   | 2026-02-03 |
+| Smart Assist | 1.4.10  | 2026-02-03 |
 
 ## Version History
+
+### v1.4.10 (2026-02-03) - Always Send Tools to Ollama
+
+**Improvement: Tools Always Sent to Ollama**
+
+- Tools are now always sent to Ollama regardless of model
+- Ollama handles model capabilities internally
+- Removed blocking `supports_tools()` check
+- Known model list now only used for debug logging
+- Any Ollama model can now potentially use tool calling
 
 ### v1.4.9 (2026-02-03) - Expanded Tool-Capable Models
 

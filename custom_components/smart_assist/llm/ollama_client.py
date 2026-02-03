@@ -85,8 +85,9 @@ class OllamaClient:
     - Consistent prefix (system prompt + entity index) maximizes cache hits
     """
 
-    # Tool-calling capable models (as of 2024)
-    TOOL_CAPABLE_MODELS = [
+    # Models known to have good tool calling support (for debug logging only)
+    # Tools are always sent to Ollama - this list is just for informational logging
+    KNOWN_TOOL_MODELS = [
         "llama3.1", "llama3.2", "llama3.3",
         "mistral", "mistral-nemo",
         "qwen2.5", "qwen3",
@@ -179,11 +180,15 @@ class OllamaClient:
         self._metrics = OllamaMetrics()
     
     def supports_tools(self) -> bool:
-        """Check if current model supports tool calling."""
+        """Check if current model is known to support tool calling.
+        
+        Note: This is used for debug logging only. Tools are always sent
+        to Ollama regardless of this check - Ollama handles model capabilities.
+        """
         model_base = self._model.split(":")[0].lower()
         return any(
-            model_base.startswith(capable.lower())
-            for capable in self.TOOL_CAPABLE_MODELS
+            model_base.startswith(known.lower())
+            for known in self.KNOWN_TOOL_MODELS
         )
 
     async def is_available(self) -> bool:
@@ -423,15 +428,17 @@ class OllamaClient:
                 },
             }
             
-            # Add tools if model supports them
-            if tools and self.supports_tools():
+            # Always send tools to Ollama - it will handle them appropriately
+            # based on the model's capabilities
+            if tools:
                 payload["tools"] = self._convert_tools(tools)
-            elif tools and not self.supports_tools():
-                _LOGGER.warning(
-                    "Model '%s' may not support tool calling. "
-                    "Consider using llama3.1+, mistral, or qwen2.5",
-                    self._model
-                )
+                # Only log info for unknown models (not a warning - tools may still work)
+                if not self.supports_tools():
+                    _LOGGER.debug(
+                        "Sending tools to model '%s' (not in known tool-capable list, "
+                        "but Ollama will handle appropriately)",
+                        self._model
+                    )
             
             async with session.post(
                 f"{self._base_url}/api/chat",
@@ -544,7 +551,8 @@ class OllamaClient:
                 },
             }
             
-            if tools and self.supports_tools():
+            # Always send tools - Ollama handles model capabilities
+            if tools:
                 payload["tools"] = self._convert_tools(tools)
             
             async with session.post(
@@ -632,14 +640,9 @@ class OllamaClient:
                 },
             }
             
-            if tools and self.supports_tools():
+            # Always send tools - Ollama handles model capabilities
+            if tools:
                 payload["tools"] = self._convert_tools(tools)
-            elif tools and not self.supports_tools():
-                _LOGGER.warning(
-                    "Model '%s' may not support tool calling. "
-                    "Consider using llama3.1+, mistral, or qwen2.5",
-                    self._model
-                )
             
             async with session.post(
                 f"{self._base_url}/api/chat",
