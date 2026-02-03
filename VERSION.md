@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.7   | 2026-02-03 |
+| Smart Assist | 1.4.8   | 2026-02-03 |
 
 ## Version History
+
+### v1.4.8 (2026-02-03) - Improved Reconfigure UI
+
+**Improvement: Better Field Grouping in Reconfigure**
+
+- Ollama settings now prefixed with "Ollama:" for clear grouping
+- Improved description with status list format
+- Clearer field labels
 
 ### v1.4.7 (2026-02-03) - Fix Reconfigure Error
 

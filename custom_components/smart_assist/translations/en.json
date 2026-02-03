@@ -30,20 +30,20 @@
       },
       "reconfigure": {
         "title": "Update API Keys & Ollama Settings",
-        "description": "Update your API keys and Ollama settings. Leave API key fields empty to keep existing values.\n\n**Groq API Key**: {groq_status}\n**OpenRouter API Key**: {openrouter_status}\n**Ollama URL**: {ollama_status}",
+        "description": "Update your API keys and Ollama settings. Leave API key fields empty to keep existing values.\n\n**API Key Status:**\n- Groq: {groq_status}\n- OpenRouter: {openrouter_status}\n- Ollama: {ollama_status}",
         "data": {
-          "groq_api_key": "New Groq API Key",
-          "api_key": "New OpenRouter API Key",
-          "ollama_url": "New Ollama URL",
-          "ollama_num_ctx": "Context Window Size",
-          "ollama_keep_alive": "Keep Model Loaded",
-          "ollama_timeout": "Request Timeout (seconds)"
+          "groq_api_key": "Groq API Key",
+          "api_key": "OpenRouter API Key",
+          "ollama_url": "Ollama Server URL",
+          "ollama_num_ctx": "Ollama: Context Window Size",
+          "ollama_keep_alive": "Ollama: Keep Model Loaded",
+          "ollama_timeout": "Ollama: Request Timeout (seconds)"
         },
         "data_description": {
           "groq_api_key": "Enter a new Groq API key or leave empty to keep the current one.",
           "api_key": "Enter a new OpenRouter API key or leave empty to keep the current one.",
           "ollama_url": "Enter a new Ollama URL or leave empty to keep the current one.",
-          "ollama_num_ctx": "Context window size in tokens. Larger = more context but more RAM.",
+          "ollama_num_ctx": "Context window size in tokens. Larger values allow more context but use more RAM.",
           "ollama_keep_alive": "How long to keep the model loaded in memory after a request.",
           "ollama_timeout": "Maximum time to wait for Ollama to respond (in seconds)."
         }
