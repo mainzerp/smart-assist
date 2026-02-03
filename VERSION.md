@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.10  | 2026-02-03 |
+| Smart Assist | 1.4.11  | 2026-02-03 |
 
 ## Version History
+
+### v1.4.11 (2026-02-03) - Documentation Update
+
+**Documentation: Ollama Limitations**
+
+- Updated README.md and info.md to document Ollama as third provider
+- Added note that Ollama cache metrics are not available (API limitation)
+- Updated provider comparison table to include Ollama
+- Added Ollama settings section with num_ctx, keep_alive, timeout explanations
 
 ### v1.4.10 (2026-02-03) - Always Send Tools to Ollama
 

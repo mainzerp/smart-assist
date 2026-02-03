@@ -6,15 +6,16 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Control your smart home with natural language. Supports **Groq API** for ultra-fast inference and **OpenRouter** for access to 200+ models (Claude, GPT-4, Llama, Mistral, etc.).
+Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
 ## Features
 
 ### Core Features
 
-- **Dual Provider Support**: Choose between Groq (fastest) or OpenRouter (most models)
+- **Triple Provider Support**: Choose between Groq (fastest), OpenRouter (most models), or Ollama (local/private)
 - **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL, ~90% cache hit rate)
 - **OpenRouter Integration**: Access to 200+ models including Claude, GPT-4, Llama, Mistral, and more
+- **Ollama Integration**: Run LLMs locally on your own hardware with full privacy
 - **Natural Language Control**: Talk to your smart home naturally
 - **Unified Control Tool**: Single efficient tool for all entity types (lights, switches, climate, covers, media players, fans)
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently for faster responses
@@ -139,6 +140,19 @@ When you add these mappings, the LLM will use them directly from the system prom
 | -------- | -------- | -------- |
 | Groq | Speed | Ultra-fast inference, automatic caching, ~90% cache hit rate |
 | OpenRouter | Model Variety | 200+ models, provider routing, Claude/GPT-4/Llama access |
+| Ollama | Privacy/Local | No cloud, no API key, runs on your hardware, full data privacy |
+
+### Ollama Settings
+
+When using Ollama, you can configure these additional settings in the reconfigure dialog:
+
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| Context Window Size | Number of tokens the model can see (higher = more context, more RAM) | 8192 |
+| Keep Model Loaded | How long to keep the model in memory after a request | Forever |
+| Request Timeout | Maximum time to wait for Ollama to respond | 120s |
+
+> **Note**: Ollama does not expose cache statistics via API. Cache-related sensors (Cache Hit Rate, Cached Tokens) will show 0 for Ollama. This is a limitation of the Ollama API, not Smart Assist. Ollama uses an internal KV cache that works automatically but doesn't report metrics.
 
 ### Model Settings
 

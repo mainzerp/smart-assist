@@ -1,24 +1,26 @@
 # Smart Assist
 
-**Fast, LLM-powered smart home assistant for Home Assistant with dual provider support.**
+**Fast, LLM-powered smart home assistant for Home Assistant with triple provider support.**
 
-Control your smart home with natural language. Supports **Groq API** for ultra-fast inference and **OpenRouter** for access to 200+ models (Claude, GPT-4, Llama, Mistral, etc.).
+Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
 ## Features
 
-### Dual Provider Support
+### Triple Provider Support
 
 | Provider | Best For | Caching |
 | -------- | -------- | ------- |
 | **Groq** | Speed | Automatic prompt caching (2h TTL, ~90% hit rate) |
-| **OpenRouter** | Model variety | Native caching for Anthropic models only |
+| **OpenRouter** | Model variety | Caching for some models |
+| **Ollama** | Privacy/Local | Internal KV cache (no metrics exposed) |
 
-> **Note**: Prompt caching works best with native provider APIs. Groq has automatic caching for all models. OpenRouter supports caching only for Anthropic models via `cache_control` headers.
+> **Note**: Ollama does not expose cache statistics via API. Cache-related sensors will show 0 for Ollama. This is a limitation of the Ollama API, not Smart Assist.
 
 ### Core Features
 
 - **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
 - **OpenRouter Integration**: Access 200+ models (Claude, GPT-4, Llama, Mistral, Gemini, etc.)
+- **Ollama Integration**: Run LLMs locally with full privacy (llama3.1, qwen2.5, mistral, etc.)
 - **Natural Language Control**: Talk to your smart home naturally
 - **Unified Control Tool**: Single efficient tool for all entity types
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently
