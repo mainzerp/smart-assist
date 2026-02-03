@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.3.0   | 2026-02-03 |
+| Smart Assist | 1.3.1   | 2026-02-03 |
 
 ## Version History
+
+### v1.3.1 (2026-02-03) - Async Fix
+
+**Fix: SyntaxError in conversation.py**
+
+- Fixed `await` outside async function error
+- Made `_build_messages_for_llm` async to support thread-safe tool registry
+- No changes to prompt caching behavior or static-to-dynamic message order
 
 ### v1.3.0 (2026-02-03) - OpenRouter Integration
 
