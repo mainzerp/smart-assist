@@ -37,12 +37,26 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
         await hass.http.async_register_static_paths(
             [StaticPathConfig(PANEL_URL, str(PANEL_DIR), cache_headers=False)]
         )
+        _LOGGER.debug("Registered static path: %s -> %s", PANEL_URL, PANEL_DIR)
     except ImportError:
         # Fallback for older HA versions
         hass.http.register_static_path(PANEL_URL, str(PANEL_DIR), cache_headers=False)
+        _LOGGER.debug("Registered static path (legacy): %s -> %s", PANEL_URL, PANEL_DIR)
+    except Exception as err:
+        _LOGGER.error("Failed to register static path: %s", err)
+        return
 
     # Register the panel in the sidebar
-    if DOMAIN not in hass.data.get("frontend_panels", {}):
+    try:
+        # Remove existing panel first to avoid conflicts on reload
+        try:
+            from homeassistant.components.frontend import async_remove_panel
+            if hass.data.get("frontend_panels", {}).get(DOMAIN):
+                async_remove_panel(hass, DOMAIN)
+                _LOGGER.debug("Removed existing Smart Assist panel before re-registration")
+        except Exception:
+            pass
+
         async_register_built_in_panel(
             hass,
             component_name="custom",
@@ -60,3 +74,5 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
             require_admin=True,
         )
         _LOGGER.info("Smart Assist dashboard panel registered in sidebar")
+    except Exception as err:
+        _LOGGER.error("Failed to register Smart Assist panel: %s", err)
