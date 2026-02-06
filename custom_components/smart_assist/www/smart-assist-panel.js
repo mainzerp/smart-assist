@@ -1,8 +1,8 @@
 /**
  * Smart Assist Dashboard Panel
  *
- * Vanilla Web Component (no Lit dependency) for Home Assistant sidebar.
- * Displays metrics, memory, and configuration for Smart Assist agents.
+ * Vanilla Web Component for Home Assistant sidebar.
+ * Two tabs: Overview (metrics, tokens, cache, tools) and Memory (user browser).
  */
 
 class SmartAssistPanel extends HTMLElement {
@@ -11,6 +11,7 @@ class SmartAssistPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._data = null;
     this._selectedAgent = null;
+    this._activeTab = "overview";
     this._loading = true;
     this._error = null;
     this._memoryExpanded = null;
@@ -27,17 +28,11 @@ class SmartAssistPanel extends HTMLElement {
     }
   }
 
-  set narrow(val) {
-    this._narrow = val;
-    this._render();
-  }
-
+  set narrow(val) { this._narrow = val; this._render(); }
   set panel(val) { this._panel = val; }
   set route(val) { this._route = val; }
 
-  connectedCallback() {
-    this._render();
-  }
+  connectedCallback() { this._render(); }
 
   disconnectedCallback() {
     if (this._unsub) {
@@ -157,7 +152,6 @@ class SmartAssistPanel extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-
     let content = "";
     if (this._loading) {
       content = '<div class="loading">Loading Smart Assist Dashboard...</div>';
@@ -168,7 +162,6 @@ class SmartAssistPanel extends HTMLElement {
     } else {
       content = this._renderDashboard();
     }
-
     this.shadowRoot.innerHTML = "<style>" + this._getStyles() + "</style>" + content;
     this._attachEvents();
   }
@@ -176,9 +169,8 @@ class SmartAssistPanel extends HTMLElement {
   _renderDashboard() {
     const agents = this._data.agents || {};
     const agentIds = Object.keys(agents);
-    const agent = this._selectedAgent ? agents[this._selectedAgent] : null;
-    const metrics = agent ? (agent.metrics || {}) : this._getAggregateMetrics();
 
+    // Header
     let html = '<div class="header"><h1>Smart Assist</h1><div class="header-actions"><button class="refresh-btn" id="refresh-btn">Refresh</button></div></div>';
 
     // Agent selector (if multiple)
@@ -190,6 +182,27 @@ class SmartAssistPanel extends HTMLElement {
       }
       html += '</div>';
     }
+
+    // Tab bar
+    html += '<div class="tab-bar">'
+      + '<button class="tab-btn ' + (this._activeTab === "overview" ? "active" : "") + '" data-tab="overview">Overview</button>'
+      + '<button class="tab-btn ' + (this._activeTab === "memory" ? "active" : "") + '" data-tab="memory">Memory</button>'
+      + '</div>';
+
+    // Tab content
+    if (this._activeTab === "overview") {
+      html += this._renderOverviewTab(agents);
+    } else if (this._activeTab === "memory") {
+      html += this._renderMemoryTab();
+    }
+
+    return html;
+  }
+
+  _renderOverviewTab(agents) {
+    const agent = this._selectedAgent ? agents[this._selectedAgent] : null;
+    const metrics = agent ? (agent.metrics || {}) : this._getAggregateMetrics();
+    let html = "";
 
     // Overview cards
     if (metrics) {
@@ -210,10 +223,50 @@ class SmartAssistPanel extends HTMLElement {
     html += this._renderTokenCard(metrics);
     html += this._renderCacheCard(metrics, agent);
     html += this._renderToolsCard(agent);
-    html += this._renderFeaturesCard(agent);
-    html += this._renderMemoryCard();
-    html += this._renderConfigCard(agent);
     html += '</div>';
+
+    return html;
+  }
+
+  _renderMemoryTab() {
+    const memory = this._data ? this._data.memory : null;
+    if (!memory) return '<div class="loading">No memory data available</div>';
+
+    const users = memory.users || {};
+    const userIds = Object.keys(users);
+
+    // Summary cards
+    let html = '<div class="overview-grid">'
+      + '<div class="metric-card"><div class="label">Total Users</div><div class="value">' + (memory.total_users || 0) + '</div></div>'
+      + '<div class="metric-card"><div class="label">Total Memories</div><div class="value">' + (memory.total_memories || 0) + '</div></div>'
+      + '<div class="metric-card"><div class="label">Global Memories</div><div class="value">' + (memory.global_memories || 0) + '</div></div>'
+      + '</div>';
+
+    // User table
+    if (userIds.length > 0) {
+      let rows = "";
+      for (const uid of userIds) {
+        const u = users[uid];
+        const cats = u.categories || {};
+        const catTags = Object.entries(cats).map(function(e) {
+          return '<span class="memory-category ' + e[0] + '">' + e[0] + ': ' + e[1] + '</span>';
+        }).join(" ");
+        rows += '<tr class="memory-user-row" data-user="' + this._esc(uid) + '">'
+          + '<td><strong>' + this._esc(u.display_name || uid) + '</strong></td>'
+          + '<td>' + (u.memory_count || 0) + '</td>'
+          + '<td>' + (catTags || '-') + '</td>'
+          + '<td style="font-size:12px;color:var(--sa-text-secondary);">' + (u.first_interaction ? new Date(u.first_interaction).toLocaleDateString() : '-') + '</td>'
+          + '</tr>';
+        if (this._memoryExpanded === uid) {
+          rows += '<tr><td colspan="4" style="padding:0;">' + this._renderMemoryDetails() + '</td></tr>';
+        }
+      }
+      html += '<div class="card"><h3>User Profiles</h3>'
+        + '<table><thead><tr><th>User</th><th>Memories</th><th>Categories</th><th>First Seen</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div>';
+    } else {
+      html += '<div class="card"><h3>User Profiles</h3><div style="color:var(--sa-text-secondary);font-size:14px;padding:20px 0;">No user profiles yet. Memories will appear here once users interact with the assistant.</div></div>';
+    }
 
     return html;
   }
@@ -280,56 +333,6 @@ class SmartAssistPanel extends HTMLElement {
     return '<div class="card"><h3>Registered Tools (' + agent.tools.length + ')</h3><div class="tools-grid">' + tags + '</div></div>';
   }
 
-  _renderFeaturesCard(agent) {
-    if (!agent || !agent.features) return "";
-    const labels = {
-      memory: "Memory", web_search: "Web Search", calendar_context: "Calendar",
-      prompt_caching: "Prompt Caching", cache_warming: "Cache Warming",
-      clean_responses: "Clean Responses", ask_followup: "Follow-up",
-      presence_heuristic: "Presence Heuristic",
-    };
-    let items = "";
-    for (const [key, val] of Object.entries(agent.features)) {
-      const dotClass = val ? "on" : "off";
-      items += '<div class="feature-item"><span class="feature-dot ' + dotClass + '"></span><span>' + (labels[key] || key) + '</span></div>';
-    }
-    return '<div class="card"><h3>Features</h3><div class="feature-grid">' + items + '</div></div>';
-  }
-
-  _renderMemoryCard() {
-    const memory = this._data ? this._data.memory : null;
-    if (!memory) return "";
-    const users = memory.users || {};
-    const userIds = Object.keys(users);
-
-    let globalHtml = "";
-    if (memory.global_memories > 0) {
-      globalHtml = '<div style="margin-bottom:12px;font-size:13px;color:var(--sa-text-secondary);">' + memory.global_memories + ' global memories</div>';
-    }
-
-    let tableHtml = "";
-    if (userIds.length > 0) {
-      let rows = "";
-      for (const uid of userIds) {
-        const u = users[uid];
-        const cats = u.categories || {};
-        const catStr = Object.entries(cats).map(function(e) { return e[0] + ": " + e[1]; }).join(", ") || "-";
-        rows += '<tr class="memory-user-row" data-user="' + this._esc(uid) + '">'
-          + '<td>' + this._esc(u.display_name || uid) + '</td>'
-          + '<td>' + (u.memory_count || 0) + '</td>'
-          + '<td style="font-size:12px;">' + this._esc(catStr) + '</td></tr>';
-        if (this._memoryExpanded === uid) {
-          rows += '<tr><td colspan="3" style="padding:0;">' + this._renderMemoryDetails() + '</td></tr>';
-        }
-      }
-      tableHtml = '<table><thead><tr><th>User</th><th>Memories</th><th>Categories</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    } else {
-      tableHtml = '<div style="color:var(--sa-text-secondary);font-size:13px;">No user profiles yet.</div>';
-    }
-
-    return '<div class="card"><h3>Memory (' + (memory.total_memories || 0) + ' total, ' + (memory.total_users || 0) + ' users)</h3>' + globalHtml + tableHtml + '</div>';
-  }
-
   _renderMemoryDetails() {
     const details = this._memoryDetails;
     if (!details || !details.memories) return "";
@@ -338,7 +341,7 @@ class SmartAssistPanel extends HTMLElement {
       return '<div class="memory-detail" style="color:var(--sa-text-secondary);">No memories stored.</div>';
     }
     let entries = "";
-    const shown = memories.slice(0, 20);
+    const shown = memories.slice(0, 30);
     for (const m of shown) {
       const cat = m.category || "unknown";
       const date = m.created ? new Date(m.created).toLocaleDateString() : "";
@@ -347,21 +350,10 @@ class SmartAssistPanel extends HTMLElement {
         + this._esc(m.content || "")
         + '<span style="float:right;font-size:11px;color:var(--sa-text-secondary);">' + date + '</span></div>';
     }
-    if (memories.length > 20) {
-      entries += '<div style="text-align:center;padding:8px;color:var(--sa-text-secondary);font-size:12px;">... and ' + (memories.length - 20) + ' more</div>';
+    if (memories.length > 30) {
+      entries += '<div style="text-align:center;padding:8px;color:var(--sa-text-secondary);font-size:12px;">... and ' + (memories.length - 30) + ' more</div>';
     }
     return '<div class="memory-detail">' + entries + '</div>';
-  }
-
-  _renderConfigCard(agent) {
-    if (!agent) return "";
-    return '<div class="card"><h3>Configuration</h3><table><tbody>'
-      + '<tr><td style="color:var(--sa-text-secondary);">Model</td><td>' + this._esc(agent.model) + '</td></tr>'
-      + '<tr><td style="color:var(--sa-text-secondary);">LLM Provider</td><td>' + this._esc(agent.llm_provider) + '</td></tr>'
-      + '<tr><td style="color:var(--sa-text-secondary);">Provider</td><td>' + this._esc(agent.provider) + '</td></tr>'
-      + '<tr><td style="color:var(--sa-text-secondary);">Temperature</td><td>' + agent.temperature + '</td></tr>'
-      + '<tr><td style="color:var(--sa-text-secondary);">Max Tokens</td><td>' + agent.max_tokens + '</td></tr>'
-      + '</tbody></table></div>';
   }
 
   _attachEvents() {
@@ -373,6 +365,13 @@ class SmartAssistPanel extends HTMLElement {
 
     const retryBtn = root.getElementById("retry-btn");
     if (retryBtn) retryBtn.addEventListener("click", () => this._fetchData());
+
+    root.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this._activeTab = btn.dataset.tab;
+        this._render();
+      });
+    });
 
     root.querySelectorAll(".agent-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -405,13 +404,20 @@ class SmartAssistPanel extends HTMLElement {
       + "background:var(--primary-background-color,#fafafa);"
       + "min-height:100vh;box-sizing:border-box;"
       + "}"
-      + ".header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}"
+      + ".header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;}"
       + ".header h1{margin:0;font-size:24px;font-weight:400;color:var(--sa-text);}"
       + ".header-actions{display:flex;gap:8px;align-items:center;}"
-      + ".agent-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}"
+      // Tab bar
+      + ".tab-bar{display:flex;gap:0;margin-bottom:24px;border-bottom:2px solid var(--sa-divider);}"
+      + ".tab-btn{padding:10px 20px;border:none;background:none;color:var(--sa-text-secondary);cursor:pointer;font-size:14px;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.2s;}"
+      + ".tab-btn:hover{color:var(--sa-text);}"
+      + ".tab-btn.active{color:var(--sa-primary);border-bottom-color:var(--sa-primary);}"
+      // Agent selector
+      + ".agent-selector{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}"
       + ".agent-tab{padding:8px 16px;border-radius:20px;border:1px solid var(--sa-divider);background:var(--sa-card-bg);color:var(--sa-text);cursor:pointer;font-size:14px;transition:all 0.2s;}"
       + ".agent-tab:hover{border-color:var(--sa-primary);}"
       + ".agent-tab.active{background:var(--sa-primary);color:#fff;border-color:var(--sa-primary);}"
+      // Overview grid
       + ".overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;}"
       + ".metric-card{background:var(--sa-card-bg);border-radius:var(--sa-border-radius);padding:20px;box-shadow:var(--ha-card-box-shadow,0 2px 6px rgba(0,0,0,0.1));text-align:center;}"
       + ".metric-card .label{font-size:12px;color:var(--sa-text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}"
@@ -420,9 +426,11 @@ class SmartAssistPanel extends HTMLElement {
       + ".metric-card .value.warning{color:var(--sa-warning);}"
       + ".metric-card .value.error{color:var(--sa-error);}"
       + ".metric-card .sub{font-size:11px;color:var(--sa-text-secondary);margin-top:4px;}"
+      // Content grid
       + ".content-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;}"
       + ".card{background:var(--sa-card-bg);border-radius:var(--sa-border-radius);padding:20px;box-shadow:var(--ha-card-box-shadow,0 2px 6px rgba(0,0,0,0.1));}"
       + ".card h3{margin:0 0 16px 0;font-size:16px;font-weight:500;color:var(--sa-text);}"
+      // Bar chart
       + ".bar-row{display:flex;align-items:center;margin-bottom:8px;gap:8px;}"
       + ".bar-label{font-size:13px;color:var(--sa-text-secondary);min-width:100px;text-align:right;}"
       + ".bar-track{flex:1;height:18px;background:var(--sa-divider);border-radius:9px;overflow:hidden;}"
@@ -431,35 +439,36 @@ class SmartAssistPanel extends HTMLElement {
       + ".bar-fill.completion{background:var(--sa-success);}"
       + ".bar-fill.cached{background:var(--sa-warning);}"
       + ".bar-value{font-size:12px;color:var(--sa-text-secondary);min-width:70px;}"
+      // Table
       + "table{width:100%;border-collapse:collapse;font-size:13px;}"
       + "th{text-align:left;padding:8px 12px;color:var(--sa-text-secondary);font-weight:500;border-bottom:2px solid var(--sa-divider);font-size:12px;text-transform:uppercase;letter-spacing:0.3px;}"
       + "td{padding:8px 12px;border-bottom:1px solid var(--sa-divider);color:var(--sa-text);}"
       + "tr:last-child td{border-bottom:none;}"
+      // Tools
       + ".tools-grid{display:flex;flex-wrap:wrap;gap:6px;}"
       + ".tool-tag{padding:4px 10px;border-radius:12px;background:color-mix(in srgb,var(--sa-primary) 15%,transparent);color:var(--sa-primary);font-size:12px;font-weight:500;}"
-      + ".feature-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;}"
-      + ".feature-item{display:flex;align-items:center;gap:6px;font-size:13px;}"
-      + ".feature-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}"
-      + ".feature-dot.on{background:var(--sa-success);}"
-      + ".feature-dot.off{background:var(--sa-divider);}"
+      // Memory
       + ".memory-user-row{cursor:pointer;}"
       + ".memory-user-row:hover td{background:color-mix(in srgb,var(--sa-primary) 5%,transparent);}"
-      + ".memory-detail{padding:12px;background:color-mix(in srgb,var(--sa-primary) 5%,transparent);border-radius:8px;margin-top:8px;}"
-      + ".memory-entry{padding:6px 0;border-bottom:1px solid var(--sa-divider);font-size:13px;}"
+      + ".memory-detail{padding:16px;background:color-mix(in srgb,var(--sa-primary) 5%,transparent);border-radius:8px;margin:8px 0;}"
+      + ".memory-entry{padding:8px 0;border-bottom:1px solid var(--sa-divider);font-size:13px;display:flex;align-items:baseline;gap:8px;}"
       + ".memory-entry:last-child{border-bottom:none;}"
-      + ".memory-category{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500;margin-right:6px;}"
+      + ".memory-category{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;}"
       + ".memory-category.preference{background:#e3f2fd;color:#1565c0;}"
       + ".memory-category.named_entity{background:#f3e5f5;color:#7b1fa2;}"
       + ".memory-category.pattern{background:#fff3e0;color:#e65100;}"
       + ".memory-category.instruction{background:#e8f5e9;color:#2e7d32;}"
       + ".memory-category.fact{background:#fce4ec;color:#c62828;}"
+      // Cache warming
       + ".warming-status{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:13px;}"
       + ".warming-status.active{background:color-mix(in srgb,var(--sa-success) 15%,transparent);color:var(--sa-success);}"
       + ".warming-status.warming{background:color-mix(in srgb,var(--sa-warning) 15%,transparent);color:var(--sa-warning);}"
       + ".warming-status.inactive{background:color-mix(in srgb,var(--sa-divider) 50%,transparent);color:var(--sa-text-secondary);}"
       + ".warming-detail{color:var(--sa-text-secondary);font-size:12px;margin-top:4px;}"
+      // Buttons
       + ".refresh-btn{background:none;border:1px solid var(--sa-divider);border-radius:20px;padding:6px 14px;color:var(--sa-text);cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;transition:border-color 0.2s;}"
       + ".refresh-btn:hover{border-color:var(--sa-primary);color:var(--sa-primary);}"
+      // States
       + ".loading,.error-msg{text-align:center;padding:60px 20px;color:var(--sa-text-secondary);font-size:16px;}"
       + ".error-msg{color:var(--sa-error);}"
       + ".sub{font-size:11px;color:var(--sa-text-secondary);margin-top:4px;}";
