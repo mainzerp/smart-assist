@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.5.0   | 2026-02-04 |
+| Smart Assist | 1.5.1   | 2026-02-06 |
 
 ## Version History
+
+### v1.5.1 (2026-02-06) - Hassfest Fix
+
+**Fix: Missing `intent` dependency in manifest.json**
+
+- Added `intent` to `dependencies` in `manifest.json`
+- Required because `timer_tools.py` imports from `homeassistant.helpers.intent`
+- Fixes hassfest validation error in HACS CI pipeline
 
 ### v1.5.0 (2026-02-04) - Code Quality Refactoring
 
