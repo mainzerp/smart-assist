@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.1   | 2026-02-08 |
+| Smart Assist | 1.7.2   | 2026-02-08 |
 
 ## Version History
+
+### v1.7.2 (2026-02-08) - Dashboard Calendar Fix
+
+**Fix: Calendar Tab Resetting to "Disabled"**
+
+- Calendar tab no longer resets to "Calendar context is disabled" after each conversation
+- Root cause: WebSocket subscription updates only sent agents/tasks/memory data, omitting calendar
+- `forward_update` now includes calendar data via async task
+- Frontend merges subscription data (`Object.assign`) instead of replacing `_data` entirely
 
 ### v1.7.1 (2026-02-08) - Memory Management UI
 
