@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-08 (v1.7.1)
+> Last updated: 2026-02-08 (v1.8.0)
 
 ## Completed Milestones
 
@@ -38,12 +38,13 @@
 | Memory & Personalization | v1.6.0 | Persistent user memory (100 chars, 100/user), hybrid injection + tool CRUD, 5-layer multi-user identification, presence heuristic (opt-in) |
 | Dashboard & UI | v1.7.0 | Custom sidebar panel (vanilla Web Component), WebSocket API for real-time metrics, token/cache/memory/tools/calendar overview, multi-agent selector, HA theme integration |
 | Memory Management UI | v1.7.1 | Rename/merge/delete user memories from dashboard, persistent calendar reminder state (HA Storage API), First Seen tracking fix |
+| Token-Efficient Entity Discovery | v1.8.0 | Smart Discovery mode: no entity index in prompt, on-demand entity discovery via tool calls, 100% token savings on entity context |
 
 ---
 
 ## Planned Features
 
-### v1.8.0 - Persistent Alarms and Scheduling
+### v1.9.0 - Persistent Alarms and Scheduling
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
@@ -51,7 +52,7 @@
 | Proactive Notifications | LLM-triggered alerts based on entity state changes ("Your energy usage is unusually high today") | Medium |
 | Weather Suggestions | Context-aware hints ("It will rain, should I close the windows?") | Low |
 
-### v1.9.0 - Vision and Camera Analysis
+### v1.10.0 - Vision and Camera Analysis
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
@@ -59,7 +60,7 @@
 | Object Detection | "Is my car in the driveway?" - Check specific objects in camera view | Medium |
 | Motion Summary | "What happened in the garage?" - Summarize recent camera activity | Medium |
 
-### v1.10.0 - Natural Language Automations
+### v1.11.0 - Natural Language Automations
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
@@ -81,7 +82,6 @@ These features are not yet assigned to a specific version.
 | Per-Request History Log | Track individual request metrics (timestamp, tokens, response_time, tools_used) for trend analysis in dashboard. | Medium |
 | Tool Usage Analytics | Track tool call frequency and success rates for dashboard visualization. | Low |
 | MCP Server Mode | Expose Smart Assist tools via Model Context Protocol (MCP) for external clients (Claude Desktop, LM Studio, etc.). Enables external LLMs to discover and control HA entities through Smart Assist tools without full entity context dumps. Inspired by [mcp-assist](https://github.com/mike-nott/mcp-assist). | High |
-| Token-Efficient Entity Discovery | Dynamic entity loading instead of sending full entity lists. Build a lightweight entity index (~400-800 tokens) and discover entities on-demand by area, type, device_class, or name. Could reduce token usage by 90%+ for large installations. | High |
 | RAG Integration | Search own documents, manuals, recipes with vector embeddings. Use device manuals for troubleshooting advice, recipe retrieval for kitchen assistants, or household rules/instructions. | High |
 | LLM Fallback Chain | Try local LLM (Ollama) first, fallback to cloud provider if local model fails or is unavailable. Balances privacy, cost, and reliability. | Medium |
 

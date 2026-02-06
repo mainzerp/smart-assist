@@ -4,9 +4,28 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.2   | 2026-02-08 |
+| Smart Assist | 1.8.0   | 2026-02-08 |
 
 ## Version History
+
+### v1.8.0 (2026-02-08) - Token-Efficient Entity Discovery
+
+**Feature: Smart Discovery Mode**
+
+- New "Entity Discovery Mode" setting in agent configuration
+- **Full Index** (default): All entities listed in system prompt (current behavior)
+- **Smart Discovery**: No entity index in prompt -- entities discovered on-demand via `get_entities` tool
+- LLM uses domain, area, and name context from user requests to narrow entity searches
+- System prompt instructs LLM to always discover entities before controlling them
+- `get_entities` tool description adapts based on selected mode
+- 100% token savings on entity index (0 tokens vs. 400-4500+ tokens depending on installation size)
+- Trade-off: 1-2 extra tool calls per request (~200-500ms) for entity discovery
+
+**Configuration**
+
+- Available in conversation agent Settings and Reconfigure flows
+- SelectSelector with dropdown: "Full Index" or "Smart Discovery"
+- German and English translations
 
 ### v1.7.2 (2026-02-08) - Dashboard Calendar Fix
 

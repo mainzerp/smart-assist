@@ -67,6 +67,7 @@ try:
         CONF_ENABLE_PRESENCE_HEURISTIC,
         CONF_ENABLE_PROMPT_CACHING,
         CONF_ENABLE_QUICK_ACTIONS,
+        CONF_ENTITY_DISCOVERY_MODE,
         CONF_EXPOSED_ONLY,
         CONF_GROQ_API_KEY,
         CONF_LANGUAGE,
@@ -89,6 +90,7 @@ try:
         DEFAULT_CLEAN_RESPONSES,
         DEFAULT_ENABLE_MEMORY,
         DEFAULT_ENABLE_PRESENCE_HEURISTIC,
+        DEFAULT_ENTITY_DISCOVERY_MODE,
         DEFAULT_LLM_PROVIDER,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
@@ -889,7 +891,18 @@ If your response ends with a question mark (?), you MUST call await_response."""
 - If uncertain about entity, ask for clarification""")
         
         # Entity lookup strategy
-        if caching_enabled:
+        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
+        if discovery_mode == "smart_discovery":
+            parts.append("""
+## Entity Lookup [CRITICAL]
+There is NO entity index in this prompt. You MUST discover entities using tools:
+1. Use get_entities(domain) to find entities - ALWAYS specify a domain
+2. Use area and name_filter to narrow results based on user context
+3. Use get_entity_state to verify current state before actions
+- NEVER guess or fabricate entity_ids - always discover them first
+- Infer domain from user intent: \"light\"/\"lamp\" -> light, \"temperature\" -> climate/sensor, etc.
+- Infer area from user context: \"kitchen light\" -> domain=light, area=kitchen""")
+        elif caching_enabled:
             parts.append("""
 ## Entity Lookup
 1. Check ENTITY INDEX first to find entity_ids
@@ -1171,10 +1184,14 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             )
             cached_prefix_length += 1
 
-        # 3. Entity index (cached - only if caching is enabled)
+        # 3. Entity index (cached - only if caching is enabled and not smart_discovery)
         caching_enabled = self._get_config(CONF_ENABLE_PROMPT_CACHING, True)
+        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
         
-        if caching_enabled:
+        if discovery_mode == "smart_discovery":
+            # Smart Discovery: NO entity index injected -- LLM discovers via tool
+            _LOGGER.debug("Smart Discovery mode: skipping entity index injection")
+        elif caching_enabled:
             entity_index, index_hash = self._entity_manager.get_entity_index()
 
             # Only update cache if hash changed

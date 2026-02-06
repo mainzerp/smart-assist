@@ -32,6 +32,9 @@ CONF_TASK_ENABLE_CACHE_WARMING: Final = "task_enable_cache_warming"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_CALENDAR_CONTEXT: Final = "calendar_context"
 
+# Entity discovery mode
+CONF_ENTITY_DISCOVERY_MODE: Final = "entity_discovery_mode"
+
 # Memory configuration keys
 CONF_ENABLE_MEMORY: Final = "enable_memory"
 CONF_USER_MAPPINGS: Final = "user_mappings"
@@ -72,6 +75,7 @@ SESSION_RECENT_ENTITIES_MAX: Final = 5  # Max recent entities for pronoun resolu
 SESSION_EXPIRY_MINUTES: Final = 30  # Session timeout in minutes
 DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
 DEFAULT_CALENDAR_CONTEXT: Final = False  # Disabled by default (token cost)
+DEFAULT_ENTITY_DISCOVERY_MODE: Final = "full_index"  # Full entity index in prompt
 DEFAULT_ENABLE_MEMORY: Final = False  # Disabled by default
 DEFAULT_ENABLE_PRESENCE_HEURISTIC: Final = False  # Disabled by default
 

@@ -44,6 +44,7 @@ from .const import (
     CONF_ENABLE_PRESENCE_HEURISTIC,
     CONF_ENABLE_PROMPT_CACHING,
     CONF_ENABLE_WEB_SEARCH,
+    CONF_ENTITY_DISCOVERY_MODE,
     CONF_EXPOSED_ONLY,
     CONF_GROQ_API_KEY,
     CONF_LANGUAGE,
@@ -71,6 +72,7 @@ from .const import (
     DEFAULT_ENABLE_CACHE_WARMING,
     DEFAULT_ENABLE_MEMORY,
     DEFAULT_ENABLE_PRESENCE_HEURISTIC,
+    DEFAULT_ENTITY_DISCOVERY_MODE,
     DEFAULT_EXPOSED_ONLY,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
@@ -298,6 +300,9 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_ENTITY_DISCOVERY_MODE, default=DEFAULT_ENTITY_DISCOVERY_MODE): SelectSelector(
+                SelectSelectorConfig(options=["full_index", "smart_discovery"], mode=SelectSelectorMode.DROPDOWN, translation_key="entity_discovery_mode")
+            ),
             vol.Required(CONF_CONFIRM_CRITICAL, default=DEFAULT_CONFIRM_CRITICAL): BooleanSelector(),
             vol.Required(CONF_MAX_HISTORY, default=DEFAULT_MAX_HISTORY): NumberSelector(
                 NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
@@ -515,6 +520,9 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_ENTITY_DISCOVERY_MODE): SelectSelector(
+                SelectSelectorConfig(options=["full_index", "smart_discovery"], mode=SelectSelectorMode.DROPDOWN, translation_key="entity_discovery_mode")
+            ),
             vol.Required(CONF_CONFIRM_CRITICAL): BooleanSelector(),
             vol.Required(CONF_MAX_HISTORY): NumberSelector(
                 NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)

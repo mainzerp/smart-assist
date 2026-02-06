@@ -117,6 +117,7 @@
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
+            "entity_discovery_mode": "Entity Discovery Mode",
             "confirm_critical": "Confirm critical actions (locks, alarms)",
             "max_history": "Maximum conversation history",
             "enable_web_search": "Enable web search (DuckDuckGo)",
@@ -141,6 +142,7 @@
             "clean_responses": "Makes responses TTS-friendly by removing emojis, markdown formatting, and URLs.",
             "ask_followup": "If enabled, the assistant will offer further help after completing actions.",
             "calendar_context": "Automatically mention upcoming calendar events. Note: Increases token usage.",
+            "entity_discovery_mode": "Full Index: All entities listed in prompt (best for small setups). Smart Discovery: No entity list -- entities discovered on-demand via tool calls (saves tokens for large setups).",
             "enable_memory": "Allows the assistant to remember user preferences, names, and instructions across conversations.",
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home."
           }
@@ -179,6 +181,7 @@
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
+            "entity_discovery_mode": "Entity Discovery Mode",
             "confirm_critical": "Confirm critical actions",
             "max_history": "Maximum conversation history",
             "enable_web_search": "Enable web search",
@@ -295,6 +298,14 @@
         "groq_api_key_required": "Groq API key is required for Groq provider.",
         "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider.",
         "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings."
+      }
+    }
+  },
+  "selector": {
+    "entity_discovery_mode": {
+      "options": {
+        "full_index": "Full Index (all entities in prompt)",
+        "smart_discovery": "Smart Discovery (on-demand, saves tokens)"
       }
     }
   }

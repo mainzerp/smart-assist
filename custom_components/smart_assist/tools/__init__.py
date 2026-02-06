@@ -16,7 +16,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .base import BaseTool, ToolRegistry, ToolResult
-from ..const import CONF_ENABLE_WEB_SEARCH, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY
+from ..const import CONF_ENABLE_WEB_SEARCH, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY, CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE
 
 if TYPE_CHECKING:
     from typing import Any
@@ -85,7 +85,18 @@ def create_tool_registry(
     )
     
     # Core tools (always available)
-    registry.register(GetEntitiesTool(hass))
+    get_entities_tool = GetEntitiesTool(hass)
+    
+    # Adjust description based on entity discovery mode
+    discovery_mode = _get_config(entry, CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE, subentry_data)
+    if discovery_mode == "smart_discovery":
+        get_entities_tool.description = (
+            "Discover available entities by domain, area, or name. "
+            "ALWAYS use this tool to find entity IDs before controlling them. "
+            "Specify domain (required) and optionally area or name_filter to narrow results."
+        )
+    
+    registry.register(get_entities_tool)
     registered_tools.append("get_entities")
     registry.register(GetEntityStateTool(hass))
     registered_tools.append("get_entity_state")
