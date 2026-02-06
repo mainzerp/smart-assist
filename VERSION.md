@@ -4,9 +4,48 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.1   | 2026-02-07 |
+| Smart Assist | 1.7.0   | 2026-02-08 |
 
 ## Version History
+
+### v1.7.0 (2026-02-08) - Dashboard & UI
+
+**Feature: Custom Sidebar Panel**
+
+- Added `frontend.py` - Registers a custom sidebar panel in HA using `async_register_built_in_panel`
+- Panel appears in HA sidebar with "Smart Assist" title and `mdi:brain` icon
+- Static path `/api/smart_assist/panel/` serves the panel JS from `www/` directory
+- Panel requires admin access, auto-removed on integration unload
+- Uses HA's built-in Lit framework for zero-dependency rendering
+
+**Feature: WebSocket API**
+
+- Added `websocket.py` - Real-time data API for the dashboard frontend
+- `smart_assist/dashboard_data` - Returns all agents, tasks, metrics, cache warming data, and memory summary
+- `smart_assist/memory_details` - Returns detailed memory entries for a specific user (expandable in UI)
+- `smart_assist/subscribe` - Real-time subscription for metric updates via HA dispatcher signals
+- All commands require admin authentication
+- Iterates config subentries to build per-agent and per-task data
+
+**Feature: Dashboard Panel (Lit Web Component)**
+
+- Added `www/smart-assist-panel.js` - Full Lit Web Component (~960 lines)
+- Overview Cards: Total requests, success rate, avg response time, total tokens, cache hit rate
+- Token Usage: Horizontal bar chart comparing prompt, completion, and cached tokens
+- Cache Performance: Hit/miss counters, hit rate gauge, cache warming status display
+- Registered Tools: Visual tag grid showing all tools per agent
+- Features: Toggle status grid for memory, web search, calendar, caching, etc.
+- Memory Browser: User table with expandable rows showing individual memories by category
+- Configuration: Model, provider, temperature, max tokens display
+- Agent Selector: Tab bar to switch between agents when multiple exist
+- Auto-refresh via WebSocket subscription + manual refresh button
+- Full HA theme integration via CSS custom properties (dark/light mode)
+- Responsive design with narrow mode breakpoints
+
+**Integration Changes**
+
+- `__init__.py`: Registers WebSocket commands and frontend panel on setup, removes panel on unload
+- `manifest.json`: Added `frontend` dependency, version bumped to 1.7.0
 
 ### v1.6.1 (2026-02-07) - Memory Tool Registration Fix
 

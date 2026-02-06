@@ -36,12 +36,13 @@
 | BaseLLMClient Refactoring | v1.5.0 | All LLM clients extend shared base class (~340 lines removed) |
 | Config Flow Modularization | v1.5.0 | Split 1500-line config_flow.py into 3 focused modules |
 | Memory & Personalization | v1.6.0 | Persistent user memory (100 chars, 100/user), hybrid injection + tool CRUD, 5-layer multi-user identification, presence heuristic (opt-in) |
+| Dashboard & UI | v1.7.0 | Custom sidebar panel (Lit Web Component), WebSocket API for real-time metrics, token/cache/memory/tools/features overview, multi-agent selector, HA theme integration |
 
 ---
 
 ## Planned Features
 
-### v1.7.0 - Persistent Alarms and Scheduling
+### v1.8.0 - Persistent Alarms and Scheduling
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
@@ -49,7 +50,7 @@
 | Proactive Notifications | LLM-triggered alerts based on entity state changes ("Your energy usage is unusually high today") | Medium |
 | Weather Suggestions | Context-aware hints ("It will rain, should I close the windows?") | Low |
 
-### v1.8.0 - Vision and Camera Analysis
+### v1.9.0 - Vision and Camera Analysis
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
@@ -57,22 +58,13 @@
 | Object Detection | "Is my car in the driveway?" - Check specific objects in camera view | Medium |
 | Motion Summary | "What happened in the garage?" - Summarize recent camera activity | Medium |
 
-### v1.9.0 - Natural Language Automations
+### v1.10.0 - Natural Language Automations
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
 | Natural Language Automations | "When I come home, turn on the lights" - Creates HA automations from natural language | High |
 | Routine Creation | "Create a 'Good Night' routine" - Define multi-step sequences via conversation | Medium |
 | Conditional Actions | "Turn off lights only if no one is home" - Smart conditionals in automations | Medium |
-
-### v1.10.0 - Dashboard and UI
-
-| Feature | Description | Priority |
-| ------- | ----------- | -------- |
-| Custom Panel (Sidebar) | Custom dashboard in HA sidebar using JavaScript/Lit Web Component. Shows: Conversation History, Token Usage Graphs, Cache Hit/Miss Stats, Active Timers/Alarms, Tool Usage Analytics, Entity Index Overview. | High |
-| Dashboard Generation | Create HA dashboards via natural language ("Create an energy dashboard for the kitchen") | Medium |
-| Settings Quick Access | Quick access to integration configuration directly from the panel | Low |
-| Dark/Light Theme Support | Panel automatically adapts to HA theme | Low |
 
 ---
 
@@ -84,6 +76,9 @@ These features are not yet assigned to a specific version.
 
 | Feature | Description | Effort |
 | ------- | ----------- | ------ |
+| Dashboard Generation | Create HA dashboards via natural language ("Create an energy dashboard for the kitchen"). Requires v1.7.0 panel infrastructure. | Medium |
+| Per-Request History Log | Track individual request metrics (timestamp, tokens, response_time, tools_used) for trend analysis in dashboard. | Medium |
+| Tool Usage Analytics | Track tool call frequency and success rates for dashboard visualization. | Low |
 | MCP Server Mode | Expose Smart Assist tools via Model Context Protocol (MCP) for external clients (Claude Desktop, LM Studio, etc.). Enables external LLMs to discover and control HA entities through Smart Assist tools without full entity context dumps. Inspired by [mcp-assist](https://github.com/mike-nott/mcp-assist). | High |
 | Token-Efficient Entity Discovery | Dynamic entity loading instead of sending full entity lists. Build a lightweight entity index (~400-800 tokens) and discover entities on-demand by area, type, device_class, or name. Could reduce token usage by 90%+ for large installations. | High |
 | RAG Integration | Search own documents, manuals, recipes with vector embeddings. Use device manuals for troubleshooting advice, recipe retrieval for kitchen assistants, or household rules/instructions. | High |

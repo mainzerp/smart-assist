@@ -88,6 +88,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     debug_enabled = get_config(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
     apply_debug_logging(debug_enabled)
 
+    # Register WebSocket API commands for dashboard
+    from .websocket import async_register_websocket_commands
+    async_register_websocket_commands(hass)
+
+    # Register frontend panel in sidebar
+    from .frontend import async_register_frontend
+    await async_register_frontend(hass)
+
     # Set up platforms (they will read from subentries)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -345,6 +353,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("Memory manager shutdown complete")
     except Exception as err:
         _LOGGER.warning("Error shutting down memory manager: %s", err)
+
+    # Remove sidebar panel
+    try:
+        from homeassistant.components.frontend import async_remove_panel
+        if hass.data.get("frontend_panels", {}).get(DOMAIN):
+            async_remove_panel(hass, DOMAIN)
+            _LOGGER.debug("Removed Smart Assist sidebar panel")
+    except (ImportError, AttributeError):
+        pass
 
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
