@@ -461,7 +461,7 @@ class SmartAssistConversationEntity(ConversationEntity):
 
             _LOGGER.debug("Streaming response complete. continue=%s", continue_conversation)
 
-            return self._build_result(user_input, chat_log, final_response, continue_conversation)
+            return self._build_result(user_input, chat_log, final_response, continue_conversation, user_id=user_id)
 
         except Exception as err:
             _LOGGER.error("Error processing conversation: %s", err)
@@ -472,7 +472,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                     content=error_msg,
                 )
             )
-            return self._build_result(user_input, chat_log, error_msg, continue_conversation=False)
+            return self._build_result(user_input, chat_log, error_msg, continue_conversation=False, user_id=user_id)
 
     async def _call_llm_streaming_with_tools(
         self,
@@ -912,8 +912,10 @@ When user says "it", "that", "the same one", check [Recent Entities] in context 
             parts.append("""
 ## Calendar Reminders [MANDATORY]
 When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
-- ALWAYS mention the reminder in your response (even for small talk)
-- Keep it brief: "Heads up: Meeting in 1 hour. [your response]" """)
+- FIRST answer the user's actual question/request completely
+- THEN append the reminder at the END of your response as a separate sentence
+- Format: "[your complete answer]. Uebrigens, [reminder text]."
+- NEVER start your response with the reminder or weave it into unrelated answers""")
         
         # Control instructions - compact
         parts.append("""
@@ -1371,10 +1373,20 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         chat_log: ChatLog,
         response_text: str,
         continue_conversation: bool = True,
+        user_id: str = "default",
     ) -> ConversationResult:
         """Build a ConversationResult from the chat log."""
         intent_response = intent.IntentResponse(language=user_input.language)
         intent_response.async_set_speech(response_text)
+        
+        # Record conversation stats for user
+        if self._memory_enabled and self._memory_manager and user_id != "default":
+            tokens_used = 0
+            if self._llm_client and hasattr(self._llm_client, "metrics"):
+                # Approximate tokens from last request
+                m = self._llm_client.metrics
+                tokens_used = (m.total_prompt_tokens or 0) + (m.total_completion_tokens or 0)
+            self._memory_manager.record_conversation(user_id, tokens_used=0)
         
         # Signal sensors to update their state (per subentry)
         async_dispatcher_send(
