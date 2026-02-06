@@ -359,6 +359,9 @@ class SmartAssistConversationEntity(ConversationEntity):
         )
         tools = (await self._get_tool_registry()).get_schemas()
         
+        # Set device_id on tools so timer intents know which device to use
+        (await self._get_tool_registry()).set_device_id(device_id)
+        
         # Log registered tools for debugging cache issues
         tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
         _LOGGER.debug("[USER-REQUEST] Tools (%d): %s", len(tools), tool_names)

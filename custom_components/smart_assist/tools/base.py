@@ -49,6 +49,7 @@ class BaseTool(ABC):
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the tool."""
         self._hass = hass
+        self._device_id: str | None = None
 
     @abstractmethod
     async def execute(self, **kwargs: Any) -> ToolResult:
@@ -114,6 +115,11 @@ class ToolRegistry:
     def get_schemas(self) -> list[dict[str, Any]]:
         """Get schemas for all registered tools."""
         return [tool.get_schema() for tool in self._tools.values()]
+
+    def set_device_id(self, device_id: str | None) -> None:
+        """Set device_id on all registered tools for conversation context."""
+        for tool in self._tools.values():
+            tool._device_id = device_id
 
     async def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         """Execute a tool by name."""

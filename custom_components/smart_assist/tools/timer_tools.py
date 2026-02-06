@@ -182,6 +182,7 @@ The 'command' parameter can execute any voice command when timer finishes."""
             "smart_assist",
             "HassStartTimer",
             slots,
+            device_id=self._device_id,
         )
         
         # Build duration string for response
@@ -226,6 +227,7 @@ The 'command' parameter can execute any voice command when timer finishes."""
             "smart_assist",
             "HassCancelTimer",
             slots,
+            device_id=self._device_id,
         )
         
         speech = self._get_speech(response)
@@ -250,6 +252,7 @@ The 'command' parameter can execute any voice command when timer finishes."""
             "smart_assist",
             "HassPauseTimer",
             slots,
+            device_id=self._device_id,
         )
         
         speech = self._get_speech(response)
@@ -274,6 +277,7 @@ The 'command' parameter can execute any voice command when timer finishes."""
             "smart_assist",
             "HassUnpauseTimer",
             slots,
+            device_id=self._device_id,
         )
         
         speech = self._get_speech(response)
@@ -298,6 +302,7 @@ The 'command' parameter can execute any voice command when timer finishes."""
             "smart_assist",
             "HassTimerStatus",
             slots,
+            device_id=self._device_id,
         )
         
         speech = self._get_speech(response)
