@@ -16,7 +16,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .base import BaseTool, ToolRegistry, ToolResult
-from ..const import CONF_ENABLE_WEB_SEARCH
+from ..const import CONF_ENABLE_WEB_SEARCH, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY
 
 if TYPE_CHECKING:
     from typing import Any
@@ -122,6 +122,18 @@ def create_tool_registry(
     registry.register(SendTool(hass))
     registered_tools.append("send")
     
+    # Memory tool (if memory is enabled and memory manager is available)
+    memory_enabled = _get_config(entry, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY)
+    if memory_enabled:
+        from ..const import DOMAIN
+        memory_manager = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("memory_manager")
+        if memory_manager:
+            from .memory_tools import MemoryTool
+            registry.register(MemoryTool(hass, memory_manager))
+            registered_tools.append("memory")
+        else:
+            _LOGGER.debug("Memory manager not available, memory tool not registered")
+    
     # Music Assistant (if integration is loaded)
     # Check multiple ways to detect Music Assistant
     music_assistant_available = False
@@ -172,6 +184,7 @@ from .conversation_tools import AwaitResponseTool
 from .timer_tools import TimerTool
 from .music_assistant_tools import MusicAssistantTool
 from .notification_tools import SendTool
+from .memory_tools import MemoryTool
 
 __all__ = [
     # Base classes
@@ -200,4 +213,6 @@ __all__ = [
     "CreateCalendarEventTool",
     # Notifications
     "SendTool",
+    # Memory
+    "MemoryTool",
 ]

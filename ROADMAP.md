@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-06 (v1.5.1)
+> Last updated: 2026-02-07 (v1.6.0)
 
 ## Completed Milestones
 
@@ -35,18 +35,11 @@
 | Morning Briefing | v1.5.0 | Use `ai_task.generate_data` + `tts.speak` in a time-triggered automation |
 | BaseLLMClient Refactoring | v1.5.0 | All LLM clients extend shared base class (~340 lines removed) |
 | Config Flow Modularization | v1.5.0 | Split 1500-line config_flow.py into 3 focused modules |
+| Memory & Personalization | v1.6.0 | Persistent user memory (100 chars, 100/user), hybrid injection + tool CRUD, 5-layer multi-user identification, presence heuristic (opt-in) |
 
 ---
 
 ## Planned Features
-
-### v1.6.0 - Memory and Personalization
-
-| Feature | Description | Priority |
-| ------- | ----------- | -------- |
-| Persistent Memory | Hybrid injection: Memory section (~50-100 tokens) injected into system prompt. Stored in HA Storage (`.storage/smart_assist`). Contains: user preferences ("dim evening lighting"), learned patterns, named entities ("Anna=wife"). LLM recognizes and saves new preferences automatically. | High |
-| Multi-User Profiles | Per-user preferences and conversation style. Identify user via voice satellite or mobile device. Personalized responses ("Good morning, Anna" vs "Good morning, Max"). | Medium |
-| Conversation Export | Export conversation history for review. Token usage statistics per session. | Low |
 
 ### v1.7.0 - Persistent Alarms and Scheduling
 

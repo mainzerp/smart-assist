@@ -40,6 +40,8 @@ from .const import (
     CONF_CLEAN_RESPONSES,
     CONF_CONFIRM_CRITICAL,
     CONF_ENABLE_CACHE_WARMING,
+    CONF_ENABLE_MEMORY,
+    CONF_ENABLE_PRESENCE_HEURISTIC,
     CONF_ENABLE_PROMPT_CACHING,
     CONF_ENABLE_WEB_SEARCH,
     CONF_EXPOSED_ONLY,
@@ -67,6 +69,8 @@ from .const import (
     DEFAULT_CLEAN_RESPONSES,
     DEFAULT_CONFIRM_CRITICAL,
     DEFAULT_ENABLE_CACHE_WARMING,
+    DEFAULT_ENABLE_MEMORY,
+    DEFAULT_ENABLE_PRESENCE_HEURISTIC,
     DEFAULT_EXPOSED_ONLY,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
@@ -308,6 +312,8 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_CLEAN_RESPONSES, default=DEFAULT_CLEAN_RESPONSES): BooleanSelector(),
             vol.Required(CONF_ASK_FOLLOWUP, default=DEFAULT_ASK_FOLLOWUP): BooleanSelector(),
             vol.Required(CONF_CALENDAR_CONTEXT, default=DEFAULT_CALENDAR_CONTEXT): BooleanSelector(),
+            vol.Required(CONF_ENABLE_MEMORY, default=DEFAULT_ENABLE_MEMORY): BooleanSelector(),
+            vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC, default=DEFAULT_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
         })
         
         return self.async_show_form(
@@ -523,6 +529,8 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_CLEAN_RESPONSES): BooleanSelector(),
             vol.Required(CONF_ASK_FOLLOWUP): BooleanSelector(),
             vol.Required(CONF_CALENDAR_CONTEXT): BooleanSelector(),
+            vol.Required(CONF_ENABLE_MEMORY): BooleanSelector(),
+            vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
             vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
             ),

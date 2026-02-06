@@ -32,6 +32,11 @@ CONF_TASK_ENABLE_CACHE_WARMING: Final = "task_enable_cache_warming"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_CALENDAR_CONTEXT: Final = "calendar_context"
 
+# Memory configuration keys
+CONF_ENABLE_MEMORY: Final = "enable_memory"
+CONF_USER_MAPPINGS: Final = "user_mappings"
+CONF_ENABLE_PRESENCE_HEURISTIC: Final = "enable_presence_heuristic"
+
 # Ollama configuration keys
 CONF_OLLAMA_URL: Final = "ollama_url"
 CONF_OLLAMA_MODEL: Final = "ollama_model"
@@ -67,6 +72,17 @@ SESSION_RECENT_ENTITIES_MAX: Final = 5  # Max recent entities for pronoun resolu
 SESSION_EXPIRY_MINUTES: Final = 30  # Session timeout in minutes
 DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
 DEFAULT_CALENDAR_CONTEXT: Final = False  # Disabled by default (token cost)
+DEFAULT_ENABLE_MEMORY: Final = False  # Disabled by default
+DEFAULT_ENABLE_PRESENCE_HEURISTIC: Final = False  # Disabled by default
+
+# Memory storage constants
+MEMORY_STORAGE_KEY: Final = "smart_assist_memory"
+MEMORY_STORAGE_VERSION: Final = 1
+MEMORY_MAX_PER_USER: Final = 100
+MEMORY_MAX_GLOBAL: Final = 50
+MEMORY_MAX_CONTENT_LENGTH: Final = 100
+MEMORY_MAX_INJECTION: Final = 20  # Max memories injected per request
+MEMORY_DEFAULT_USER: Final = "default"
 
 # Common Home Assistant locale to language name mapping for auto-detection
 # Used when language is empty/auto to show a readable language name in prompts

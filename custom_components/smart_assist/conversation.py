@@ -63,6 +63,8 @@ try:
         CONF_CALENDAR_CONTEXT,
         CONF_CLEAN_RESPONSES,
         CONF_CONFIRM_CRITICAL,
+        CONF_ENABLE_MEMORY,
+        CONF_ENABLE_PRESENCE_HEURISTIC,
         CONF_ENABLE_PROMPT_CACHING,
         CONF_ENABLE_QUICK_ACTIONS,
         CONF_EXPOSED_ONLY,
@@ -79,11 +81,14 @@ try:
         CONF_OLLAMA_URL,
         CONF_PROVIDER,
         CONF_TEMPERATURE,
+        CONF_USER_MAPPINGS,
         CONF_USER_SYSTEM_PROMPT,
         DEFAULT_ASK_FOLLOWUP,
         DEFAULT_CACHE_TTL_EXTENDED,
         DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
+        DEFAULT_ENABLE_MEMORY,
+        DEFAULT_ENABLE_PRESENCE_HEURISTIC,
         DEFAULT_LLM_PROVIDER,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
@@ -107,6 +112,8 @@ try:
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
     from .context.conversation import ConversationManager
+    from .context.memory import MemoryManager
+    from .context.user_resolver import UserResolver
     from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
     from .llm.models import MessageRole, ToolCall
     from .tools import create_tool_registry, ToolRegistry
@@ -253,6 +260,21 @@ class SmartAssistConversationEntity(ConversationEntity):
             max_history=get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY)
         )
 
+        # Memory manager (loaded from hass.data, initialized in __init__.py)
+        self._memory_manager: MemoryManager | None = entry_data.get("memory_manager")
+        self._memory_enabled = get_config(CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY)
+
+        # User resolver for multi-user support
+        user_mappings = entry.options.get(
+            CONF_USER_MAPPINGS, entry.data.get(CONF_USER_MAPPINGS, {})
+        )
+        enable_presence = get_config(
+            CONF_ENABLE_PRESENCE_HEURISTIC, DEFAULT_ENABLE_PRESENCE_HEURISTIC
+        )
+        self._user_resolver = UserResolver(
+            hass, user_mappings, enable_presence_heuristic=enable_presence
+        )
+
     async def _get_tool_registry(self) -> ToolRegistry:
         """Get tool registry, creating it lazily if needed (thread-safe).
         
@@ -350,17 +372,45 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Pass satellite_id so LLM knows which device initiated the request
         satellite_id = getattr(user_input, 'satellite_id', None)
         device_id = getattr(user_input, 'device_id', None)
+        
+        # Resolve user for memory personalization
+        context_user_id = None
+        input_context = getattr(user_input, 'context', None)
+        if input_context:
+            context_user_id = getattr(input_context, 'user_id', None)
+        
+        session_user_id = self._conversation_manager.get_active_user(
+            user_input.conversation_id or ""
+        )
+        
+        user_id = self._user_resolver.resolve_user(
+            satellite_id=satellite_id,
+            device_id=device_id,
+            session_user_id=session_user_id,
+            context_user_id=context_user_id,
+        )
+        
         messages, cached_prefix_length = await self._build_messages_for_llm_async(
             user_input.text,
             chat_log,
             satellite_id=satellite_id,
             device_id=device_id,
             conversation_id=user_input.conversation_id,
+            user_id=user_id,
         )
         tools = (await self._get_tool_registry()).get_schemas()
         
         # Set device_id on tools so timer intents know which device to use
         (await self._get_tool_registry()).set_device_id(device_id)
+        
+        # Set user context on memory tool
+        tool_registry = await self._get_tool_registry()
+        memory_tool = tool_registry.get("memory")
+        if memory_tool:
+            memory_tool._current_user_id = user_id
+            # Set callback for switch_user action
+            conv_id = user_input.conversation_id or ""
+            memory_tool._switch_user_callback = lambda uid: self._conversation_manager.set_active_user(conv_id, uid)
         
         # Log registered tools for debugging cache issues
         tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
@@ -894,6 +944,17 @@ You can send content (links, text, messages) to devices using the 'send' tool.
 ## Critical Actions
 Ask for confirmation before: locking doors, arming alarms, disabling security.""")
         
+        # Memory instructions (if enabled)
+        if self._memory_enabled:
+            parts.append("""
+## User Memory [IMPORTANT]
+Known user memories are injected as [USER MEMORY] in context. Use them to personalize responses.
+- SAVE new preferences, names, patterns, and instructions via the 'memory' tool
+- DO NOT re-save information already in [USER MEMORY]
+- When user says "I am [Name]" or "This is [Name]", use memory(action='switch_user', content='[name]')
+- Keep memory content concise (max 100 chars)
+- Use appropriate categories: preference, named_entity, pattern, instruction, fact""")
+        
         # Exposed only notice
         if exposed_only:
             parts.append("""
@@ -1009,6 +1070,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         satellite_id: str | None = None,
         device_id: str | None = None,
         conversation_id: str | None = None,
+        user_id: str = "default",
     ) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request (async version with calendar context).
         
@@ -1018,6 +1080,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             satellite_id: Optional satellite entity_id that initiated the request
             device_id: Optional device_id that initiated the request
             conversation_id: Optional conversation ID for recent entity context
+            user_id: Resolved user identifier for memory personalization
             
         Returns:
             Tuple of (messages, cached_prefix_length)
@@ -1038,7 +1101,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         # Build base messages (now async due to tool registry access)
         return await self._build_messages_for_llm(
             user_text, chat_log, calendar_context, satellite_id, device_id,
-            recent_entities_context
+            recent_entities_context, user_id=user_id,
         )
 
     async def _build_messages_for_llm(
@@ -1049,6 +1112,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         satellite_id: str | None = None,
         device_id: str | None = None,
         recent_entities_context: str = "",
+        user_id: str = "default",
     ) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request.
         
@@ -1056,8 +1120,9 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         1. System prompt (static/cached)
         2. User system prompt (static/cached)  
         3. Entity index (static/cached - changes only when entities change)
-        4. Conversation history (dynamic)
-        5. Current context + user message (dynamic - time, states, calendar, recent entities)
+        4. User memory injection (semi-static - changes when memories change)
+        5. Conversation history (dynamic)
+        6. Current context + user message (dynamic - time, states, calendar, recent entities)
         
         Args:
             user_text: The current user message
@@ -1066,6 +1131,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             satellite_id: Optional satellite entity_id
             device_id: Optional device_id
             recent_entities_context: Optional recent entities for pronoun resolution
+            user_id: Resolved user identifier for memory personalization
             
         Returns:
             Tuple of (messages, cached_prefix_length) where cached_prefix_length
@@ -1111,7 +1177,17 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             )
             cached_prefix_length += 1
 
-        # 4. Conversation history from ChatLog (if available)
+        # 4. User memory injection (semi-static - changes when memories change)
+        if self._memory_enabled and self._memory_manager:
+            memory_text = self._memory_manager.get_injection_text(user_id)
+            if memory_text:
+                messages.append(
+                    ChatMessage(role=MessageRole.SYSTEM, content=memory_text)
+                )
+                cached_prefix_length += 1
+                _LOGGER.debug("Injected memory block for user '%s'", user_id)
+
+        # 5. Conversation history from ChatLog (if available)
         # Placed BEFORE dynamic context to maximize cache prefix length
         # IMPORTANT: Also include tool calls and results for context continuity
         if chat_log is not None:
@@ -1194,7 +1270,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
                 _LOGGER.warning("Failed to process chat history: %s", err)
                 # Continue without history - don't fail the request
 
-        # 5. Current context (dynamic - NOT cached) + user message
+        # 6. Current context (dynamic - NOT cached) + user message
         # Combined into single user message to keep dynamic content at the end
         now = datetime.now()
         time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
@@ -1217,6 +1293,15 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         # Add recent entities for pronoun resolution (e.g., "it", "that", "the same one")
         if recent_entities_context:
             context_parts.append(recent_entities_context)
+        
+        # Add current user identity for personalization
+        if self._memory_enabled and user_id != "default":
+            display_name = user_id.capitalize()
+            if self._memory_manager:
+                stored_name = self._memory_manager.get_user_display_name(user_id)
+                if stored_name:
+                    display_name = stored_name
+            context_parts.append(f"[Current User: {display_name}]")
         
         # Combine context with user message
         context_prefix = " ".join(context_parts)

@@ -126,7 +126,9 @@
             "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
             "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
             "ask_followup": "Rueckfragen stellen",
-            "calendar_context": "Proaktive Kalender-Erinnerungen"
+            "calendar_context": "Proaktive Kalender-Erinnerungen",
+            "enable_memory": "Benutzer-Gedaechtnis & Personalisierung aktivieren",
+            "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung aktivieren"
           },
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
@@ -138,7 +140,9 @@
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
             "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs.",
             "ask_followup": "Wenn aktiviert, bietet der Assistent nach Aktionen weitere Hilfe an.",
-            "calendar_context": "Automatisch auf anstehende Termine hinweisen. Hinweis: Erhoehter Token-Verbrauch."
+            "calendar_context": "Automatisch auf anstehende Termine hinweisen. Hinweis: Erhoehter Token-Verbrauch.",
+            "enable_memory": "Erlaubt dem Assistenten, sich Benutzer-Praeferenzen, Namen und Anweisungen ueber Gespraeche hinweg zu merken.",
+            "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist."
           }
         },
         "prompt": {
@@ -185,6 +189,8 @@
             "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
             "ask_followup": "Rueckfragen stellen",
             "calendar_context": "Proaktive Kalender-Erinnerungen",
+            "enable_memory": "Benutzer-Gedaechtnis aktivieren",
+            "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung",
             "user_system_prompt": "System Prompt"
           }
         }

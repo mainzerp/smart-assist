@@ -4,9 +4,49 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.5.2   | 2026-02-06 |
+| Smart Assist | 1.6.0   | 2026-02-07 |
 
 ## Version History
+
+### v1.6.0 (2026-02-07) - Memory & Personalization
+
+**Feature: Persistent User Memory**
+
+- Added `MemoryManager` class for long-term memory storage via HA Storage API
+- Memories persist across restarts in `.storage/smart_assist_memory`
+- 5 memory categories: preference, named_entity, pattern, instruction, fact
+- Per-user (max 100) and global (max 50) memory scopes
+- LRU eviction when limits are reached, deduplication on save
+- Debounced async save (30s) to minimize disk writes
+- Memory injection: Top 20 memories injected into system prompt per request
+- Hybrid model: injected memories for context + `memory` tool for CRUD
+
+**Feature: Multi-User Identity Resolution**
+
+- Added `UserResolver` with 5-layer identification strategy:
+  1. HA authenticated user (Companion App)
+  2. Session identity switch ("This is Anna" via `switch_user` action)
+  3. Satellite-to-user mapping (configured per satellite)
+  4. Presence heuristic (single person home -> auto-identify)
+  5. Fallback to `default` profile
+- `ConversationSession` tracks `active_user_id` per conversation
+- User identity displayed in dynamic context block as `[Current User: Name]`
+
+**Feature: Memory Tool (LLM-facing)**
+
+- New `memory` tool with 6 actions: save, list, update, delete, search, switch_user
+- LLM can save new preferences, recall existing memories, and manage profiles
+- `switch_user` action updates session identity and loads correct memory profile
+- Tool registered conditionally when memory is enabled
+
+**Config: Memory Settings**
+
+- Added `enable_memory` toggle to conversation agent settings (new + reconfigure)
+- Added `enable_presence_heuristic` toggle for presence-based user detection (default: off)
+- Default memory: disabled (opt-in)
+- Added constants: `CONF_ENABLE_MEMORY`, `CONF_ENABLE_PRESENCE_HEURISTIC`, `CONF_USER_MAPPINGS`
+- Storage constants: `MEMORY_STORAGE_KEY`, `MEMORY_STORAGE_VERSION`, `MEMORY_MAX_PER_USER` (100), `MEMORY_MAX_GLOBAL` (50), `MEMORY_MAX_CONTENT_LENGTH` (100), `MEMORY_MAX_INJECTION` (20)
+- German and English translations added
 
 ### v1.5.2 (2026-02-06) - Timer Fix & Roadmap
 

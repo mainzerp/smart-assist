@@ -71,6 +71,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "tasks": {},   # Store AI tasks by subentry_id
     }
 
+    # Initialize persistent memory manager
+    from .context.memory import MemoryManager
+    memory_manager = MemoryManager(hass)
+    await memory_manager.async_load()
+    hass.data[DOMAIN][entry.entry_id]["memory_manager"] = memory_manager
+
     # Helper to get config values (options override data)
     def get_config(key: str, default: Any = None) -> Any:
         """Get config value from options first, then data, then default."""
@@ -330,6 +336,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.debug("Closed LLM client session for %s", subentry_id)
     except Exception as err:
         _LOGGER.warning("Error closing LLM client sessions: %s", err)
+
+    # Save pending memory changes before unloading
+    try:
+        memory_manager = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("memory_manager")
+        if memory_manager:
+            await memory_manager.async_shutdown()
+            _LOGGER.debug("Memory manager shutdown complete")
+    except Exception as err:
+        _LOGGER.warning("Error shutting down memory manager: %s", err)
 
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

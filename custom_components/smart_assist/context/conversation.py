@@ -32,6 +32,7 @@ class ConversationSession:
     messages: deque[ChatMessage] = field(default_factory=lambda: deque(maxlen=SESSION_MAX_MESSAGES))
     recent_entities: deque[RecentEntity] = field(default_factory=lambda: deque(maxlen=SESSION_RECENT_ENTITIES_MAX))
     consecutive_followups: int = 0  # Counter for consecutive follow-up questions
+    active_user_id: str | None = None  # Set by switch_user action for multi-user support
     created_at: datetime = field(default_factory=datetime.now)
     last_active: datetime = field(default_factory=datetime.now)
 
@@ -90,6 +91,7 @@ class ConversationSession:
         self.messages.clear()
         self.recent_entities.clear()
         self.consecutive_followups = 0
+        self.active_user_id = None
         self.last_active = datetime.now()
 
     def increment_followup(self) -> int:
@@ -259,3 +261,15 @@ class ConversationManager:
     def get_session_count(self) -> int:
         """Get number of active sessions."""
         return len(self._sessions)
+
+    def set_active_user(self, session_id: str, user_id: str) -> None:
+        """Set active user for a session (switch_user action)."""
+        session = self.get_or_create_session(session_id)
+        session.active_user_id = user_id
+        _LOGGER.debug("Set active user for session %s: %s", session_id, user_id)
+
+    def get_active_user(self, session_id: str) -> str | None:
+        """Get active user for a session."""
+        if session_id not in self._sessions:
+            return None
+        return self._sessions[session_id].active_user_id

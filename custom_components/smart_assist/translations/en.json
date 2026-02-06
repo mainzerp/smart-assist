@@ -126,7 +126,9 @@
             "cache_refresh_interval": "Cache refresh interval (minutes)",
             "clean_responses": "Clean responses for voice output",
             "ask_followup": "Ask follow-up questions",
-            "calendar_context": "Proactive calendar reminders"
+            "calendar_context": "Proactive calendar reminders",
+            "enable_memory": "Enable user memory & personalization",
+            "enable_presence_heuristic": "Enable presence-based user detection"
           },
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
@@ -138,7 +140,9 @@
             "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL.",
             "clean_responses": "Makes responses TTS-friendly by removing emojis, markdown formatting, and URLs.",
             "ask_followup": "If enabled, the assistant will offer further help after completing actions.",
-            "calendar_context": "Automatically mention upcoming calendar events. Note: Increases token usage."
+            "calendar_context": "Automatically mention upcoming calendar events. Note: Increases token usage.",
+            "enable_memory": "Allows the assistant to remember user preferences, names, and instructions across conversations.",
+            "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home."
           }
         },
         "prompt": {
@@ -185,6 +189,8 @@
             "clean_responses": "Clean responses for voice output",
             "ask_followup": "Ask follow-up questions",
             "calendar_context": "Proactive calendar reminders",
+            "enable_memory": "Enable user memory",
+            "enable_presence_heuristic": "Presence-based user detection",
             "user_system_prompt": "System Prompt"
           }
         }
