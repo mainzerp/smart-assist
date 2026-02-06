@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.5.1   | 2026-02-06 |
+| Smart Assist | 1.5.2   | 2026-02-06 |
 
 ## Version History
+
+### v1.5.2 (2026-02-06) - Timer Fix & Roadmap
+
+**Fix: Timer intents failing with device_id=None**
+
+- Added `_device_id` attribute to `BaseTool` for conversation context propagation
+- Added `set_device_id()` method to `ToolRegistry` to propagate device_id to all tools
+- Conversation handler now sets device_id on tools before execution
+- All `ha_intent.async_handle` calls in `TimerTool` now pass `device_id`
+- Fixes `Device does not support timers: device_id=None` error when using voice satellites
+- Timers now correctly associate with the satellite device that initiated the request
+
+**Documentation: Roadmap Extraction**
+
+- Moved Roadmap section from VERSION.md into dedicated [ROADMAP.md](ROADMAP.md)
+- Reorganized completed milestones (v1.1-v1.5) into clean summary
+- Added new feature ideas from research (MCP Server, Token-Efficient Discovery, RAG, etc.)
+- Renumbered planned versions: v1.6-v1.10
 
 ### v1.5.1 (2026-02-06) - Hassfest Fix
 
