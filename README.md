@@ -62,6 +62,23 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Other Services**: Telegram, email, groups, or any HA notify service
 - **Smart Matching**: Say "send it to Patrics phone" and it finds `mobile_app_patrics_iphone`
 
+### Memory & Personalization
+
+- **Persistent User Memory**: LLM remembers user preferences, named entities, patterns, and instructions across sessions
+- **Multi-User Identity**: 5-layer user identification (HA auth, session switch, satellite mapping, presence heuristic, fallback)
+- **Memory Tool**: LLM can save, recall, update, and delete memories via the `memory` tool
+- **Per-User Profiles**: Up to 100 memories per user, 50 global memories, LRU eviction
+- **Management UI**: Rename users, merge profiles, delete individual memories from the dashboard
+
+### Dashboard & UI
+
+- **Custom Sidebar Panel**: Admin-only panel in HA sidebar with `mdi:brain` icon
+- **Overview Tab**: Total requests, success rate, response time, tokens, cache hit rate, registered tools
+- **Memory Tab**: Browse user profiles, view/manage individual memories, rename/merge/delete users
+- **Calendar Tab**: Upcoming events with reminder status badges (upcoming/pending/announced/passed)
+- **Real-Time Updates**: WebSocket API with subscription for live metric updates
+- **Theme Integration**: Adapts to HA light/dark mode via CSS custom properties
+
 Example workflow:
 
 1. Ask a question that requires web search
@@ -263,6 +280,8 @@ Smart Assist provides these tools to the LLM:
 | `get_weather` | Current weather information |
 | `web_search` | DuckDuckGo web search |
 | `send` | Send links, text, or messages to any notification target |
+| `memory` | Save, recall, update, delete user memories and switch user identity |
+| `await_response` | Keep microphone open for follow-up questions |
 
 ## Supported Models
 
@@ -281,7 +300,10 @@ See [Groq Models](https://console.groq.com/docs/models) for the full list.
 
 - Home Assistant 2024.1 or newer
 - Python 3.12+
-- Groq API key ([get one here](https://console.groq.com/keys))
+- At least one LLM provider:
+  - Groq API key ([get one here](https://console.groq.com/keys))
+  - OpenRouter API key ([get one here](https://openrouter.ai/keys))
+  - Ollama running locally (no API key needed)
 
 ## Troubleshooting
 

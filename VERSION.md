@@ -24,6 +24,22 @@
 - Added `peek_reminders()` read-only method to CalendarReminderTracker
 - Cache warming uses `dry_run=True` to prevent premature reminder consumption
 
+**Bug Fix: First Seen Not Populated in Dashboard**
+
+- `record_conversation()` was defined but never called
+- Added call in `_build_result()` so first interaction date is now tracked per user
+
+**Bug Fix: Calendar Reminder Placement**
+
+- Proactive reminders no longer appear at the start of LLM responses
+- LLM now answers the user's question first, then appends the reminder at the end
+
+**Feature: Persistent Calendar Reminder State**
+
+- Calendar reminder tracker now uses HA Storage API (`.storage/smart_assist.calendar_reminders`)
+- Announced/completed reminder stages survive HA restarts
+- Prevents duplicate reminders after reboot
+
 ### v1.7.0 (2026-02-08) - Dashboard & UI
 
 **Feature: Custom Sidebar Panel**
@@ -32,7 +48,7 @@
 - Panel appears in HA sidebar with "Smart Assist" title and `mdi:brain` icon
 - Static path `/api/smart_assist/panel/` serves the panel JS from `www/` directory
 - Panel requires admin access, auto-removed on integration unload
-- Uses HA's built-in Lit framework for zero-dependency rendering
+- Uses vanilla HTMLElement + Shadow DOM for maximum HA compatibility
 
 **Feature: WebSocket API**
 
@@ -43,9 +59,9 @@
 - All commands require admin authentication
 - Iterates config subentries to build per-agent and per-task data
 
-**Feature: Dashboard Panel (Lit Web Component)**
+**Feature: Dashboard Panel (Web Component)**
 
-- Added `www/smart-assist-panel.js` - Full Lit Web Component (~960 lines)
+- Added `www/smart-assist-panel.js` - Vanilla Web Component with Shadow DOM (~680 lines)
 - Three tabs: Overview, Memory, Calendar
 - Overview Cards: Total requests, success rate, avg response time, total tokens, cache hit rate
 - Token Usage: Horizontal bar chart comparing prompt, completion, and cached tokens

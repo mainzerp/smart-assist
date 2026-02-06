@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-07 (v1.6.0)
+> Last updated: 2026-02-08 (v1.7.1)
 
 ## Completed Milestones
 
@@ -36,7 +36,8 @@
 | BaseLLMClient Refactoring | v1.5.0 | All LLM clients extend shared base class (~340 lines removed) |
 | Config Flow Modularization | v1.5.0 | Split 1500-line config_flow.py into 3 focused modules |
 | Memory & Personalization | v1.6.0 | Persistent user memory (100 chars, 100/user), hybrid injection + tool CRUD, 5-layer multi-user identification, presence heuristic (opt-in) |
-| Dashboard & UI | v1.7.0 | Custom sidebar panel (Lit Web Component), WebSocket API for real-time metrics, token/cache/memory/tools/features overview, multi-agent selector, HA theme integration |
+| Dashboard & UI | v1.7.0 | Custom sidebar panel (vanilla Web Component), WebSocket API for real-time metrics, token/cache/memory/tools/calendar overview, multi-agent selector, HA theme integration |
+| Memory Management UI | v1.7.1 | Rename/merge/delete user memories from dashboard, persistent calendar reminder state (HA Storage API), First Seen tracking fix |
 
 ---
 

@@ -47,6 +47,24 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 - **Create Events**: Create timed or all-day events
 - **Proactive Reminders**: Staged context injection (24h, 4h, 1h before events)
 
+### Send Content to Devices
+
+- **Universal Send Tool**: Send links, text, or messages to any notification target
+- **Mobile Apps**: Companion App notifications with clickable URLs
+- **Smart Matching**: Fuzzy device name matching for reliable delivery
+
+### Memory & Personalization
+
+- **Persistent User Memory**: Remembers preferences, facts, and instructions across sessions
+- **Multi-User Identity**: 5-layer identification (HA auth, session switch, satellite mapping, presence, fallback)
+- **Memory Tool**: LLM can save, recall, update, and delete memories
+
+### Dashboard & UI
+
+- **Custom Sidebar Panel**: Admin-only panel with overview, memory, and calendar tabs
+- **Memory Management**: Rename users, merge profiles, delete individual memories
+- **Real-Time Updates**: WebSocket API with live metric subscription
+
 ### AI Task Platform
 
 - **Automation Integration**: Use LLM in automations via `ai_task.generate_data` service
@@ -62,7 +80,10 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 
 - Home Assistant 2024.1 or newer
 - Python 3.12+
-- Groq API key ([get one here](https://console.groq.com/keys)) or OpenRouter API key ([get one here](https://openrouter.ai/keys))
+- At least one LLM provider:
+  - Groq API key ([get one here](https://console.groq.com/keys))
+  - OpenRouter API key ([get one here](https://openrouter.ai/keys))
+  - Ollama running locally (no API key needed)
 
 ## Installation
 
