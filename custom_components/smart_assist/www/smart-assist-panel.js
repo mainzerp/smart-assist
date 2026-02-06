@@ -62,7 +62,7 @@ class SmartAssistPanel extends HTMLElement {
   async _subscribe() {
     try {
       this._unsub = await this._hass.connection.subscribeMessage(
-        (data) => { this._data = data; this._render(); },
+        (data) => { this._data = Object.assign(this._data || {}, data); this._render(); },
         { type: "smart_assist/subscribe" }
       );
     } catch (err) {

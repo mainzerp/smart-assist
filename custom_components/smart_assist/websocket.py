@@ -526,7 +526,17 @@ async def ws_subscribe(
 
         result["memory"] = _build_memory_summary(hass, entry.entry_id)
 
-        connection.send_message(websocket_api.event_message(msg["id"], result))
+        # Schedule calendar data build (async) and send complete result
+        async def _send_with_calendar() -> None:
+            try:
+                result["calendar"] = await _build_calendar_data(
+                    hass, entry.entry_id, entry
+                )
+            except Exception:  # noqa: BLE001
+                result["calendar"] = {"enabled": False, "events": [], "calendars": 0}
+            connection.send_message(websocket_api.event_message(msg["id"], result))
+
+        hass.async_create_task(_send_with_calendar())
 
     # Subscribe to metric update signals for all subentries
     unsub_callbacks: list[Any] = []
