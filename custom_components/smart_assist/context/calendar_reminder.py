@@ -3,6 +3,9 @@
 This module provides staged reminder functionality for calendar events,
 preventing repetitive reminders while ensuring important events are mentioned
 at appropriate times before they occur.
+
+Reminder state is persisted via HA Storage API so "announced" status
+survives restarts.
 """
 
 from __future__ import annotations
@@ -11,9 +14,13 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,10 +67,49 @@ class CalendarReminderTracker:
     that reminder is skipped (not caught up later).
     """
 
-    def __init__(self) -> None:
-        """Initialize the reminder tracker."""
+    def __init__(self, hass: HomeAssistant | None = None) -> None:
+        """Initialize the reminder tracker.
+
+        Args:
+            hass: Home Assistant instance for storage persistence.
+                  If None, state is in-memory only (for testing).
+        """
         # {event_hash: set of completed ReminderStages}
         self._completed_stages: dict[str, set[ReminderStage]] = {}
+        self._hass = hass
+        self._store: Store | None = None
+        self._dirty = False
+        if hass:
+            self._store = Store(hass, 1, "smart_assist.calendar_reminders")
+
+    async def async_load(self) -> None:
+        """Load persisted reminder state from storage."""
+        if not self._store:
+            return
+        stored = await self._store.async_load()
+        if stored and isinstance(stored, dict):
+            stages = stored.get("completed_stages", {})
+            for event_hash, stage_values in stages.items():
+                self._completed_stages[event_hash] = {
+                    ReminderStage(v) for v in stage_values if v in {s.value for s in ReminderStage}
+                }
+            _LOGGER.debug(
+                "Loaded reminder state: %d events tracked", len(self._completed_stages)
+            )
+
+    async def async_save(self) -> None:
+        """Save reminder state to storage."""
+        if not self._store or not self._dirty:
+            return
+        data = {
+            "completed_stages": {
+                h: [s.value for s in stages]
+                for h, stages in self._completed_stages.items()
+            }
+        }
+        await self._store.async_save(data)
+        self._dirty = False
+        _LOGGER.debug("Saved reminder state: %d events tracked", len(self._completed_stages))
 
     def _event_hash(self, event: dict) -> str:
         """Create unique hash for event.
@@ -273,6 +319,7 @@ class CalendarReminderTracker:
             if event_hash not in self._completed_stages:
                 self._completed_stages[event_hash] = set()
             self._completed_stages[event_hash].add(current_stage)
+            self._dirty = True
             _LOGGER.debug(
                 "Marked reminder stage %s as completed for event %s",
                 current_stage.value,
@@ -296,6 +343,7 @@ class CalendarReminderTracker:
 
         for old_hash in old_hashes:
             del self._completed_stages[old_hash]
+            self._dirty = True
             _LOGGER.debug("Cleaned up reminder tracking for past event %s", old_hash)
 
     def get_reminders(

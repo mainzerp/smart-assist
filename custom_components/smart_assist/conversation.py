@@ -252,8 +252,8 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Cache for system prompt (built once, reused for all requests)
         self._cached_system_prompt: str | None = None
         
-        # Calendar reminder tracker for staged reminders
-        self._calendar_reminder_tracker = CalendarReminderTracker()
+        # Calendar reminder tracker for staged reminders (persisted)
+        self._calendar_reminder_tracker = CalendarReminderTracker(hass)
         
         # Conversation manager for multi-turn context tracking
         self._conversation_manager = ConversationManager(
@@ -1059,6 +1059,8 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
                 reminders = self._calendar_reminder_tracker.peek_reminders(all_events, now)
             else:
                 reminders = self._calendar_reminder_tracker.get_reminders(all_events, now)
+                # Persist state after marking reminders
+                await self._calendar_reminder_tracker.async_save()
             
             _LOGGER.debug("Reminders to show: %s", reminders)
             
@@ -1400,7 +1402,13 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             continue_conversation=continue_conversation,
         )
 
+    async def async_added_to_hass(self) -> None:
+        """Load persisted state when entity is added."""
+        await super().async_added_to_hass()
+        await self._calendar_reminder_tracker.async_load()
+
     async def async_will_remove_from_hass(self) -> None:
         """Clean up when entity is removed."""
+        await self._calendar_reminder_tracker.async_save()
         if self._llm_client:
             await self._llm_client.close()
