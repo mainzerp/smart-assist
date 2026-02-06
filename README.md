@@ -77,10 +77,10 @@ However, for more reliable matching (especially with ambiguous names or multiple
 
 ```text
 Device to Notification Service Mappings:
-- "patrics phone" or "my phone" -> notify.mobile_app_pixel_8a
-- "lauras iphone" or "lauras phone" -> notify.mobile_app_lauras_iphone
-- "telegram" -> notify.telegram
-- "family group" -> notify.family_group
+- patrics phone or my phone -> notify.mobile_app_pixel_8a
+- lauras iphone or lauras phone -> notify.mobile_app_lauras_iphone
+- telegram -> notify.telegram
+- family group -> notify.family_group
 ```
 
 When you add these mappings, the LLM will use them directly from the system prompt context, making device selection more reliable.
