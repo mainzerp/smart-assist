@@ -324,3 +324,30 @@ class CalendarReminderTracker:
         self.cleanup_past_events(events, now)
 
         return reminders
+
+    def peek_reminders(
+        self, events: list[dict], now: datetime | None = None
+    ) -> list[str]:
+        """Get reminders without marking them as completed (read-only).
+
+        Same as get_reminders but does not call mark_reminded.
+        Used for cache warming where we need the same prompt content
+        without consuming the reminder.
+
+        Args:
+            events: List of event dicts.
+            now: Current datetime (defaults to now).
+
+        Returns:
+            List of reminder text strings.
+        """
+        if now is None:
+            now = dt_util.now()
+
+        reminders = []
+        for event in events:
+            should_remind, reminder_text = self.should_remind(event, now)
+            if should_remind:
+                reminders.append(reminder_text)
+
+        return reminders

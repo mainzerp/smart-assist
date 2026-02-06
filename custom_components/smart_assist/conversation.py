@@ -311,7 +311,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         try:
             # Build messages using async version (same path as real requests)
             # This ensures calendar context loading is included in the code path
-            messages, cached_prefix_length = await self._build_messages_for_llm_async("ping", chat_log=None)
+            messages, cached_prefix_length = await self._build_messages_for_llm_async("ping", chat_log=None, dry_run=True)
             tools = (await self._get_tool_registry()).get_schemas()
             
             # Log registered tools for debugging cache issues
@@ -974,11 +974,14 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         
         return self._cached_system_prompt
 
-    async def _get_calendar_context(self) -> str:
+    async def _get_calendar_context(self, dry_run: bool = False) -> str:
         """Get upcoming calendar events for context injection.
         
         Returns reminders for events in appropriate reminder windows.
         Only fetches if calendar_context is enabled in config.
+        
+        Args:
+            dry_run: If True, don't mark reminders as completed (for cache warming).
         
         Returns:
             Formatted string with calendar reminders, or empty string if none.
@@ -1050,7 +1053,10 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
                 return ""
             
             # Get reminders that should be shown
-            reminders = self._calendar_reminder_tracker.get_reminders(all_events, now)
+            if dry_run:
+                reminders = self._calendar_reminder_tracker.peek_reminders(all_events, now)
+            else:
+                reminders = self._calendar_reminder_tracker.get_reminders(all_events, now)
             
             _LOGGER.debug("Reminders to show: %s", reminders)
             
@@ -1073,6 +1079,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         device_id: str | None = None,
         conversation_id: str | None = None,
         user_id: str = "default",
+        dry_run: bool = False,
     ) -> tuple[list[ChatMessage], int]:
         """Build the message list for LLM request (async version with calendar context).
         
@@ -1083,12 +1090,13 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             device_id: Optional device_id that initiated the request
             conversation_id: Optional conversation ID for recent entity context
             user_id: Resolved user identifier for memory personalization
+            dry_run: If True, don't mark calendar reminders as completed
             
         Returns:
             Tuple of (messages, cached_prefix_length)
         """
         # Get calendar context asynchronously
-        calendar_context = await self._get_calendar_context()
+        calendar_context = await self._get_calendar_context(dry_run=dry_run)
         _LOGGER.debug("Calendar context from _get_calendar_context: len=%d", len(calendar_context) if calendar_context else 0)
         
         # Get recent entities context for pronoun resolution
