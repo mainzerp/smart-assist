@@ -43,6 +43,7 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DOMAIN,
 )
+from .context.calendar_reminder import CalendarReminderTracker, ReminderStage
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -186,6 +187,120 @@ def _build_memory_summary(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
     }
 
 
+async def _build_calendar_data(
+    hass: HomeAssistant,
+    entry_id: str,
+    entry: Any,
+) -> dict[str, Any]:
+    """Build calendar events data with reminder status for dashboard."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    domain_data = hass.data.get(DOMAIN, {})
+    entry_data = domain_data.get(entry_id, {})
+
+    # Find a conversation agent with calendar context enabled
+    calendar_enabled = False
+    reminder_tracker: CalendarReminderTracker | None = None
+
+    for subentry_id, subentry in entry.subentries.items():
+        if subentry.subentry_type == "conversation":
+            if subentry.data.get(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT):
+                calendar_enabled = True
+                agents = entry_data.get("agents", {})
+                agent_info = agents.get(subentry_id, {})
+                entity = agent_info.get("entity")
+                if entity and hasattr(entity, "_calendar_reminder_tracker"):
+                    reminder_tracker = entity._calendar_reminder_tracker
+                break
+
+    if not calendar_enabled:
+        return {"enabled": False, "events": [], "calendars": 0}
+
+    # Fetch events from all calendar entities
+    now = dt_util.now()
+    end = now + timedelta(hours=28)
+
+    calendars = [
+        state.entity_id
+        for state in hass.states.async_all()
+        if state.entity_id.startswith("calendar.")
+    ]
+
+    if not calendars:
+        return {"enabled": True, "events": [], "calendars": 0}
+
+    all_events: list[dict[str, Any]] = []
+    for cal_id in calendars:
+        try:
+            result = await hass.services.async_call(
+                "calendar",
+                "get_events",
+                {
+                    "entity_id": cal_id,
+                    "start_date_time": now.isoformat(),
+                    "end_date_time": end.isoformat(),
+                },
+                blocking=True,
+                return_response=True,
+            )
+
+            if result and cal_id in result:
+                state = hass.states.get(cal_id)
+                if state and state.attributes.get("friendly_name"):
+                    owner = state.attributes["friendly_name"]
+                else:
+                    name = cal_id.split(".", 1)[-1]
+                    owner = name.replace("_", " ").title()
+
+                for event in result[cal_id].get("events", []):
+                    event_data = {
+                        "summary": event.get("summary", "Untitled"),
+                        "start": event.get("start"),
+                        "end": event.get("end"),
+                        "owner": owner,
+                        "calendar": cal_id,
+                        "location": event.get("location"),
+                    }
+
+                    # Determine reminder status
+                    status = "upcoming"
+                    if reminder_tracker:
+                        stage = reminder_tracker._get_current_stage(event_data, now)
+                        event_hash = reminder_tracker._event_hash(event_data)
+                        completed = reminder_tracker._completed_stages.get(
+                            event_hash, set()
+                        )
+
+                        if stage == ReminderStage.PASSED:
+                            status = "passed"
+                        elif stage is not None:
+                            if stage in completed:
+                                status = "announced"
+                            else:
+                                status = "pending"
+                        else:
+                            if completed:
+                                status = "announced"
+
+                    event_data["status"] = status
+                    all_events.append(event_data)
+        except Exception as err:
+            _LOGGER.debug(
+                "Failed to fetch calendar events from %s: %s", cal_id, err
+            )
+
+    all_events.sort(key=lambda x: x.get("start", ""))
+
+    return {
+        "enabled": True,
+        "calendars": len(calendars),
+        "event_count": len(all_events),
+        "events": all_events,
+    }
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "smart_assist/dashboard_data",
@@ -203,6 +318,7 @@ async def ws_dashboard_data(
         "agents": {},
         "tasks": {},
         "memory": {},
+        "calendar": {},
     }
 
     # Find the Smart Assist config entry
@@ -226,6 +342,9 @@ async def ws_dashboard_data(
 
     # Build memory summary
     result["memory"] = _build_memory_summary(hass, entry.entry_id)
+
+    # Build calendar data (async - fetches from HA calendar service)
+    result["calendar"] = await _build_calendar_data(hass, entry.entry_id, entry)
 
     connection.send_result(msg["id"], result)
 

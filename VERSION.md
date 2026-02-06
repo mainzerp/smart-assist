@@ -21,7 +21,7 @@
 **Feature: WebSocket API**
 
 - Added `websocket.py` - Real-time data API for the dashboard frontend
-- `smart_assist/dashboard_data` - Returns all agents, tasks, metrics, cache warming data, and memory summary
+- `smart_assist/dashboard_data` - Returns all agents, tasks, metrics, cache warming data, memory summary, and calendar events
 - `smart_assist/memory_details` - Returns detailed memory entries for a specific user (expandable in UI)
 - `smart_assist/subscribe` - Real-time subscription for metric updates via HA dispatcher signals
 - All commands require admin authentication
@@ -30,13 +30,16 @@
 **Feature: Dashboard Panel (Lit Web Component)**
 
 - Added `www/smart-assist-panel.js` - Full Lit Web Component (~960 lines)
+- Three tabs: Overview, Memory, Calendar
 - Overview Cards: Total requests, success rate, avg response time, total tokens, cache hit rate
 - Token Usage: Horizontal bar chart comparing prompt, completion, and cached tokens
 - Cache Performance: Hit/miss counters, hit rate gauge, cache warming status display
 - Registered Tools: Visual tag grid showing all tools per agent
-- Features: Toggle status grid for memory, web search, calendar, caching, etc.
 - Memory Browser: User table with expandable rows showing individual memories by category
-- Configuration: Model, provider, temperature, max tokens display
+- Calendar Tab: Upcoming events table with reminder status badges (upcoming/pending/announced/passed)
+  - Summary cards: event count, calendar entities, pending reminders, announced reminders
+  - Events fetched from all HA calendar entities for next 28 hours
+  - Status derived from `CalendarReminderTracker` completed stages
 - Agent Selector: Tab bar to switch between agents when multiple exist
 - Auto-refresh via WebSocket subscription + manual refresh button
 - Full HA theme integration via CSS custom properties (dark/light mode)

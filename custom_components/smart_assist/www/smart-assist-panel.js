@@ -187,6 +187,7 @@ class SmartAssistPanel extends HTMLElement {
     html += '<div class="tab-bar">'
       + '<button class="tab-btn ' + (this._activeTab === "overview" ? "active" : "") + '" data-tab="overview">Overview</button>'
       + '<button class="tab-btn ' + (this._activeTab === "memory" ? "active" : "") + '" data-tab="memory">Memory</button>'
+      + '<button class="tab-btn ' + (this._activeTab === "calendar" ? "active" : "") + '" data-tab="calendar">Calendar</button>'
       + '</div>';
 
     // Tab content
@@ -194,6 +195,8 @@ class SmartAssistPanel extends HTMLElement {
       html += this._renderOverviewTab(agents);
     } else if (this._activeTab === "memory") {
       html += this._renderMemoryTab();
+    } else if (this._activeTab === "calendar") {
+      html += this._renderCalendarTab();
     }
 
     return html;
@@ -269,6 +272,73 @@ class SmartAssistPanel extends HTMLElement {
     }
 
     return html;
+  }
+
+  _renderCalendarTab() {
+    const cal = this._data ? this._data.calendar : null;
+    if (!cal || !cal.enabled) {
+      return '<div class="loading">Calendar context is disabled. Enable it in the agent configuration to see upcoming events.</div>';
+    }
+
+    const events = cal.events || [];
+    const calendars = cal.calendars || 0;
+
+    // Count by status
+    let pending = 0, announced = 0, passed = 0;
+    for (const e of events) {
+      if (e.status === "pending") pending++;
+      else if (e.status === "announced") announced++;
+      else if (e.status === "passed") passed++;
+    }
+
+    // Summary cards
+    let html = '<div class="overview-grid">'
+      + '<div class="metric-card"><div class="label">Upcoming Events</div><div class="value">' + events.length + '</div><div class="sub">next 28 hours</div></div>'
+      + '<div class="metric-card"><div class="label">Calendars</div><div class="value">' + calendars + '</div><div class="sub">entities tracked</div></div>'
+      + '<div class="metric-card"><div class="label">Pending</div><div class="value warning">' + pending + '</div><div class="sub">awaiting reminder</div></div>'
+      + '<div class="metric-card"><div class="label">Announced</div><div class="value success">' + announced + '</div><div class="sub">reminder delivered</div></div>'
+      + '</div>';
+
+    // Events table
+    if (events.length > 0) {
+      let rows = "";
+      for (const ev of events) {
+        const startStr = this._fmtEventTime(ev.start);
+        const endStr = this._fmtEventTime(ev.end);
+        const timeRange = endStr ? (startStr + " - " + endStr) : startStr;
+        const statusCls = ev.status || "upcoming";
+        const statusLabel = statusCls.charAt(0).toUpperCase() + statusCls.slice(1);
+        const loc = ev.location ? '<div style="font-size:11px;color:var(--sa-text-secondary);">' + this._esc(ev.location) + '</div>' : '';
+        rows += '<tr>'
+          + '<td style="white-space:nowrap;">' + timeRange + '</td>'
+          + '<td><strong>' + this._esc(ev.summary) + '</strong>' + loc + '</td>'
+          + '<td>' + this._esc(ev.owner) + '</td>'
+          + '<td><span class="cal-status ' + statusCls + '">' + statusLabel + '</span></td>'
+          + '</tr>';
+      }
+      html += '<div class="card"><h3>Events (next 28h)</h3>'
+        + '<table><thead><tr><th>Time</th><th>Event</th><th>Owner</th><th>Status</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div>';
+    } else {
+      html += '<div class="card"><h3>Events</h3><div style="color:var(--sa-text-secondary);font-size:14px;padding:20px 0;">No upcoming events in the next 28 hours.</div></div>';
+    }
+
+    return html;
+  }
+
+  _fmtEventTime(timeStr) {
+    if (!timeStr) return "";
+    try {
+      if (timeStr.indexOf("T") !== -1) {
+        const d = new Date(timeStr);
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+      // All-day event (date only)
+      const d = new Date(timeStr + "T00:00:00");
+      return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    } catch (_) {
+      return timeStr;
+    }
   }
 
   _renderTokenCard(metrics) {
@@ -459,6 +529,12 @@ class SmartAssistPanel extends HTMLElement {
       + ".memory-category.pattern{background:#fff3e0;color:#e65100;}"
       + ".memory-category.instruction{background:#e8f5e9;color:#2e7d32;}"
       + ".memory-category.fact{background:#fce4ec;color:#c62828;}"
+      // Calendar status badges
+      + ".cal-status{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500;white-space:nowrap;}"
+      + ".cal-status.upcoming{background:#e3f2fd;color:#1565c0;}"
+      + ".cal-status.pending{background:#fff3e0;color:#e65100;}"
+      + ".cal-status.announced{background:#e8f5e9;color:#2e7d32;}"
+      + ".cal-status.passed{background:#f5f5f5;color:#9e9e9e;}"
       // Cache warming
       + ".warming-status{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:13px;}"
       + ".warming-status.active{background:color-mix(in srgb,var(--sa-success) 15%,transparent);color:var(--sa-success);}"
