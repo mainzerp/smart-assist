@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.7.0   | 2026-02-08 |
+| Smart Assist | 1.7.1   | 2026-02-08 |
 
 ## Version History
+
+### v1.7.1 (2026-02-08) - Memory Management UI
+
+**Feature: Memory User Management**
+
+- Rename users: Change display name directly from the dashboard Memory tab
+- Merge users: Move all memories from one user profile to another (deduplication, stats merge)
+- Delete individual memories from the expanded memory details view
+- Added `rename_user()` and `merge_users()` methods to MemoryManager
+- Added WebSocket commands: `smart_assist/memory_rename_user`, `smart_assist/memory_merge_users`, `smart_assist/memory_delete`
+
+**Bug Fix: Cache Warming Calendar Announcements**
+
+- Cache warming no longer marks calendar reminders as "announced"
+- Added `peek_reminders()` read-only method to CalendarReminderTracker
+- Cache warming uses `dry_run=True` to prevent premature reminder consumption
 
 ### v1.7.0 (2026-02-08) - Dashboard & UI
 

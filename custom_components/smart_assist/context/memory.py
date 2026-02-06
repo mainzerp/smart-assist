@@ -367,6 +367,93 @@ class MemoryManager:
         """Get list of known user IDs."""
         return list(self._data["users"].keys())
 
+    def rename_user(self, user_id: str, new_display_name: str) -> str:
+        """Change a user's display name.
+
+        Args:
+            user_id: The user ID to rename.
+            new_display_name: The new display name.
+
+        Returns:
+            Status message.
+        """
+        if user_id not in self._data["users"]:
+            return f"User not found: {user_id}"
+
+        old_name = self._data["users"][user_id].get("display_name", user_id)
+        self._data["users"][user_id]["display_name"] = new_display_name
+        self._dirty = True
+        _LOGGER.info("Renamed user %s: '%s' -> '%s'", user_id, old_name, new_display_name)
+        return f"Renamed '{old_name}' to '{new_display_name}'"
+
+    def merge_users(self, source_user_id: str, target_user_id: str) -> str:
+        """Merge all memories from source user into target user.
+
+        Moves all memories from source to target, avoiding duplicates.
+        Merges stats (totals). Deletes the source user profile.
+
+        Args:
+            source_user_id: User ID to merge from (will be deleted).
+            target_user_id: User ID to merge into (will receive memories).
+
+        Returns:
+            Status message.
+        """
+        if source_user_id not in self._data["users"]:
+            return f"Source user not found: {source_user_id}"
+        if target_user_id not in self._data["users"]:
+            return f"Target user not found: {target_user_id}"
+        if source_user_id == target_user_id:
+            return "Source and target are the same user"
+
+        source = self._data["users"][source_user_id]
+        target = self._data["users"][target_user_id]
+
+        # Deduplicate by content
+        existing_contents = {
+            m["content"].lower().strip() for m in target["memories"]
+        }
+
+        moved = 0
+        skipped = 0
+        for mem in source["memories"]:
+            if mem["content"].lower().strip() in existing_contents:
+                skipped += 1
+            else:
+                target["memories"].append(mem)
+                existing_contents.add(mem["content"].lower().strip())
+                moved += 1
+
+        # Merge stats
+        target_stats = target["stats"]
+        source_stats = source["stats"]
+        target_stats["total_conversations"] = (
+            target_stats.get("total_conversations", 0)
+            + source_stats.get("total_conversations", 0)
+        )
+        target_stats["total_tokens_used"] = (
+            target_stats.get("total_tokens_used", 0)
+            + source_stats.get("total_tokens_used", 0)
+        )
+        # Keep earliest first_interaction
+        if source_stats.get("first_interaction"):
+            if not target_stats.get("first_interaction") or (
+                source_stats["first_interaction"] < target_stats["first_interaction"]
+            ):
+                target_stats["first_interaction"] = source_stats["first_interaction"]
+
+        # Delete source user
+        del self._data["users"][source_user_id]
+        self._dirty = True
+
+        source_name = source.get("display_name", source_user_id)
+        target_name = target.get("display_name", target_user_id)
+        _LOGGER.info(
+            "Merged user '%s' into '%s': %d moved, %d skipped (duplicates)",
+            source_name, target_name, moved, skipped,
+        )
+        return f"Merged '{source_name}' into '{target_name}': {moved} memories moved, {skipped} duplicates skipped"
+
     # =========================================================================
     # Stats
     # =========================================================================

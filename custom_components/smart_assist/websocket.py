@@ -53,6 +53,9 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register WebSocket commands for the Smart Assist dashboard."""
     websocket_api.async_register_command(hass, ws_dashboard_data)
     websocket_api.async_register_command(hass, ws_memory_details)
+    websocket_api.async_register_command(hass, ws_memory_rename_user)
+    websocket_api.async_register_command(hass, ws_memory_merge_users)
+    websocket_api.async_register_command(hass, ws_memory_delete)
     websocket_api.async_register_command(hass, ws_subscribe)
     _LOGGER.debug("Registered Smart Assist WebSocket commands")
 
@@ -389,6 +392,93 @@ async def ws_memory_details(
         "memories": memories,
         "stats": stats,
     })
+
+
+def _get_memory_manager(hass: HomeAssistant) -> Any | None:
+    """Get the memory manager from domain data."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return None
+    entry_data = hass.data.get(DOMAIN, {}).get(entries[0].entry_id, {})
+    mm = entry_data.get("memory_manager")
+    if mm and hasattr(mm, "_data"):
+        return mm
+    return None
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/memory_rename_user",
+        vol.Required("user_id"): str,
+        vol.Required("display_name"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_memory_rename_user(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Rename a memory user's display name."""
+    mm = _get_memory_manager(hass)
+    if not mm:
+        connection.send_error(msg["id"], "not_found", "Memory manager not available")
+        return
+
+    result = mm.rename_user(msg["user_id"], msg["display_name"])
+    await mm._force_save()
+    connection.send_result(msg["id"], {"message": result})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/memory_merge_users",
+        vol.Required("source_user_id"): str,
+        vol.Required("target_user_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_memory_merge_users(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Merge memories from one user into another."""
+    mm = _get_memory_manager(hass)
+    if not mm:
+        connection.send_error(msg["id"], "not_found", "Memory manager not available")
+        return
+
+    result = mm.merge_users(msg["source_user_id"], msg["target_user_id"])
+    await mm._force_save()
+    connection.send_result(msg["id"], {"message": result})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/memory_delete",
+        vol.Required("user_id"): str,
+        vol.Required("memory_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_memory_delete(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Delete a single memory entry."""
+    mm = _get_memory_manager(hass)
+    if not mm:
+        connection.send_error(msg["id"], "not_found", "Memory manager not available")
+        return
+
+    result = mm.delete_memory(msg["user_id"], msg["memory_id"])
+    await mm._force_save()
+    connection.send_result(msg["id"], {"message": result})
 
 
 @websocket_api.websocket_command(

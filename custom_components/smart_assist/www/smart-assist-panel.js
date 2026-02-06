@@ -254,18 +254,26 @@ class SmartAssistPanel extends HTMLElement {
         const catTags = Object.entries(cats).map(function(e) {
           return '<span class="memory-category ' + e[0] + '">' + e[0] + ': ' + e[1] + '</span>';
         }).join(" ");
+
+        // Action buttons
+        const actions = '<div class="user-actions">'
+          + '<button class="icon-btn rename-user-btn" data-user="' + this._esc(uid) + '" title="Rename user">&#9998;</button>'
+          + (userIds.length > 1 ? '<button class="icon-btn merge-user-btn" data-user="' + this._esc(uid) + '" title="Merge into another user">&#8644;</button>' : '')
+          + '</div>';
+
         rows += '<tr class="memory-user-row" data-user="' + this._esc(uid) + '">'
-          + '<td><strong>' + this._esc(u.display_name || uid) + '</strong></td>'
+          + '<td><strong>' + this._esc(u.display_name || uid) + '</strong><div style="font-size:11px;color:var(--sa-text-secondary);">' + this._esc(uid) + '</div></td>'
           + '<td>' + (u.memory_count || 0) + '</td>'
           + '<td>' + (catTags || '-') + '</td>'
           + '<td style="font-size:12px;color:var(--sa-text-secondary);">' + (u.first_interaction ? new Date(u.first_interaction).toLocaleDateString() : '-') + '</td>'
+          + '<td class="actions-cell">' + actions + '</td>'
           + '</tr>';
         if (this._memoryExpanded === uid) {
-          rows += '<tr><td colspan="4" style="padding:0;">' + this._renderMemoryDetails() + '</td></tr>';
+          rows += '<tr><td colspan="5" style="padding:0;">' + this._renderMemoryDetails(uid) + '</td></tr>';
         }
       }
       html += '<div class="card"><h3>User Profiles</h3>'
-        + '<table><thead><tr><th>User</th><th>Memories</th><th>Categories</th><th>First Seen</th></tr></thead>'
+        + '<table><thead><tr><th>User</th><th>Memories</th><th>Categories</th><th>First Seen</th><th style="width:80px;">Actions</th></tr></thead>'
         + '<tbody>' + rows + '</tbody></table></div>';
     } else {
       html += '<div class="card"><h3>User Profiles</h3><div style="color:var(--sa-text-secondary);font-size:14px;padding:20px 0;">No user profiles yet. Memories will appear here once users interact with the assistant.</div></div>';
@@ -403,7 +411,7 @@ class SmartAssistPanel extends HTMLElement {
     return '<div class="card"><h3>Registered Tools (' + agent.tools.length + ')</h3><div class="tools-grid">' + tags + '</div></div>';
   }
 
-  _renderMemoryDetails() {
+  _renderMemoryDetails(userId) {
     const details = this._memoryDetails;
     if (!details || !details.memories) return "";
     const memories = details.memories;
@@ -414,11 +422,14 @@ class SmartAssistPanel extends HTMLElement {
     const shown = memories.slice(0, 30);
     for (const m of shown) {
       const cat = m.category || "unknown";
-      const date = m.created ? new Date(m.created).toLocaleDateString() : "";
+      const date = m.created_at ? new Date(m.created_at).toLocaleDateString() : (m.created ? new Date(m.created).toLocaleDateString() : "");
       entries += '<div class="memory-entry">'
         + '<span class="memory-category ' + this._esc(cat) + '">' + this._esc(cat) + '</span>'
-        + this._esc(m.content || "")
-        + '<span style="float:right;font-size:11px;color:var(--sa-text-secondary);">' + date + '</span></div>';
+        + '<span class="memory-content">' + this._esc(m.content || "") + '</span>'
+        + '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;">'
+        + '<span style="font-size:11px;color:var(--sa-text-secondary);white-space:nowrap;">' + date + '</span>'
+        + '<button class="icon-btn delete-memory-btn" data-user="' + this._esc(userId) + '" data-memory="' + this._esc(m.id) + '" title="Delete memory">&times;</button>'
+        + '</span></div>';
     }
     if (memories.length > 30) {
       entries += '<div style="text-align:center;padding:8px;color:var(--sa-text-secondary);font-size:12px;">... and ' + (memories.length - 30) + ' more</div>';
@@ -451,10 +462,129 @@ class SmartAssistPanel extends HTMLElement {
     });
 
     root.querySelectorAll(".memory-user-row").forEach((row) => {
-      row.addEventListener("click", () => {
+      row.addEventListener("click", (e) => {
+        // Don't toggle when clicking action buttons
+        if (e.target.closest(".icon-btn")) return;
         this._toggleMemory(row.dataset.user);
       });
     });
+
+    // Rename user buttons
+    root.querySelectorAll(".rename-user-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this._renameUser(btn.dataset.user);
+      });
+    });
+
+    // Merge user buttons
+    root.querySelectorAll(".merge-user-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this._mergeUser(btn.dataset.user);
+      });
+    });
+
+    // Delete memory buttons
+    root.querySelectorAll(".delete-memory-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this._deleteMemory(btn.dataset.user, btn.dataset.memory);
+      });
+    });
+  }
+
+  async _renameUser(userId) {
+    const memory = this._data ? this._data.memory : null;
+    const users = memory ? (memory.users || {}) : {};
+    const user = users[userId];
+    const currentName = user ? (user.display_name || userId) : userId;
+
+    const newName = prompt("Rename user '" + currentName + "':", currentName);
+    if (!newName || newName === currentName) return;
+
+    try {
+      await this._hass.callWS({
+        type: "smart_assist/memory_rename_user",
+        user_id: userId,
+        display_name: newName,
+      });
+      await this._fetchData();
+    } catch (err) {
+      alert("Failed to rename user: " + (err.message || err));
+    }
+  }
+
+  async _mergeUser(sourceUserId) {
+    const memory = this._data ? this._data.memory : null;
+    const users = memory ? (memory.users || {}) : {};
+    const userIds = Object.keys(users).filter(function(id) { return id !== sourceUserId; });
+
+    if (userIds.length === 0) {
+      alert("No other users to merge into.");
+      return;
+    }
+
+    const sourceName = users[sourceUserId] ? (users[sourceUserId].display_name || sourceUserId) : sourceUserId;
+    const options = userIds.map(function(id) {
+      const name = users[id] ? (users[id].display_name || id) : id;
+      return name + " (" + id + ")";
+    });
+
+    const choice = prompt(
+      "Merge all memories from '" + sourceName + "' into which user?\n\n"
+      + options.map(function(o, i) { return (i + 1) + ". " + o; }).join("\n")
+      + "\n\nEnter number (1-" + options.length + "):"
+    );
+
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= userIds.length) {
+      alert("Invalid selection.");
+      return;
+    }
+
+    const targetUserId = userIds[idx];
+    const targetName = users[targetUserId] ? (users[targetUserId].display_name || targetUserId) : targetUserId;
+
+    if (!confirm("Merge '" + sourceName + "' into '" + targetName + "'?\n\nThis will move all memories and delete the source user profile. This cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const result = await this._hass.callWS({
+        type: "smart_assist/memory_merge_users",
+        source_user_id: sourceUserId,
+        target_user_id: targetUserId,
+      });
+      alert(result.message || "Users merged successfully.");
+      this._memoryExpanded = null;
+      this._memoryDetails = null;
+      await this._fetchData();
+    } catch (err) {
+      alert("Failed to merge users: " + (err.message || err));
+    }
+  }
+
+  async _deleteMemory(userId, memoryId) {
+    if (!confirm("Delete this memory? This cannot be undone.")) return;
+
+    try {
+      await this._hass.callWS({
+        type: "smart_assist/memory_delete",
+        user_id: userId,
+        memory_id: memoryId,
+      });
+      // Refresh memory details
+      await this._toggleMemory(userId);
+      if (this._memoryExpanded !== userId) {
+        // Re-expand if it collapsed
+        await this._toggleMemory(userId);
+      }
+      await this._fetchData();
+    } catch (err) {
+      alert("Failed to delete memory: " + (err.message || err));
+    }
   }
 
   _getStyles() {
@@ -523,7 +653,8 @@ class SmartAssistPanel extends HTMLElement {
       + ".memory-detail{padding:16px;background:color-mix(in srgb,var(--sa-primary) 5%,transparent);border-radius:8px;margin:8px 0;}"
       + ".memory-entry{padding:8px 0;border-bottom:1px solid var(--sa-divider);font-size:13px;display:flex;align-items:baseline;gap:8px;}"
       + ".memory-entry:last-child{border-bottom:none;}"
-      + ".memory-category{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;}"
+      + ".memory-content{flex:1;}"
+      + ".memory-category{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;flex-shrink:0;}"
       + ".memory-category.preference{background:#e3f2fd;color:#1565c0;}"
       + ".memory-category.named_entity{background:#f3e5f5;color:#7b1fa2;}"
       + ".memory-category.pattern{background:#fff3e0;color:#e65100;}"
@@ -535,6 +666,12 @@ class SmartAssistPanel extends HTMLElement {
       + ".cal-status.pending{background:#fff3e0;color:#e65100;}"
       + ".cal-status.announced{background:#e8f5e9;color:#2e7d32;}"
       + ".cal-status.passed{background:#f5f5f5;color:#9e9e9e;}"
+      // Action buttons
+      + ".user-actions{display:flex;gap:4px;}"
+      + ".actions-cell{text-align:right;}"
+      + ".icon-btn{background:none;border:1px solid var(--sa-divider);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;color:var(--sa-text-secondary);display:inline-flex;align-items:center;justify-content:center;transition:all 0.15s;padding:0;line-height:1;}"
+      + ".icon-btn:hover{border-color:var(--sa-primary);color:var(--sa-primary);background:color-mix(in srgb,var(--sa-primary) 8%,transparent);}"
+      + ".delete-memory-btn:hover{border-color:var(--sa-error);color:var(--sa-error);background:color-mix(in srgb,var(--sa-error) 8%,transparent);}"
       // Cache warming
       + ".warming-status{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:13px;}"
       + ".warming-status.active{background:color-mix(in srgb,var(--sa-success) 15%,transparent);color:var(--sa-success);}"
