@@ -4,9 +4,53 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.4.11  | 2026-02-03 |
+| Smart Assist | 1.5.0   | 2026-02-04 |
 
 ## Version History
+
+### v1.5.0 (2026-02-04) - Code Quality Refactoring
+
+**Architecture: BaseLLMClient Inheritance**
+
+- All 3 LLM clients (OpenRouter, Groq, Ollama) now extend `BaseLLMClient`
+- Eliminated ~340 lines of duplicated code across clients
+- Shared session management, retry logic, metrics tracking, and lifecycle methods
+- `GroqClient` uses custom `_get_session_timeout()` for provider-specific timeouts
+- `OllamaClient` uses `OllamaMetrics(LLMMetrics)` for extended metrics
+- Removed phantom `GroqMetrics` import from `__init__.py`
+- `LLMClient` type alias now points to `BaseLLMClient` instead of `Union`
+- `LLMClientError` now extends `LLMError` for consistent exception hierarchy
+- `api_key` parameter now optional (default `""`) for Ollama compatibility
+- Added `_get_session_timeout()` overridable method in base class
+- OpenRouter debug logging now guarded with `isEnabledFor(DEBUG)` check
+- Replaced `hashlib.md5` with `hashlib.sha256` in debug hash computation
+
+**Refactoring: Config Flow Module Split**
+
+- Split `config_flow.py` (1521 lines) into 3 focused modules:
+  - `config_flow.py` (357 lines): Main flow handler and entry point
+  - `config_validators.py` (300 lines): API validation and model fetching
+  - `config_subentry_flows.py` (827 lines): Subentry flow handlers
+
+**Fix: Timer Tools Compatibility**
+
+- Fixed `AttributeError: module 'intent' has no attribute 'IntentNotRegistered'`
+- Replaced direct exception import with runtime class name check
+- Compatible with all HA versions (pre/post timer intent changes)
+
+**Code Quality Improvements**
+
+- Replaced magic numbers with named constants (`TTS_STREAM_MIN_CHARS`, `MAX_TOOL_ITERATIONS`, `SESSION_MAX_MESSAGES`, `SESSION_RECENT_ENTITIES_MAX`, `SESSION_EXPIRY_MINUTES`)
+- Extracted `_is_german()` helper to prevent false positives in language detection
+- Fixed `ToolResult(error=...)` to use correct `message` parameter
+- Removed unused `ControlCoverTool` (covered by `UnifiedControlTool`)
+- Removed unused `ToolParameterType` enum from `tools/base.py`
+- Removed unused `Enum` import from `tools/base.py`
+- Fixed `hass.data` nested dict initialization with `setdefault()` chain
+- Fixed tool error messages using correct `tool_call_id` and `name` instead of `"error"`
+- Replaced `hashlib.md5` with `hashlib.sha256` in entity_manager and calendar_reminder
+- Moved `datetime` import to module level in `conversation.py`
+- Added `test_utils.py` with 35 test cases for utility functions
 
 ### v1.4.11 (2026-02-03) - Documentation Update
 
@@ -780,6 +824,7 @@ Example: `await_response(message="Which room?", reason="clarification")`
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
 | ~~Universal Send Tool~~ | `send` tool for delivering content (links, text) to notification targets. Supports all `notify.*` services (mobile_app, telegram, email, groups). LLM offers to send content, user specifies target. | ~~Done~~ |
+| Persistent Alarms | Real alarm clock functionality with absolute times. Creates HA automations for persistence across restarts. Supports: "Wecker auf 7 Uhr", repeating alarms ("jeden Morgen"), alarm management ("zeige meine Wecker", "losche den Wecker"). Stores alarms in `.storage/smart_assist_alarms` or as automation entities. Survives HA restarts unlike current timer-based solution. | High |
 | Proactive Notifications | LLM-triggered alerts based on entity state changes | Medium |
 
 #### v1.3.0 - Media Enhancements
@@ -814,6 +859,14 @@ Example: `await_response(message="Which room?", reason="clarification")`
 | Natural Language Automations | "When I come home, turn on the lights" - Creates HA automation | High |
 | Routine Creation | "Create a 'Good Night' routine" - Define multi-step sequences | Medium |
 | Conditional Actions | "Turn off lights only if no one is home" - Smart conditionals | Medium |
+
+#### v1.7.0 - Dashboard & UI
+
+| Feature | Description | Priority |
+| ------- | ----------- | -------- |
+| Custom Panel (Sidebar) | Custom dashboard in HA sidebar using JavaScript/Lit Web Component. Shows: Conversation History, Token Usage Graphs, Cache Hit/Miss Stats, Active Timers/Alarms, Tool Usage Analytics, Entity Index Overview. Full control over UI/UX. | High |
+| Settings Quick Access | Quick access to integration configuration directly from the panel | Medium |
+| Dark/Light Theme Support | Panel automatically adapts to HA theme | Low |
 
 #### Future Considerations
 

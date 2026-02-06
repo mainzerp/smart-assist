@@ -6,19 +6,14 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator
 
 import aiohttp
 
+from .base_client import BaseLLMClient, LLMMetrics
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 from ..const import (
     GROQ_API_URL,
-    LLM_MAX_RETRIES,
-    LLM_RETRY_BASE_DELAY,
-    LLM_RETRY_MAX_DELAY,
-    LLM_RETRIABLE_STATUS_CODES,
-    LLM_STREAM_CHUNK_TIMEOUT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,63 +24,11 @@ class GroqError(LLMError):
     pass
 
 
-@dataclass
-class GroqMetrics:
-    """Metrics for Groq API calls."""
-    
-    total_requests: int = 0
-    successful_requests: int = 0
-    failed_requests: int = 0
-    total_retries: int = 0
-    total_prompt_tokens: int = 0
-    total_completion_tokens: int = 0
-    total_response_time_ms: float = 0.0
-    cache_hits: int = 0
-    cache_misses: int = 0
-    cached_tokens: int = 0
-    
-    @property
-    def average_response_time_ms(self) -> float:
-        """Calculate average response time."""
-        if self.successful_requests == 0:
-            return 0.0
-        return self.total_response_time_ms / self.successful_requests
-    
-    @property
-    def success_rate(self) -> float:
-        """Calculate success rate percentage."""
-        if self.total_requests == 0:
-            return 100.0
-        return (self.successful_requests / self.total_requests) * 100
-    
-    @property
-    def cache_hit_rate(self) -> float:
-        """Calculate cache hit rate percentage."""
-        total = self.cache_hits + self.cache_misses
-        if total == 0:
-            return 0.0
-        return (self.cache_hits / total) * 100
-    
-    def to_dict(self) -> dict[str, Any]:
-        """Convert metrics to dictionary."""
-        return {
-            "total_requests": self.total_requests,
-            "successful_requests": self.successful_requests,
-            "failed_requests": self.failed_requests,
-            "total_retries": self.total_retries,
-            "total_prompt_tokens": self.total_prompt_tokens,
-            "total_completion_tokens": self.total_completion_tokens,
-            "average_response_time_ms": round(self.average_response_time_ms, 2),
-            "success_rate": round(self.success_rate, 2),
-            "cache_hits": self.cache_hits,
-            "cache_misses": self.cache_misses,
-            "cached_tokens": self.cached_tokens,
-            "cache_hit_rate": round(self.cache_hit_rate, 2),
-        }
-
-
-class GroqClient:
+class GroqClient(BaseLLMClient):
     """Client for Groq API - Direct integration."""
+
+    # Session max age in seconds (renew to prevent stale HTTP connections)
+    SESSION_MAX_AGE_SECONDS = 240  # 4 minutes
 
     def __init__(
         self,
@@ -102,138 +45,27 @@ class GroqClient:
             temperature: Sampling temperature (0-2)
             max_tokens: Maximum completion tokens
         """
-        self._api_key = api_key
-        self._model = model
-        self._temperature = temperature
-        self._max_tokens = int(max_tokens)  # Groq requires integer
-        self._session: aiohttp.ClientSession | None = None
-        self._session_lock = asyncio.Lock()
-        self._session_created_at: float | None = None
-        self._metrics = GroqMetrics()
+        super().__init__(api_key=api_key, model=model, temperature=temperature, max_tokens=int(max_tokens))
     
-    # Session max age in seconds (renew to prevent stale HTTP connections)
-    SESSION_MAX_AGE_SECONDS = 240  # 4 minutes
+    def _get_api_url(self) -> str:
+        """Return the Groq API endpoint URL."""
+        return GROQ_API_URL
     
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session (thread-safe).
-        
-        Sessions are renewed if:
-        - None or closed
-        - Older than SESSION_MAX_AGE_SECONDS to prevent stale connections
-        """
-        async with self._session_lock:
-            now = time.monotonic()
-            session_expired = (
-                self._session_created_at is not None
-                and (now - self._session_created_at) > self.SESSION_MAX_AGE_SECONDS
-            )
-            
-            if self._session is None or self._session.closed or session_expired:
-                # Close old session if exists
-                if self._session and not self._session.closed:
-                    try:
-                        await self._session.close()
-                    except Exception:
-                        pass
-                
-                self._session = aiohttp.ClientSession(
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    timeout=aiohttp.ClientTimeout(
-                        total=60,
-                        connect=10,
-                        sock_connect=10,
-                        sock_read=30,
-                    ),
-                )
-                self._session_created_at = now
-                _LOGGER.debug("Created new aiohttp session (previous expired: %s)", session_expired)
-        return self._session
-
-    async def close(self) -> None:
-        """Close the client session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
+    def _get_session_headers(self) -> dict[str, str]:
+        """Return headers for the Groq API session."""
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
     
-    async def __aenter__(self) -> "GroqClient":
-        """Async context manager entry."""
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Async context manager exit - ensures session cleanup."""
-        await self.close()
-    
-    @property
-    def metrics(self) -> GroqMetrics:
-        """Get current metrics."""
-        return self._metrics
-    
-    def reset_metrics(self) -> None:
-        """Reset all metrics to zero."""
-        self._metrics = GroqMetrics()
-
-    async def _execute_with_retry(
-        self,
-        session: aiohttp.ClientSession,
-        payload: dict[str, Any],
-    ) -> aiohttp.ClientResponse:
-        """Execute API request with exponential backoff retry."""
-        last_error: Exception | None = None
-        
-        for attempt in range(LLM_MAX_RETRIES):
-            try:
-                response = await session.post(GROQ_API_URL, json=payload)
-                
-                if response.status == 200 or response.status not in LLM_RETRIABLE_STATUS_CODES:
-                    return response
-                
-                error_text = await response.text()
-                response.close()
-                last_error = GroqError(f"API error: {response.status} - {error_text}", response.status)
-                
-                if attempt < LLM_MAX_RETRIES - 1:
-                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                    _LOGGER.warning(
-                        "Groq API error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, LLM_MAX_RETRIES, response.status, delay
-                    )
-                    self._metrics.total_retries += 1
-                    await asyncio.sleep(delay)
-                    
-            except asyncio.TimeoutError as err:
-                last_error = GroqError(f"Request timeout: {err}")
-                _LOGGER.warning(
-                    "Groq request timeout (attempt %d/%d): %s",
-                    attempt + 1, LLM_MAX_RETRIES, err
-                )
-                if attempt < LLM_MAX_RETRIES - 1:
-                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                    _LOGGER.debug("Retrying in %.1fs...", delay)
-                    self._metrics.total_retries += 1
-                    await asyncio.sleep(delay)
-                    
-            except aiohttp.ClientError as err:
-                last_error = GroqError(f"Network error: {err}")
-                _LOGGER.warning(
-                    "Groq network error (attempt %d/%d): %s",
-                    attempt + 1, LLM_MAX_RETRIES, err
-                )
-                if attempt < LLM_MAX_RETRIES - 1:
-                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                    _LOGGER.debug("Retrying in %.1fs...", delay)
-                    self._metrics.total_retries += 1
-                    await asyncio.sleep(delay)
-        
-        # Log final failure with details
-        _LOGGER.error(
-            "Groq API request failed after %d attempts: %s",
-            LLM_MAX_RETRIES, last_error
+    def _get_session_timeout(self) -> aiohttp.ClientTimeout:
+        """Return Groq-specific timeout configuration."""
+        return aiohttp.ClientTimeout(
+            total=60,
+            connect=10,
+            sock_connect=10,
+            sock_read=30,
         )
-        self._metrics.failed_requests += 1
-        raise last_error or GroqError("Unknown error after retries")
 
     def _build_messages(self, messages: list[ChatMessage]) -> list[dict[str, Any]]:
         """Build messages list for API request.

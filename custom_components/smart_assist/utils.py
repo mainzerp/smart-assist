@@ -12,6 +12,22 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+def _is_german(language: str) -> bool:
+    """Check if the language is German.
+    
+    Safely detects German without false positives from words like
+    'undefined', 'modern', 'decoder'.
+    
+    Args:
+        language: Language code or name string
+        
+    Returns:
+        True if the language is German
+    """
+    lang = language.lower().strip()
+    return lang in ("de", "deutsch", "german") or lang.startswith("de-") or lang.startswith("de_")
+
+
 def get_config_value(
     source: ConfigEntry | ConfigSubentry | dict[str, Any],
     key: str,
@@ -226,7 +242,7 @@ def clean_for_tts(text: str, language: str = "") -> str:
 
     # Convert symbols to words (order matters - longer patterns first)
     # Use German symbols if language contains "de" (e.g., "de", "de-DE", "German (Deutsch)")
-    is_german = "de" in language.lower() if language else False
+    is_german = _is_german(language) if language else False
     symbol_map = SYMBOL_MAPPINGS_DE if is_german else SYMBOL_MAPPINGS
     # Sort by length descending to match longer patterns first
     for symbol, word in sorted(symbol_map.items(), key=lambda x: len(x[0]), reverse=True):

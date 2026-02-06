@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from .base_client import BaseLLMClient, LLMClientError, LLMMetrics
 from .openrouter_client import OpenRouterClient, OpenRouterError
-from .groq_client import GroqClient, GroqError, GroqMetrics
+from .groq_client import GroqClient, GroqError
 from .ollama_client import OllamaClient, OllamaError, OllamaMetrics
 from .models import ChatMessage, ChatResponse, LLMConfigurationError, LLMError, ToolCall
 
 if TYPE_CHECKING:
-    LLMClient = Union[OpenRouterClient, GroqClient, OllamaClient]
+    LLMClient = BaseLLMClient
 
 __all__ = [
     # Base classes
@@ -23,7 +23,6 @@ __all__ = [
     "OpenRouterError",
     "GroqClient",
     "GroqError",
-    "GroqMetrics",
     "OllamaClient",
     "OllamaError",
     "OllamaMetrics",

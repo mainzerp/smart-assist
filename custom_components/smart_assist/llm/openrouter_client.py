@@ -3,80 +3,27 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator
-
-import aiohttp
 
 from ..const import (
     LLM_MAX_RETRIES,
-    LLM_RETRIABLE_STATUS_CODES,
     LLM_RETRY_BASE_DELAY,
     LLM_RETRY_MAX_DELAY,
-    LLM_STREAM_CHUNK_TIMEOUT,
     OPENROUTER_API_URL,
     PROVIDER_CACHING_SUPPORT,
     supports_prompt_caching,
 )
-from .models import ChatMessage, ChatResponse, MessageRole, ToolCall
+from .base_client import BaseLLMClient, LLMMetrics
+from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
-class LLMMetrics:
-    """Metrics for LLM API calls."""
-    
-    total_requests: int = 0
-    successful_requests: int = 0
-    failed_requests: int = 0
-    total_retries: int = 0
-    total_prompt_tokens: int = 0
-    total_completion_tokens: int = 0
-    total_response_time_ms: float = 0.0
-    cache_hits: int = 0
-    cache_misses: int = 0
-    cached_tokens: int = 0  # Tokens served from cache
-    empty_responses: int = 0  # Streams that returned no content
-    stream_timeouts: int = 0  # Streams that timed out waiting for chunks
-    
-    @property
-    def average_response_time_ms(self) -> float:
-        """Calculate average response time."""
-        if self.successful_requests == 0:
-            return 0.0
-        return self.total_response_time_ms / self.successful_requests
-    
-    @property
-    def success_rate(self) -> float:
-        """Calculate success rate percentage."""
-        if self.total_requests == 0:
-            return 100.0
-        return (self.successful_requests / self.total_requests) * 100
-    
-    def to_dict(self) -> dict[str, Any]:
-        """Convert metrics to dictionary."""
-        return {
-            "total_requests": self.total_requests,
-            "successful_requests": self.successful_requests,
-            "failed_requests": self.failed_requests,
-            "total_retries": self.total_retries,
-            "total_prompt_tokens": self.total_prompt_tokens,
-            "total_completion_tokens": self.total_completion_tokens,
-            "average_response_time_ms": round(self.average_response_time_ms, 2),
-            "success_rate": round(self.success_rate, 2),
-            "cache_hits": self.cache_hits,
-            "cache_misses": self.cache_misses,
-            "cached_tokens": self.cached_tokens,
-            "empty_responses": self.empty_responses,
-            "stream_timeouts": self.stream_timeouts,
-        }
-
-
-class OpenRouterClient:
+class OpenRouterClient(BaseLLMClient):
     """Client for OpenRouter API."""
 
     def __init__(
@@ -90,20 +37,25 @@ class OpenRouterClient:
         cache_ttl_extended: bool = False,
     ) -> None:
         """Initialize the OpenRouter client."""
-        self._api_key = api_key
-        self._model = model
+        super().__init__(api_key=api_key, model=model, temperature=temperature, max_tokens=max_tokens)
         self._provider = provider
-        self._temperature = temperature
-        self._max_tokens = max_tokens
         self._cache_ttl_extended = cache_ttl_extended
         
         # Determine if caching is available based on model and provider
         self._enable_caching = self._check_caching_support(model, provider, enable_caching)
-        self._session: aiohttp.ClientSession | None = None
-        self._session_lock = asyncio.Lock()  # Lock for thread-safe session creation
-        
-        # Initialize metrics tracking
-        self._metrics = LLMMetrics()
+    
+    def _get_api_url(self) -> str:
+        """Return the OpenRouter API endpoint URL."""
+        return OPENROUTER_API_URL
+    
+    def _get_session_headers(self) -> dict[str, str]:
+        """Return headers for the OpenRouter API session."""
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/smart-assist",
+            "X-Title": "Smart Assist for Home Assistant",
+        }
     
     def _check_caching_support(self, model: str, provider: str, user_enabled: bool) -> bool:
         """Check if prompt caching is supported for this model/provider combination."""
@@ -128,102 +80,6 @@ class OpenRouterClient:
                 return providers.get(provider, False)
         
         return False
-
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session (thread-safe)."""
-        async with self._session_lock:
-            if self._session is None or self._session.closed:
-                self._session = aiohttp.ClientSession(
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://github.com/smart-assist",
-                        "X-Title": "Smart Assist for Home Assistant",
-                    },
-                    timeout=aiohttp.ClientTimeout(total=60),
-                )
-        return self._session
-
-    async def close(self) -> None:
-        """Close the client session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
-    
-    async def __aenter__(self) -> "OpenRouterClient":
-        """Async context manager entry."""
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Async context manager exit - ensures session cleanup."""
-        await self.close()
-    
-    @property
-    def metrics(self) -> LLMMetrics:
-        """Get current metrics."""
-        return self._metrics
-    
-    def reset_metrics(self) -> None:
-        """Reset all metrics to zero."""
-        self._metrics = LLMMetrics()
-    
-    async def _execute_with_retry(
-        self,
-        session: aiohttp.ClientSession,
-        payload: dict[str, Any],
-        stream: bool = False,
-    ) -> aiohttp.ClientResponse:
-        """Execute API request with exponential backoff retry.
-        
-        Args:
-            session: aiohttp session
-            payload: Request payload
-            stream: Whether this is a streaming request
-            
-        Returns:
-            aiohttp.ClientResponse
-            
-        Raises:
-            OpenRouterError: If all retries fail
-        """
-        last_error: Exception | None = None
-        
-        for attempt in range(LLM_MAX_RETRIES):
-            try:
-                response = await session.post(OPENROUTER_API_URL, json=payload)
-                
-                # Success or non-retriable error
-                if response.status == 200 or response.status not in LLM_RETRIABLE_STATUS_CODES:
-                    return response
-                
-                # Retriable error - close response and retry
-                error_text = await response.text()
-                response.close()
-                last_error = OpenRouterError(f"API error: {response.status} - {error_text}")
-                
-                if attempt < LLM_MAX_RETRIES - 1:
-                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                    _LOGGER.warning(
-                        "OpenRouter API error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, LLM_MAX_RETRIES, response.status, delay
-                    )
-                    self._metrics.total_retries += 1
-                    await asyncio.sleep(delay)
-                    
-            except aiohttp.ClientError as err:
-                last_error = OpenRouterError(f"Network error: {err}")
-                if attempt < LLM_MAX_RETRIES - 1:
-                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                    _LOGGER.warning(
-                        "Network error (attempt %d/%d): %s. Retrying in %.1fs",
-                        attempt + 1, LLM_MAX_RETRIES, err, delay
-                    )
-                    self._metrics.total_retries += 1
-                    await asyncio.sleep(delay)
-        
-        # All retries exhausted
-        self._metrics.failed_requests += 1
-        raise last_error or OpenRouterError("Unknown error after retries")
 
     def _build_messages(
         self,
@@ -373,32 +229,30 @@ class OpenRouterClient:
             }
 
         # Debug: Log message structure for cache analysis
-        import hashlib
-        msg_summary = []
-        prefix_content = []
-        for i, msg in enumerate(payload["messages"]):
-            role = msg.get("role", "?")
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                content_len = len(content)
-                content_text = content
-            elif isinstance(content, list):
-                content_len = sum(len(c.get("text", "")) for c in content if isinstance(c, dict))
-                content_text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
-            else:
-                content_len = 0
-                content_text = ""
-            msg_summary.append(f"{i}:{role}:{content_len}chars")
-            # Collect first 3 messages for prefix hash
-            if i < 3:
-                prefix_content.append(f"{role}:{content_text}")
-        
-        # Hash the prefix (messages + tools) to detect changes
-        prefix_hash = hashlib.md5("|||".join(prefix_content).encode()).hexdigest()[:8]
-        tools_hash = hashlib.md5(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
-        
-        _LOGGER.debug("Sending streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
-        _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            msg_summary = []
+            prefix_content = []
+            for i, msg in enumerate(payload["messages"]):
+                role = msg.get("role", "?")
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    content_len = len(content)
+                    content_text = content
+                elif isinstance(content, list):
+                    content_len = sum(len(c.get("text", "")) for c in content if isinstance(c, dict))
+                    content_text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+                else:
+                    content_len = 0
+                    content_text = ""
+                msg_summary.append(f"{i}:{role}:{content_len}chars")
+                if i < 3:
+                    prefix_content.append(f"{role}:{content_text}")
+            
+            prefix_hash = hashlib.sha256("|||".join(prefix_content).encode()).hexdigest()[:8]
+            tools_hash = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
+            
+            _LOGGER.debug("Sending streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
+            _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
         
         self._metrics.total_requests += 1
         start_time = time.monotonic()
@@ -410,7 +264,7 @@ class OpenRouterClient:
             stream_completed = False
 
             try:
-                async with await self._execute_with_retry(session, payload, stream=True) as response:
+                async with await self._execute_with_retry(session, payload) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         _LOGGER.error("OpenRouter API error: %s", error_text)
@@ -542,32 +396,30 @@ class OpenRouterClient:
             }
 
         # Debug: Log message structure for cache analysis
-        import hashlib
-        msg_summary = []
-        prefix_content = []
-        for i, msg in enumerate(payload["messages"]):
-            role = msg.get("role", "?")
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                content_len = len(content)
-                content_text = content
-            elif isinstance(content, list):
-                content_len = sum(len(c.get("text", "")) for c in content if isinstance(c, dict))
-                content_text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
-            else:
-                content_len = 0
-                content_text = ""
-            msg_summary.append(f"{i}:{role}:{content_len}chars")
-            # Collect first 3 messages for prefix hash
-            if i < 3:
-                prefix_content.append(f"{role}:{content_text}")
-        
-        # Hash the prefix (messages + tools) to detect changes
-        prefix_hash = hashlib.md5("|||".join(prefix_content).encode()).hexdigest()[:8]
-        tools_hash = hashlib.md5(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
-        
-        _LOGGER.debug("Sending full streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
-        _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            msg_summary = []
+            prefix_content = []
+            for i, msg in enumerate(payload["messages"]):
+                role = msg.get("role", "?")
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    content_len = len(content)
+                    content_text = content
+                elif isinstance(content, list):
+                    content_len = sum(len(c.get("text", "")) for c in content if isinstance(c, dict))
+                    content_text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+                else:
+                    content_len = 0
+                    content_text = ""
+                msg_summary.append(f"{i}:{role}:{content_len}chars")
+                if i < 3:
+                    prefix_content.append(f"{role}:{content_text}")
+            
+            prefix_hash = hashlib.sha256("|||".join(prefix_content).encode()).hexdigest()[:8]
+            tools_hash = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
+            
+            _LOGGER.debug("Sending full streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
+            _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
 
         self._metrics.total_requests += 1
         start_time = time.monotonic()
@@ -582,7 +434,7 @@ class OpenRouterClient:
             stream_completed = False
 
             try:
-                async with await self._execute_with_retry(session, payload, stream=True) as response:
+                async with await self._execute_with_retry(session, payload) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         _LOGGER.error("OpenRouter API error: %s", error_text)
@@ -795,7 +647,7 @@ class OpenRouterClient:
             self._enable_caching = enable_caching and supports_prompt_caching(self._model)
 
 
-class OpenRouterError(Exception):
+class OpenRouterError(LLMError):
     """Exception for OpenRouter API errors."""
 
     pass

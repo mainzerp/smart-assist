@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timedelta
 from typing import Any
 
 # Set up logging FIRST
@@ -106,7 +107,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 def _create_cache_warming_callback(
                     se_id: str,
                     se: ConfigSubentry,
-                ) -> tuple[callable, callable]:
+                ) -> tuple[Any, Any]:
                     """Create cache warming callback with proper closure."""
                     listener_called = False
                     
@@ -148,7 +149,6 @@ async def _initial_cache_warming(
     This handles the first warmup and initializes tracking data.
     Performs TWO warmups at startup to ensure cache is fully populated.
     """
-    from datetime import datetime
     from homeassistant.helpers.dispatcher import async_dispatcher_send
     
     # Initialize tracking data early
@@ -192,7 +192,6 @@ def _start_cache_refresh_timer(
     hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry
 ) -> None:
     """Start periodic cache refresh timer for a specific conversation agent."""
-    from datetime import timedelta, datetime
     from homeassistant.helpers.dispatcher import async_dispatcher_send
     
     # Get user-configured refresh interval (in minutes) from subentry
@@ -215,7 +214,6 @@ def _start_cache_refresh_timer(
     
     def _update_next_warmup() -> None:
         """Update the next warmup timestamp."""
-        from datetime import datetime, timedelta
         next_time = datetime.now() + timedelta(minutes=interval_minutes)
         hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]["next_warmup"] = next_time.isoformat()
     

@@ -13,6 +13,12 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import intent as ha_intent
 
+# Import timer-specific exceptions (may not exist in older HA versions)
+try:
+    from homeassistant.components.intent.timers import TimerNotFoundError
+except ImportError:
+    TimerNotFoundError = None
+
 from .base import BaseTool, ToolParameter, ToolResult
 
 _LOGGER = logging.getLogger(__name__)
@@ -112,24 +118,32 @@ The 'command' parameter can execute any voice command when timer finishes."""
                     success=False,
                     message=f"Unknown action: {action}. Use: start, cancel, pause, resume, status",
                 )
-        except ha_intent.IntentNotRegistered:
-            return ToolResult(
-                success=False,
-                message="Timer intents not available. Make sure Assist is properly configured.",
-            )
         except ha_intent.IntentHandleError as err:
             # Common errors like "no timer to cancel"
             error_msg = str(err)
-            if "no timer" in error_msg.lower():
+            if "no timer" in error_msg.lower() or "not found" in error_msg.lower():
                 if action == "cancel":
                     return ToolResult(success=True, message="No active timer to cancel.")
                 elif action == "pause":
                     return ToolResult(success=True, message="No running timer to pause.")
                 elif action == "resume":
                     return ToolResult(success=True, message="No paused timer to resume.")
+                elif action == "status":
+                    return ToolResult(success=True, message="No active timers.")
             return ToolResult(success=False, message=f"Timer error: {error_msg}")
         except Exception as err:
-            _LOGGER.error("Timer error: %s", err, exc_info=True)
+            # Catch TimerNotFoundError and other timer-specific exceptions
+            err_name = type(err).__name__
+            if err_name == "TimerNotFoundError" or "not found" in str(err).lower():
+                if action == "cancel":
+                    return ToolResult(success=True, message="No active timer to cancel.")
+                elif action == "pause":
+                    return ToolResult(success=True, message="No running timer to pause.")
+                elif action == "resume":
+                    return ToolResult(success=True, message="No paused timer to resume.")
+                elif action == "status":
+                    return ToolResult(success=True, message="No active timers.")
+            _LOGGER.warning("Unexpected timer error (%s): %s", err_name, err)
             return ToolResult(
                 success=False,
                 message=f"Failed to execute timer action: {err}",

@@ -6,17 +6,14 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator
 
 import aiohttp
 
+from .base_client import BaseLLMClient, LLMMetrics
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 from ..const import (
-    LLM_MAX_RETRIES,
-    LLM_RETRY_BASE_DELAY,
-    LLM_RETRY_MAX_DELAY,
-    LLM_STREAM_CHUNK_TIMEOUT,
     OLLAMA_DEFAULT_URL,
     OLLAMA_DEFAULT_MODEL,
     OLLAMA_DEFAULT_KEEP_ALIVE,
@@ -33,50 +30,25 @@ class OllamaError(LLMError):
 
 
 @dataclass
-class OllamaMetrics:
-    """Metrics for Ollama API calls."""
+class OllamaMetrics(LLMMetrics):
+    """Metrics for Ollama API calls.
     
-    total_requests: int = 0
-    successful_requests: int = 0
-    failed_requests: int = 0
-    total_retries: int = 0
-    total_prompt_tokens: int = 0
-    total_completion_tokens: int = 0
-    total_response_time_ms: float = 0.0
+    Extends LLMMetrics with Ollama-specific fields for model loading
+    and local cache state.
+    """
+    
     model_load_time_ms: float = 0.0
     cache_warm: bool = False
     
-    @property
-    def average_response_time_ms(self) -> float:
-        """Calculate average response time."""
-        if self.successful_requests == 0:
-            return 0.0
-        return self.total_response_time_ms / self.successful_requests
-    
-    @property
-    def success_rate(self) -> float:
-        """Calculate success rate percentage."""
-        if self.total_requests == 0:
-            return 100.0
-        return (self.successful_requests / self.total_requests) * 100
-    
     def to_dict(self) -> dict[str, Any]:
         """Convert metrics to dictionary."""
-        return {
-            "total_requests": self.total_requests,
-            "successful_requests": self.successful_requests,
-            "failed_requests": self.failed_requests,
-            "total_retries": self.total_retries,
-            "total_prompt_tokens": self.total_prompt_tokens,
-            "total_completion_tokens": self.total_completion_tokens,
-            "average_response_time_ms": round(self.average_response_time_ms, 2),
-            "success_rate": round(self.success_rate, 2),
-            "model_load_time_ms": round(self.model_load_time_ms, 2),
-            "cache_warm": self.cache_warm,
-        }
+        result = super().to_dict()
+        result["model_load_time_ms"] = round(self.model_load_time_ms, 2)
+        result["cache_warm"] = self.cache_warm
+        return result
 
 
-class OllamaClient:
+class OllamaClient(BaseLLMClient):
     """Client for Ollama API - Local LLM integration.
     
     Ollama provides local inference with the following caching benefits:
@@ -120,55 +92,35 @@ class OllamaClient:
             num_ctx: Context window size (default: 8192)
             timeout: Request timeout in seconds
         """
+        super().__init__(api_key="", model=model, temperature=temperature, max_tokens=max_tokens)
         self._base_url = base_url.rstrip("/")
-        self._model = model
-        self._temperature = temperature
-        self._max_tokens = max_tokens
         self._keep_alive = keep_alive
         self._num_ctx = num_ctx
         self._timeout = timeout
-        self._session: aiohttp.ClientSession | None = None
-        self._session_lock = asyncio.Lock()
-        self._metrics = OllamaMetrics()
+        self._metrics = OllamaMetrics()  # Override with Ollama-specific metrics
         self._model_loaded = False
     
-    async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session (thread-safe)."""
-        async with self._session_lock:
-            if self._session is None or self._session.closed:
-                self._session = aiohttp.ClientSession(
-                    timeout=aiohttp.ClientTimeout(
-                        total=self._timeout,
-                        connect=10,
-                        sock_connect=10,
-                        sock_read=self._timeout,
-                    ),
-                )
-        return self._session
-
-    async def close(self) -> None:
-        """Close the client session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
+    def _get_api_url(self) -> str:
+        """Return the Ollama API chat endpoint URL."""
+        return f"{self._base_url}/api/chat"
     
-    async def __aenter__(self) -> "OllamaClient":
-        """Async context manager entry."""
-        return self
+    def _get_session_headers(self) -> dict[str, str]:
+        """Return headers for the Ollama API session."""
+        return {"Content-Type": "application/json"}
     
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Async context manager exit - ensures session cleanup."""
-        await self.close()
+    def _get_session_timeout(self) -> aiohttp.ClientTimeout:
+        """Return Ollama-specific timeout configuration."""
+        return aiohttp.ClientTimeout(
+            total=self._timeout,
+            connect=10,
+            sock_connect=10,
+            sock_read=self._timeout,
+        )
     
     @property
     def metrics(self) -> OllamaMetrics:
         """Get current metrics."""
         return self._metrics
-    
-    @property
-    def model(self) -> str:
-        """Get current model name."""
-        return self._model
     
     @property
     def is_model_loaded(self) -> bool:

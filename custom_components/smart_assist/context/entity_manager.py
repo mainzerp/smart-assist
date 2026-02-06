@@ -183,7 +183,7 @@ class EntityManager:
     def _compute_index_hash(self, entities: list[EntityInfo]) -> str:
         """Compute hash of entity index for cache invalidation."""
         entity_ids = sorted(e.entity_id for e in entities)
-        return hashlib.md5("|".join(entity_ids).encode()).hexdigest()[:16]
+        return hashlib.sha256("|".join(entity_ids).encode()).hexdigest()[:16]
 
     def _format_entity_index(self, entities: list[EntityInfo]) -> str:
         """Format entity index for LLM context."""

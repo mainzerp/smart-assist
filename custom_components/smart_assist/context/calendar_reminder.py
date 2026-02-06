@@ -75,7 +75,7 @@ class CalendarReminderTracker:
             Short hash string identifying this specific event.
         """
         key = f"{event.get('summary', '')}_{event.get('start', '')}"
-        return hashlib.md5(key.encode()).hexdigest()[:12]
+        return hashlib.sha256(key.encode()).hexdigest()[:12]
 
     def _is_all_day_event(self, time_str: str | None) -> bool:
         """Check if event is an all-day event (date only, no time component).

@@ -22,6 +22,7 @@ from ..const import (
     LLM_RETRY_BASE_DELAY,
     LLM_RETRY_MAX_DELAY,
 )
+from .models import LLMError
 
 if TYPE_CHECKING:
     from .models import ChatMessage, ChatResponse
@@ -92,12 +93,9 @@ class LLMMetrics:
         }
 
 
-class LLMClientError(Exception):
+class LLMClientError(LLMError):
     """Base exception for LLM client errors."""
-    
-    def __init__(self, message: str, status_code: int | None = None) -> None:
-        super().__init__(message)
-        self.status_code = status_code
+    pass
 
 
 class BaseLLMClient(ABC):
@@ -121,8 +119,8 @@ class BaseLLMClient(ABC):
     
     def __init__(
         self,
-        api_key: str,
-        model: str,
+        api_key: str = "",
+        model: str = "",
         temperature: float = 0.5,
         max_tokens: int = 500,
     ) -> None:
@@ -152,6 +150,13 @@ class BaseLLMClient(ABC):
     def _get_session_headers(self) -> dict[str, str]:
         """Return headers for the HTTP session."""
         pass
+    
+    def _get_session_timeout(self) -> aiohttp.ClientTimeout:
+        """Return timeout configuration for the HTTP session.
+        
+        Override in subclasses for custom timeout behavior.
+        """
+        return aiohttp.ClientTimeout(total=60)
     
     @abstractmethod
     async def chat(
@@ -198,7 +203,7 @@ class BaseLLMClient(ABC):
                 
                 self._session = aiohttp.ClientSession(
                     headers=self._get_session_headers(),
-                    timeout=aiohttp.ClientTimeout(total=60),
+                    timeout=self._get_session_timeout(),
                 )
                 self._session_created_at = now
                 if session_expired:

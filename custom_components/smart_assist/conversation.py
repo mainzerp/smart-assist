@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from typing import Any, Literal, TYPE_CHECKING
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,11 +96,13 @@ try:
         LLM_PROVIDER_OLLAMA,
         LOCALE_TO_LANGUAGE,
         MAX_CONSECUTIVE_FOLLOWUPS,
+        MAX_TOOL_ITERATIONS,
         OLLAMA_DEFAULT_KEEP_ALIVE,
         OLLAMA_DEFAULT_MODEL,
         OLLAMA_DEFAULT_NUM_CTX,
         OLLAMA_DEFAULT_TIMEOUT,
         OLLAMA_DEFAULT_URL,
+        TTS_STREAM_MIN_CHARS,
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
@@ -215,10 +218,10 @@ class SmartAssistConversationEntity(ConversationEntity):
             self._llm_client._cache_ttl_extended = get_config(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED)
         
         # Store LLM client reference for sensors to access metrics
-        hass.data.setdefault(DOMAIN, {})
-        hass.data[DOMAIN].setdefault(entry.entry_id, {})
-        hass.data[DOMAIN][entry.entry_id].setdefault("agents", {})
-        hass.data[DOMAIN][entry.entry_id]["agents"][subentry.subentry_id] = {
+        domain_data = hass.data.setdefault(DOMAIN, {})
+        entry_data = domain_data.setdefault(entry.entry_id, {"agents": {}})
+        entry_data.setdefault("agents", {})
+        entry_data["agents"][subentry.subentry_id] = {
             "llm_client": self._llm_client,
             "entity": self,
         }
@@ -423,7 +426,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         cached_prefix_length: int,
         chat_log: ChatLog,
         conversation_id: str | None = None,
-        max_iterations: int = 5,
+        max_iterations: int = MAX_TOOL_ITERATIONS,
     ) -> tuple[str, bool]:
         """Call LLM with streaming and handle tool calls in-loop.
         
@@ -518,8 +521,8 @@ class SmartAssistConversationEntity(ConversationEntity):
                             # Pad content to exceed STREAM_RESPONSE_CHARS threshold (60)
                             # This triggers tts_start_streaming for Companion App
                             content_for_delta = iteration_content
-                            if len(content_for_delta) < 65:
-                                content_for_delta = content_for_delta + " " * (65 - len(content_for_delta))
+                            if len(content_for_delta) < TTS_STREAM_MIN_CHARS:
+                                content_for_delta = content_for_delta + " " * (TTS_STREAM_MIN_CHARS - len(content_for_delta))
                             chat_log.delta_listener(chat_log, {"content": content_for_delta})
                     except Exception as delta_err:
                         # delta_listener may throw if ChatLog is in invalid state
@@ -614,15 +617,16 @@ class SmartAssistConversationEntity(ConversationEntity):
                 )
                 
                 # Add tool results to working messages
-                for item in tool_results:
+                for i, item in enumerate(tool_results):
                     if isinstance(item, Exception):
                         _LOGGER.error("Tool execution failed: %s", item)
+                        failed_tc = other_tool_calls[i]
                         working_messages.append(
                             ChatMessage(
                                 role=MessageRole.TOOL,
                                 content=f"Error: {item}",
-                                tool_call_id="error",
-                                name="error",
+                                tool_call_id=failed_tc.id,
+                                name=failed_tc.name,
                             )
                         )
                         continue
@@ -1189,7 +1193,6 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
 
         # 5. Current context (dynamic - NOT cached) + user message
         # Combined into single user message to keep dynamic content at the end
-        from datetime import datetime
         now = datetime.now()
         time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
         

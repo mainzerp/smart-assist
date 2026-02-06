@@ -156,7 +156,7 @@ class UnifiedControlTool(BaseTool):
             _LOGGER.debug("Mapped 'state=%s' to 'action=%s'", state, action)
         
         if action is None:
-            return ToolResult(success=False, error="Missing required parameter: 'action'")
+            return ToolResult(success=False, message="Missing required parameter: 'action'")
         
         domain = entity_id.split(".")[0]
         

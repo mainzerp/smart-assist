@@ -58,6 +58,13 @@ DEFAULT_USER_SYSTEM_PROMPT: Final = "You are Smart Assist, a friendly and intell
 DEFAULT_TASK_SYSTEM_PROMPT: Final = "You are a smart home task executor. Complete tasks efficiently and provide structured output."
 DEFAULT_TASK_ENABLE_PROMPT_CACHING: Final = False  # Tasks are not time-critical
 DEFAULT_TASK_ENABLE_CACHE_WARMING: Final = False   # Tasks are not time-critical
+
+# Conversation engine constants
+TTS_STREAM_MIN_CHARS: Final = 65  # Minimum chars to trigger TTS streaming in Companion App
+MAX_TOOL_ITERATIONS: Final = 5  # Max LLM-tool execution loops per request
+SESSION_MAX_MESSAGES: Final = 20  # Max messages per conversation session
+SESSION_RECENT_ENTITIES_MAX: Final = 5  # Max recent entities for pronoun resolution
+SESSION_EXPIRY_MINUTES: Final = 30  # Session timeout in minutes
 DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
 DEFAULT_CALENDAR_CONTEXT: Final = False  # Disabled by default (token cost)
 

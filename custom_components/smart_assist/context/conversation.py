@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from ..const import SESSION_EXPIRY_MINUTES, SESSION_MAX_MESSAGES, SESSION_RECENT_ENTITIES_MAX
 from ..llm.models import ChatMessage, MessageRole
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,8 +29,8 @@ class ConversationSession:
     """Represents a conversation session."""
 
     session_id: str
-    messages: deque[ChatMessage] = field(default_factory=lambda: deque(maxlen=20))
-    recent_entities: deque[RecentEntity] = field(default_factory=lambda: deque(maxlen=5))
+    messages: deque[ChatMessage] = field(default_factory=lambda: deque(maxlen=SESSION_MAX_MESSAGES))
+    recent_entities: deque[RecentEntity] = field(default_factory=lambda: deque(maxlen=SESSION_RECENT_ENTITIES_MAX))
     consecutive_followups: int = 0  # Counter for consecutive follow-up questions
     created_at: datetime = field(default_factory=datetime.now)
     last_active: datetime = field(default_factory=datetime.now)
@@ -59,7 +60,7 @@ class ConversationSession:
         # Remove if already exists (will re-add at front)
         self.recent_entities = deque(
             [e for e in self.recent_entities if e.entity_id != entity_id],
-            maxlen=5,
+            maxlen=SESSION_RECENT_ENTITIES_MAX,
         )
         # Add at front (most recent)
         self.recent_entities.appendleft(
@@ -111,8 +112,8 @@ class ConversationSession:
 
     @property
     def is_expired(self) -> bool:
-        """Check if session has expired (30 min inactivity)."""
-        return datetime.now() - self.last_active > timedelta(minutes=30)
+        """Check if session has expired based on inactivity timeout."""
+        return datetime.now() - self.last_active > timedelta(minutes=SESSION_EXPIRY_MINUTES)
 
 
 class ConversationManager:

@@ -5,22 +5,11 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class ToolParameterType(str, Enum):
-    """Valid types for tool parameters."""
-    
-    STRING = "string"
-    NUMBER = "number"
-    BOOLEAN = "boolean"
-    ARRAY = "array"
-    OBJECT = "object"
 
 
 @dataclass
