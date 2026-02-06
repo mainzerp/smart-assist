@@ -4,9 +4,20 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.6.0   | 2026-02-07 |
+| Smart Assist | 1.6.1   | 2026-02-07 |
 
 ## Version History
+
+### v1.6.1 (2026-02-07) - Memory Tool Registration Fix
+
+**Fix: Memory tool not registering despite being enabled in UI**
+
+- `create_tool_registry` was reading `enable_memory` and `enable_web_search` from the parent `ConfigEntry`, but these settings are stored in `ConfigSubentry.data`
+- Since `DEFAULT_ENABLE_MEMORY = False` and the parent entry never had the key, the memory tool was never registered
+- Added `subentry_data` parameter to `_get_config()` and `create_tool_registry()`
+- `_get_config` now checks `subentry_data` first, then `entry.options`, then `entry.data`
+- `conversation.py` passes `self._subentry.data` when creating tool registry
+- Debug log now also shows `memory_enabled` status for easier diagnostics
 
 ### v1.6.0 (2026-02-07) - Memory & Personalization
 
