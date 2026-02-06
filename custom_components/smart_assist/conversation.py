@@ -284,7 +284,9 @@ class SmartAssistConversationEntity(ConversationEntity):
         """
         async with self._tool_registry_lock:
             if self._tool_registry is None:
-                self._tool_registry = create_tool_registry(self.hass, self._entry)
+                self._tool_registry = create_tool_registry(
+                    self.hass, self._entry, subentry_data=self._subentry.data
+                )
         return self._tool_registry
 
     def _get_config(self, key: str, default: Any = None) -> Any:

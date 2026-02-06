@@ -24,8 +24,15 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-def _get_config(entry: ConfigEntry, key: str, default: Any = None) -> Any:
-    """Get config value from options first, then data, then default."""
+def _get_config(
+    entry: ConfigEntry,
+    key: str,
+    default: Any = None,
+    subentry_data: dict[str, Any] | None = None,
+) -> Any:
+    """Get config value from subentry_data first, then options, then data, then default."""
+    if subentry_data and key in subentry_data:
+        return subentry_data[key]
     if key in entry.options:
         return entry.options[key]
     return entry.data.get(key, default)
@@ -35,6 +42,7 @@ def create_tool_registry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     available_domains: set[str] | None = None,
+    subentry_data: dict[str, Any] | None = None,
 ) -> ToolRegistry:
     """Create a tool registry with dynamically loaded tools.
     
@@ -43,6 +51,8 @@ def create_tool_registry(
         entry: Config entry with user settings
         available_domains: Set of entity domains available in HA.
                           If None, will be auto-detected.
+        subentry_data: Optional subentry data dict for per-agent settings.
+                      Checked first before entry.options and entry.data.
     
     Returns:
         ToolRegistry with appropriate tools registered
@@ -68,9 +78,10 @@ def create_tool_registry(
         }
     
     _LOGGER.debug(
-        "Tool registry creation: available_domains=%s, web_search_enabled=%s",
+        "Tool registry creation: available_domains=%s, web_search_enabled=%s, memory_enabled=%s",
         sorted(available_domains),
-        _get_config(entry, CONF_ENABLE_WEB_SEARCH, True),
+        _get_config(entry, CONF_ENABLE_WEB_SEARCH, True, subentry_data),
+        _get_config(entry, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY, subentry_data),
     )
     
     # Core tools (always available)
@@ -113,7 +124,7 @@ def create_tool_registry(
         registered_tools.append("create_calendar_event")
     
     # Web search (if enabled in config - options override data)
-    if _get_config(entry, CONF_ENABLE_WEB_SEARCH, True):
+    if _get_config(entry, CONF_ENABLE_WEB_SEARCH, True, subentry_data):
         registry.register(WebSearchTool(hass))
         registered_tools.append("web_search")
     
@@ -123,7 +134,7 @@ def create_tool_registry(
     registered_tools.append("send")
     
     # Memory tool (if memory is enabled and memory manager is available)
-    memory_enabled = _get_config(entry, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY)
+    memory_enabled = _get_config(entry, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY, subentry_data)
     if memory_enabled:
         from ..const import DOMAIN
         memory_manager = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("memory_manager")
