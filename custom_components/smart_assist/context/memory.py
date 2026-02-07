@@ -388,19 +388,12 @@ class MemoryManager:
         if not memories:
             return ""
 
-        # Sort: by access_count desc, then recency
+        # Sort: newest first (most recently created)
         memories.sort(
-            key=lambda m: (m.get("access_count", 0), m.get("last_accessed", "")),
+            key=lambda m: m.get("created_at", ""),
             reverse=True,
         )
         selected = memories[:MEMORY_MAX_AGENT_INJECTION]
-
-        # Bump access counts
-        now = datetime.now().isoformat()
-        for mem in selected:
-            mem["access_count"] = mem.get("access_count", 0) + 1
-            mem["last_accessed"] = now
-        self._dirty = True
 
         # Group by category
         groups: dict[str, list[str]] = {}
