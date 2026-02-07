@@ -129,6 +129,7 @@
             "ask_followup": "Rueckfragen stellen",
             "calendar_context": "Proaktive Kalender-Erinnerungen",
             "enable_memory": "Benutzer-Gedaechtnis & Personalisierung aktivieren",
+            "enable_agent_memory": "Agent Auto-Learning aktivieren",
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung aktivieren"
           },
           "data_description": {
@@ -144,6 +145,7 @@
             "calendar_context": "Automatisch auf anstehende Termine hinweisen. Hinweis: Erhoehter Token-Verbrauch.",
             "entity_discovery_mode": "Full Index: Alle Entities im Prompt (ideal fuer kleine Setups). Smart Discovery: Keine Entity-Liste -- Entities werden per Tool-Aufrufe on-demand entdeckt (spart Tokens bei grossen Setups).",
             "enable_memory": "Erlaubt dem Assistenten, sich Benutzer-Praeferenzen, Namen und Anweisungen ueber Gespraeche hinweg zu merken.",
+            "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Entity-Zuordnungen, Muster, Gewohnheiten). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist."
           }
         },
@@ -193,6 +195,7 @@
             "ask_followup": "Rueckfragen stellen",
             "calendar_context": "Proaktive Kalender-Erinnerungen",
             "enable_memory": "Benutzer-Gedaechtnis aktivieren",
+            "enable_agent_memory": "Agent Auto-Learning aktivieren",
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung",
             "user_system_prompt": "System Prompt"
           }

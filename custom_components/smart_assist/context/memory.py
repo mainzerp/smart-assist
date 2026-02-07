@@ -20,10 +20,13 @@ from homeassistant.helpers.storage import Store
 from ..const import (
     MEMORY_MAX_CONTENT_LENGTH,
     MEMORY_MAX_GLOBAL,
+    MEMORY_MAX_AGENT,
     MEMORY_MAX_INJECTION,
+    MEMORY_MAX_AGENT_INJECTION,
     MEMORY_MAX_PER_USER,
     MEMORY_STORAGE_KEY,
     MEMORY_STORAGE_VERSION,
+    MEMORY_AGENT_USER_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +40,8 @@ class MemoryCategory(str, Enum):
     PATTERN = "pattern"
     INSTRUCTION = "instruction"
     FACT = "fact"
+    ENTITY_MAPPING = "entity_mapping"
+    OBSERVATION = "observation"
 
 
 def _empty_user_data(display_name: str | None = None) -> dict[str, Any]:
@@ -58,6 +63,7 @@ def _empty_store_data() -> dict[str, Any]:
         "version": MEMORY_STORAGE_VERSION,
         "users": {
             "default": _empty_user_data(),
+            MEMORY_AGENT_USER_ID: _empty_user_data("Smart Assist Agent"),
         },
         "global_memories": [],
     }
@@ -90,6 +96,8 @@ class MemoryManager:
             self._data.setdefault("global_memories", [])
             if "default" not in self._data["users"]:
                 self._data["users"]["default"] = _empty_user_data()
+            if MEMORY_AGENT_USER_ID not in self._data["users"]:
+                self._data["users"][MEMORY_AGENT_USER_ID] = _empty_user_data("Smart Assist Agent")
             _LOGGER.info(
                 "Loaded memory: %d users, %d global memories",
                 len(self._data["users"]),
@@ -173,6 +181,10 @@ class MemoryManager:
         if scope == "global":
             target_list = self._data["global_memories"]
             max_limit = MEMORY_MAX_GLOBAL
+        elif scope == "agent":
+            agent_data = self._ensure_user(MEMORY_AGENT_USER_ID)
+            target_list = agent_data["memories"]
+            max_limit = MEMORY_MAX_AGENT
         else:
             user_data = self._ensure_user(user_id)
             target_list = user_data["memories"]
@@ -237,6 +249,14 @@ class MemoryManager:
                 user_data["memories"].pop(i)
                 self._dirty = True
                 return f"Deleted memory {memory_id}"
+
+        # Check agent memories
+        agent_data = self._ensure_user(MEMORY_AGENT_USER_ID)
+        for i, mem in enumerate(agent_data["memories"]):
+            if mem["id"] == memory_id:
+                agent_data["memories"].pop(i)
+                self._dirty = True
+                return f"Deleted agent memory {memory_id}"
 
         # Check global memories
         for i, mem in enumerate(self._data["global_memories"]):
@@ -346,6 +366,61 @@ class MemoryManager:
         }
 
         parts = ["[USER MEMORY]"]
+        for cat in category_order:
+            items = groups.get(cat)
+            if items:
+                label = category_labels.get(cat, cat.title())
+                parts.append(f"{label}:")
+                for item in items:
+                    parts.append(f"- {item}")
+
+        return "\n".join(parts)
+
+    def get_agent_injection_text(self) -> str:
+        """Build the agent memory injection block for the system prompt.
+
+        Returns formatted text with agent-level observations, patterns,
+        and entity mappings. Independent of user identity.
+        Returns empty string if no agent memories exist.
+        """
+        agent_data = self._ensure_user(MEMORY_AGENT_USER_ID)
+        memories = list(agent_data["memories"])
+
+        if not memories:
+            return ""
+
+        # Sort: by access_count desc, then recency
+        memories.sort(
+            key=lambda m: (m.get("access_count", 0), m.get("last_accessed", "")),
+            reverse=True,
+        )
+        selected = memories[:MEMORY_MAX_AGENT_INJECTION]
+
+        # Bump access counts
+        now = datetime.now().isoformat()
+        for mem in selected:
+            mem["access_count"] = mem.get("access_count", 0) + 1
+            mem["last_accessed"] = now
+        self._dirty = True
+
+        # Group by category
+        groups: dict[str, list[str]] = {}
+        category_order = ["entity_mapping", "pattern", "observation", "instruction", "preference", "fact"]
+
+        for mem in selected:
+            cat = mem.get("category", "observation")
+            groups.setdefault(cat, []).append(mem["content"])
+
+        category_labels = {
+            "entity_mapping": "Entity Mappings",
+            "pattern": "Patterns",
+            "observation": "Observations",
+            "instruction": "Instructions",
+            "preference": "Preferences",
+            "fact": "Facts",
+        }
+
+        parts = ["[AGENT MEMORY]"]
         for cat in category_order:
             items = groups.get(cat)
             if items:
@@ -473,9 +548,14 @@ class MemoryManager:
     # =========================================================================
 
     def _find_memory(self, user_id: str, memory_id: str) -> dict[str, Any] | None:
-        """Find a memory by ID in user or global memories."""
+        """Find a memory by ID in user, agent, or global memories."""
         user_data = self._ensure_user(user_id)
         for mem in user_data["memories"]:
+            if mem["id"] == memory_id:
+                return mem
+        # Check agent memories
+        agent_data = self._ensure_user(MEMORY_AGENT_USER_ID)
+        for mem in agent_data["memories"]:
             if mem["id"] == memory_id:
                 return mem
         for mem in self._data["global_memories"]:

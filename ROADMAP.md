@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-08 (v1.8.0)
+> Last updated: 2026-02-07 (v1.9.0)
 
 ## Completed Milestones
 
@@ -39,12 +39,13 @@
 | Dashboard & UI | v1.7.0 | Custom sidebar panel (vanilla Web Component), WebSocket API for real-time metrics, token/cache/memory/tools/calendar overview, multi-agent selector, HA theme integration |
 | Memory Management UI | v1.7.1 | Rename/merge/delete user memories from dashboard, persistent calendar reminder state (HA Storage API), First Seen tracking fix |
 | Token-Efficient Entity Discovery | v1.8.0 | Smart Discovery mode: no entity index in prompt, on-demand entity discovery via tool calls, 100% token savings on entity context |
+| Agent Memory (Auto-Learning) | v1.9.0 | Agent-level memory for LLM observations, entity mappings, patterns. Auto-saves surprising discoveries. Grows prompt context over time. |
 
 ---
 
 ## Planned Features
 
-### v1.9.0 - Persistent Alarms and Scheduling
+### v1.10.0 - Persistent Alarms and Scheduling
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
@@ -52,7 +53,7 @@
 | Proactive Notifications | LLM-triggered alerts based on entity state changes ("Your energy usage is unusually high today") | Medium |
 | Weather Suggestions | Context-aware hints ("It will rain, should I close the windows?") | Low |
 
-### v1.10.0 - Vision and Camera Analysis
+### v1.11.0 - Vision and Camera Analysis
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
@@ -60,7 +61,7 @@
 | Object Detection | "Is my car in the driveway?" - Check specific objects in camera view | Medium |
 | Motion Summary | "What happened in the garage?" - Summarize recent camera activity | Medium |
 
-### v1.11.0 - Natural Language Automations
+### v1.12.0 - Natural Language Automations
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |

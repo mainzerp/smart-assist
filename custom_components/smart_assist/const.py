@@ -37,6 +37,7 @@ CONF_ENTITY_DISCOVERY_MODE: Final = "entity_discovery_mode"
 
 # Memory configuration keys
 CONF_ENABLE_MEMORY: Final = "enable_memory"
+CONF_ENABLE_AGENT_MEMORY: Final = "enable_agent_memory"
 CONF_USER_MAPPINGS: Final = "user_mappings"
 CONF_ENABLE_PRESENCE_HEURISTIC: Final = "enable_presence_heuristic"
 
@@ -77,6 +78,7 @@ DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
 DEFAULT_CALENDAR_CONTEXT: Final = False  # Disabled by default (token cost)
 DEFAULT_ENTITY_DISCOVERY_MODE: Final = "full_index"  # Full entity index in prompt
 DEFAULT_ENABLE_MEMORY: Final = False  # Disabled by default
+DEFAULT_ENABLE_AGENT_MEMORY: Final = True  # Enabled by default when memory is active
 DEFAULT_ENABLE_PRESENCE_HEURISTIC: Final = False  # Disabled by default
 
 # Memory storage constants
@@ -84,9 +86,12 @@ MEMORY_STORAGE_KEY: Final = "smart_assist_memory"
 MEMORY_STORAGE_VERSION: Final = 1
 MEMORY_MAX_PER_USER: Final = 100
 MEMORY_MAX_GLOBAL: Final = 50
+MEMORY_MAX_AGENT: Final = 50  # Max agent-level memories
 MEMORY_MAX_CONTENT_LENGTH: Final = 100
 MEMORY_MAX_INJECTION: Final = 20  # Max memories injected per request
+MEMORY_MAX_AGENT_INJECTION: Final = 15  # Max agent memories injected per request
 MEMORY_DEFAULT_USER: Final = "default"
+MEMORY_AGENT_USER_ID: Final = "_agent"  # Reserved user ID for agent memory
 
 # Common Home Assistant locale to language name mapping for auto-detection
 # Used when language is empty/auto to show a readable language name in prompts

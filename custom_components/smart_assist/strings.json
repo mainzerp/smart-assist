@@ -129,6 +129,7 @@
             "ask_followup": "Ask follow-up questions",
             "calendar_context": "Proactive calendar reminders",
             "enable_memory": "Enable user memory & personalization",
+            "enable_agent_memory": "Enable agent auto-learning",
             "enable_presence_heuristic": "Enable presence-based user detection"
           },
           "data_description": {
@@ -144,6 +145,7 @@
             "calendar_context": "Automatically mention upcoming calendar events. Note: Increases token usage.",
             "entity_discovery_mode": "Full Index: All entities listed in prompt (best for small setups). Smart Discovery: No entity list -- entities discovered on-demand via tool calls (saves tokens for large setups).",
             "enable_memory": "Allows the assistant to remember user preferences, names, and instructions across conversations.",
+            "enable_agent_memory": "Allows the assistant to learn from interactions and save its own observations (entity mappings, patterns, habits). Requires memory to be enabled.",
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home."
           }
         },
@@ -193,6 +195,7 @@
             "ask_followup": "Ask follow-up questions",
             "calendar_context": "Proactive calendar reminders",
             "enable_memory": "Enable user memory",
+            "enable_agent_memory": "Enable agent auto-learning",
             "enable_presence_heuristic": "Presence-based user detection",
             "user_system_prompt": "System Prompt"
           }

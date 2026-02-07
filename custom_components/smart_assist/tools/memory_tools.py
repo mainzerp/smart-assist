@@ -60,7 +60,7 @@ class MemoryTool(BaseTool):
             type="string",
             description="Memory category for organization",
             required=False,
-            enum=["preference", "named_entity", "pattern", "instruction", "fact"],
+            enum=["preference", "named_entity", "pattern", "instruction", "fact", "entity_mapping", "observation"],
         ),
         ToolParameter(
             name="memory_id",
@@ -83,9 +83,9 @@ class MemoryTool(BaseTool):
         ToolParameter(
             name="scope",
             type="string",
-            description="Whether memory is user-specific or global (household-wide)",
+            description="Memory scope: user (personal), global (household-wide), or agent (LLM's own observations and learnings)",
             required=False,
-            enum=["user", "global"],
+            enum=["user", "global", "agent"],
             default="user",
         ),
     ]
@@ -155,7 +155,7 @@ class MemoryTool(BaseTool):
             return ToolResult(success=False, message=message)
 
     async def _action_list(self, kwargs: dict) -> ToolResult:
-        """List memories for the current user."""
+        """List memories for the current user, including agent memories."""
         category = kwargs.get("category")
         memories = self._memory_manager.get_memories(
             user_id=self._current_user_id,
@@ -163,21 +163,33 @@ class MemoryTool(BaseTool):
             include_global=True,
         )
 
-        if not memories:
+        # Also include agent memories
+        from ..const import MEMORY_AGENT_USER_ID
+        agent_memories = self._memory_manager.get_memories(
+            user_id=MEMORY_AGENT_USER_ID,
+            category=category,
+            include_global=False,
+        )
+
+        all_memories = memories + agent_memories
+
+        if not all_memories:
             return ToolResult(success=True, message="No memories stored yet.")
 
         # Format for LLM
         lines = []
-        for mem in memories:
+        agent_ids = {m["id"] for m in agent_memories}
+        for mem in all_memories:
             cat_label = mem.get("category", "").upper()
             tags = ", ".join(mem.get("tags", []))
             tag_str = f" [{tags}]" if tags else ""
-            lines.append(f"- [{mem['id']}] ({cat_label}{tag_str}) {mem['content']}")
+            scope_tag = " [AGENT]" if mem["id"] in agent_ids else ""
+            lines.append(f"- [{mem['id']}] ({cat_label}{tag_str}{scope_tag}) {mem['content']}")
 
         return ToolResult(
             success=True,
-            message=f"Found {len(memories)} memories:\n" + "\n".join(lines),
-            data={"count": len(memories)},
+            message=f"Found {len(all_memories)} memories:\n" + "\n".join(lines),
+            data={"count": len(all_memories)},
         )
 
     async def _action_update(self, kwargs: dict) -> ToolResult:

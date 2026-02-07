@@ -64,6 +64,7 @@ try:
         CONF_CLEAN_RESPONSES,
         CONF_CONFIRM_CRITICAL,
         CONF_ENABLE_MEMORY,
+        CONF_ENABLE_AGENT_MEMORY,
         CONF_ENABLE_PRESENCE_HEURISTIC,
         CONF_ENABLE_PROMPT_CACHING,
         CONF_ENABLE_QUICK_ACTIONS,
@@ -89,6 +90,7 @@ try:
         DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
         DEFAULT_ENABLE_MEMORY,
+        DEFAULT_ENABLE_AGENT_MEMORY,
         DEFAULT_ENABLE_PRESENCE_HEURISTIC,
         DEFAULT_ENTITY_DISCOVERY_MODE,
         DEFAULT_LLM_PROVIDER,
@@ -976,6 +978,22 @@ Known user memories are injected as [USER MEMORY] in context. Use them to person
 - Keep memory content concise (max 100 chars)
 - Use appropriate categories: preference, named_entity, pattern, instruction, fact""")
         
+        # Agent Memory auto-learning instructions (if enabled)
+        agent_memory_enabled = self._memory_enabled and self._get_config(
+            CONF_ENABLE_AGENT_MEMORY, DEFAULT_ENABLE_AGENT_MEMORY
+        )
+        if agent_memory_enabled:
+            parts.append("""
+## Agent Memory [AUTO-LEARNING]
+Your own observations are injected as [AGENT MEMORY]. Use them to work more efficiently.
+- Save ONLY surprising or non-obvious discoveries via memory(action='save', scope='agent')
+- Use category 'entity_mapping' for unexpected entity domains (e.g. "Keller light = switch.keller")
+- Use category 'observation' for system-level insights (e.g. "Covers use position 0-100, not open/close")
+- Use category 'pattern' for recurring user habits (e.g. "Patric asks for weather every morning")
+- Do NOT save obvious mappings (e.g. light.wohnzimmer = Wohnzimmer light)
+- Do NOT re-save information already in [AGENT MEMORY]
+- Max 100 chars per memory entry""")
+        
         # Exposed only notice
         if exposed_only:
             parts.append("""
@@ -1221,6 +1239,19 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
                 )
                 cached_prefix_length += 1
                 _LOGGER.debug("Injected memory block for user '%s'", user_id)
+
+        # 4b. Agent memory injection (LLM's own observations and learnings)
+        agent_memory_enabled = self._memory_enabled and self._get_config(
+            CONF_ENABLE_AGENT_MEMORY, DEFAULT_ENABLE_AGENT_MEMORY
+        )
+        if agent_memory_enabled and self._memory_manager:
+            agent_text = self._memory_manager.get_agent_injection_text()
+            if agent_text:
+                messages.append(
+                    ChatMessage(role=MessageRole.SYSTEM, content=agent_text)
+                )
+                cached_prefix_length += 1
+                _LOGGER.debug("Injected agent memory block")
 
         # 5. Conversation history from ChatLog (if available)
         # Placed BEFORE dynamic context to maximize cache prefix length
