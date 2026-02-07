@@ -4,27 +4,31 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.9.0   | 2026-02-07 |
+| Smart Assist | 1.9.1   | 2026-02-07 |
 
 ## Version History
+
+### v1.9.1 (2026-02-07) - Agent Memory Refinements
+
+- Fix: Removed `entity_mapping` category from agent memory to preserve discovery-first principle
+- Fix: Agent memory ranking changed to recency-first (newest memories injected first)
+- Fix: Eliminated access_count feedback loop that locked old memories at top
+- Feature: Auto-expire agent memories older than 30 days with access_count < 3
+- Prompt now explicitly forbids saving entity mappings or entity IDs in agent memory
+- access_count still tracked for auto-expire decisions, but no longer determines injection order
 
 ### v1.9.0 (2026-02-07) - Agent Memory (Auto-Learning)
 
 **Feature: Agent Auto-Learning**
 
-- New agent-level memory: LLM saves its own observations, entity mappings, and patterns
+- New agent-level memory: LLM saves its own observations and patterns
 - Agent memory injected as `[AGENT MEMORY]` block in every conversation (independent of user)
-- New memory categories: `entity_mapping`, `observation` (in addition to existing ones)
+- New memory category: `observation` (in addition to existing ones)
 - Memory tool supports new `scope: "agent"` for agent-specific memories
-- LLM instructed to save only surprising/non-obvious discoveries (not obvious mappings)
+- LLM instructed to save only surprising/non-obvious discoveries
 - Max 50 agent memories, 15 injected per request
 - Configurable via `enable_agent_memory` toggle (default: on when memory is active)
 - German and English translations
-
-**Examples of what the LLM learns:**
-- "Keller light = switch.keller (switch domain, not light)"
-- "Covers use position 0-100, not open/close"
-- "Patric asks for weather every morning"
 
 ### v1.8.2 (2026-02-07) - Smart Discovery Fixes
 
