@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.8.0   | 2026-02-08 |
+| Smart Assist | 1.8.1   | 2026-02-07 |
 
 ## Version History
+
+### v1.8.1 (2026-02-07) - Smart Discovery Prompt Fix
+
+- Fix: LLM now broadens search when initial domain yields no results (e.g. lights registered as `switch`)
+- Added domain fallback map: `light->switch`, `fan->switch`, `cover->switch`, `lock->switch`
+- LLM instructed to relax area/name filters on empty results
+- Added hallucination guard: LLM must not claim actions without calling `control` tool
 
 ### v1.8.0 (2026-02-08) - Token-Efficient Entity Discovery
 
