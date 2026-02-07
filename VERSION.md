@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.9.1   | 2026-02-07 |
+| Smart Assist | 1.9.2   | 2026-02-07 |
 
 ## Version History
+
+### v1.9.2 (2026-02-07) - UI Simplification
+
+- Fix: Language field now defaults to `auto` instead of empty string (description: 'auto' = uses HA language)
+- Fix: Removed `Enable prompt caching` switch -- caching is now always active (auto-detected per provider)
+- Fix: Removed `Extended cache TTL` switch -- auto-enabled for Anthropic models (detected from model name prefix)
+- Fix: Removed `Enable prompt caching` switch from AI Task settings -- always active
+- Reduced caching UI from 3 switches to 1 (`Enable cache warming` only)
+- Backend auto-detection: Groq always caches, OpenRouter per model, Anthropic extended TTL from model prefix
+- Old config values preserved in const.py for backward compatibility (existing installs unaffected)
 
 ### v1.9.1 (2026-02-07) - Agent Memory Refinements
 
