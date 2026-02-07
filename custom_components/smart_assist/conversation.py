@@ -898,8 +898,7 @@ If your response ends with a question mark (?), you MUST call await_response."""
 There is NO entity index in this prompt. You MUST discover entities using tools:
 1. Use get_entities(domain) to find entities - ALWAYS specify a domain
 2. Use area and name_filter to narrow results based on user context
-3. Use get_entity_state to verify current state before actions
-4. If no results found: BROADEN your search before giving up
+3. If no results found: BROADEN your search before giving up
    - Try related domains: lights are often registered as switch, fans as switch, etc.
    - Try without area filter (area names may differ)
    - Try a broader name_filter or no name_filter
@@ -913,13 +912,11 @@ There is NO entity index in this prompt. You MUST discover entities using tools:
             parts.append("""
 ## Entity Lookup
 1. Check ENTITY INDEX first to find entity_ids
-2. Only use get_entities tool if not found in index
-3. Use get_entity_state before actions to verify current state""")
+2. Only use get_entities tool if not found in index""")
         else:
             parts.append("""
 ## Entity Lookup
-- Use get_entities with domain filter to find entities
-- Use get_entity_state before actions to verify current state""")
+- Use get_entities with domain filter to find entities""")
         
         # Pronoun resolution hint
         parts.append("""

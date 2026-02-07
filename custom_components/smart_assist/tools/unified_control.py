@@ -214,6 +214,13 @@ class UnifiedControlTool(BaseTool):
         
         _LOGGER.debug("Entity %s current state: %s", entity_id, state.state)
         
+        # Check if entity is already in the desired state (simple on/off actions without extras)
+        current = state.state
+        if action == "turn_on" and current == "on" and not any([brightness, color_temp, rgb_color, temperature, hvac_mode, preset, volume, source, position]):
+            return ToolResult(success=True, message=f"{entity_id} is already on.")
+        if action == "turn_off" and current == "off":
+            return ToolResult(success=True, message=f"{entity_id} is already off.")
+        
         try:
             # Route to domain-specific handler
             if domain == "light":
