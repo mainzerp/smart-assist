@@ -21,6 +21,7 @@ from ..const import (
     MEMORY_MAX_CONTENT_LENGTH,
     MEMORY_MAX_GLOBAL,
     MEMORY_MAX_AGENT,
+    MEMORY_AGENT_EXPIRE_DAYS,
     MEMORY_MAX_INJECTION,
     MEMORY_MAX_AGENT_INJECTION,
     MEMORY_MAX_PER_USER,
@@ -97,6 +98,7 @@ class MemoryManager:
                 self._data["users"]["default"] = _empty_user_data()
             if MEMORY_AGENT_USER_ID not in self._data["users"]:
                 self._data["users"][MEMORY_AGENT_USER_ID] = _empty_user_data("Smart Assist Agent")
+            self._cleanup_expired_agent_memories()
             _LOGGER.info(
                 "Loaded memory: %d users, %d global memories",
                 len(self._data["users"]),
@@ -395,6 +397,13 @@ class MemoryManager:
         )
         selected = memories[:MEMORY_MAX_AGENT_INJECTION]
 
+        # Bump access counts for tracking (used by auto-expire)
+        now = datetime.now().isoformat()
+        for mem in selected:
+            mem["access_count"] = mem.get("access_count", 0) + 1
+            mem["last_accessed"] = now
+        self._dirty = True
+
         # Group by category
         groups: dict[str, list[str]] = {}
         category_order = ["pattern", "observation", "instruction", "preference", "fact"]
@@ -570,3 +579,49 @@ class MemoryManager:
 
         for mem in evicted:
             _LOGGER.debug("Evicted memory: %s (%s)", mem["id"], mem["content"][:40])
+
+    def _cleanup_expired_agent_memories(self) -> None:
+        """Remove agent memories older than MEMORY_AGENT_EXPIRE_DAYS with low access.
+
+        Memories with access_count >= 3 are considered valuable and kept.
+        """
+        agent_data = self._data["users"].get(MEMORY_AGENT_USER_ID)
+        if not agent_data:
+            return
+
+        memories = agent_data["memories"]
+        if not memories:
+            return
+
+        now = datetime.now()
+        threshold = MEMORY_AGENT_EXPIRE_DAYS
+        before_count = len(memories)
+        kept: list[dict] = []
+
+        for mem in memories:
+            created = mem.get("created_at", "")
+            if not created:
+                kept.append(mem)
+                continue
+            try:
+                age_days = (now - datetime.fromisoformat(created)).days
+            except (ValueError, TypeError):
+                kept.append(mem)
+                continue
+
+            access = mem.get("access_count", 0)
+            if age_days > threshold and access < 3:
+                _LOGGER.debug(
+                    "Auto-expired agent memory: %s (age=%dd, access=%d) - %s",
+                    mem["id"], age_days, access, mem["content"][:40],
+                )
+            else:
+                kept.append(mem)
+
+        if len(kept) < before_count:
+            agent_data["memories"] = kept
+            self._dirty = True
+            _LOGGER.info(
+                "Agent memory cleanup: expired %d memories (kept %d)",
+                before_count - len(kept), len(kept),
+            )

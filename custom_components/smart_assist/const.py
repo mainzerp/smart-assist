@@ -87,6 +87,7 @@ MEMORY_STORAGE_VERSION: Final = 1
 MEMORY_MAX_PER_USER: Final = 100
 MEMORY_MAX_GLOBAL: Final = 50
 MEMORY_MAX_AGENT: Final = 50  # Max agent-level memories
+MEMORY_AGENT_EXPIRE_DAYS: Final = 30  # Auto-expire agent memories older than this with low access
 MEMORY_MAX_CONTENT_LENGTH: Final = 100
 MEMORY_MAX_INJECTION: Final = 20  # Max memories injected per request
 MEMORY_MAX_AGENT_INJECTION: Final = 15  # Max agent memories injected per request
