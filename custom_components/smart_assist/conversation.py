@@ -899,9 +899,15 @@ There is NO entity index in this prompt. You MUST discover entities using tools:
 1. Use get_entities(domain) to find entities - ALWAYS specify a domain
 2. Use area and name_filter to narrow results based on user context
 3. Use get_entity_state to verify current state before actions
+4. If no results found: BROADEN your search before giving up
+   - Try related domains: lights are often registered as switch, fans as switch, etc.
+   - Try without area filter (area names may differ)
+   - Try a broader name_filter or no name_filter
 - NEVER guess or fabricate entity_ids - always discover them first
-- Infer domain from user intent: \"light\"/\"lamp\" -> light, \"temperature\" -> climate/sensor, etc.
-- Infer area from user context: \"kitchen light\" -> domain=light, area=kitchen""")
+- NEVER claim you performed an action without actually calling the control tool
+- Infer domain from user intent: "light"/"lamp" -> try light first, then switch
+- Infer area from user context: "kitchen light" -> domain=light, area=kitchen
+- Domain fallback map: light->switch, fan->switch, cover->switch, lock->switch""")
         elif caching_enabled:
             parts.append("""
 ## Entity Lookup
