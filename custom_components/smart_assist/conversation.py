@@ -987,10 +987,9 @@ Known user memories are injected as [USER MEMORY] in context. Use them to person
 ## Agent Memory [AUTO-LEARNING]
 Your own observations are injected as [AGENT MEMORY]. Use them to work more efficiently.
 - Save ONLY surprising or non-obvious discoveries via memory(action='save', scope='agent')
-- Use category 'entity_mapping' for unexpected entity domains (e.g. "Keller light = switch.keller")
 - Use category 'observation' for system-level insights (e.g. "Covers use position 0-100, not open/close")
 - Use category 'pattern' for recurring user habits (e.g. "Patric asks for weather every morning")
-- Do NOT save obvious mappings (e.g. light.wohnzimmer = Wohnzimmer light)
+- Do NOT save entity mappings or entity IDs - always use get_entities to discover entities
 - Do NOT re-save information already in [AGENT MEMORY]
 - Max 100 chars per memory entry""")
         

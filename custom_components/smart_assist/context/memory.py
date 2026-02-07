@@ -40,7 +40,6 @@ class MemoryCategory(str, Enum):
     PATTERN = "pattern"
     INSTRUCTION = "instruction"
     FACT = "fact"
-    ENTITY_MAPPING = "entity_mapping"
     OBSERVATION = "observation"
 
 
@@ -405,14 +404,13 @@ class MemoryManager:
 
         # Group by category
         groups: dict[str, list[str]] = {}
-        category_order = ["entity_mapping", "pattern", "observation", "instruction", "preference", "fact"]
+        category_order = ["pattern", "observation", "instruction", "preference", "fact"]
 
         for mem in selected:
             cat = mem.get("category", "observation")
             groups.setdefault(cat, []).append(mem["content"])
 
         category_labels = {
-            "entity_mapping": "Entity Mappings",
             "pattern": "Patterns",
             "observation": "Observations",
             "instruction": "Instructions",

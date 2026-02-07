@@ -60,7 +60,7 @@ class MemoryTool(BaseTool):
             type="string",
             description="Memory category for organization",
             required=False,
-            enum=["preference", "named_entity", "pattern", "instruction", "fact", "entity_mapping", "observation"],
+            enum=["preference", "named_entity", "pattern", "instruction", "fact", "observation"],
         ),
         ToolParameter(
             name="memory_id",
