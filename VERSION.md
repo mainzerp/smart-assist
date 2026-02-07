@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.8.1   | 2026-02-07 |
+| Smart Assist | 1.8.2   | 2026-02-07 |
 
 ## Version History
+
+### v1.8.2 (2026-02-07) - Smart Discovery Fixes
+
+- Fix: Recent Entities context no longer used as entity discovery shortcut (only for pronoun resolution)
+- Fix: Control tool now checks state internally and returns "already on/off" - no extra get_entity_state call needed
+- Removed get_entity_state pre-check requirement from all Entity Lookup prompts
+- Saves 1 tool call per control action (~200-500ms faster)
 
 ### v1.8.1 (2026-02-07) - Smart Discovery Prompt Fix
 
