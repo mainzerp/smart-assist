@@ -905,6 +905,7 @@ There is NO entity index in this prompt. You MUST discover entities using tools:
    - Try a broader name_filter or no name_filter
 - NEVER guess or fabricate entity_ids - always discover them first
 - NEVER claim you performed an action without actually calling the control tool
+- NEVER use entity_ids from [Recent Entities] for new requests - those are ONLY for resolving pronouns ("it", "that", "the same one")
 - Infer domain from user intent: "light"/"lamp" -> try light first, then switch
 - Infer area from user context: "kitchen light" -> domain=light, area=kitchen
 - Domain fallback map: light->switch, fan->switch, cover->switch, lock->switch""")
