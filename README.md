@@ -22,6 +22,8 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 - **Full Streaming**: Real-time token streaming to TTS, even during tool execution
 - **Entity History Queries**: Query historical entity states ("How was the temperature yesterday?")
 - **Multi-Turn Context**: Pronoun resolution across conversation turns ("it", "that", "the same one")
+- **Smart Discovery Mode**: On-demand entity discovery via tools instead of full entity index in prompt (saves tokens)
+- **Agent Memory**: LLM learns from interactions and saves observations for future use
 
 ### Music Assistant Integration
 
@@ -69,6 +71,8 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Memory Tool**: LLM can save, recall, update, and delete memories via the `memory` tool
 - **Per-User Profiles**: Up to 100 memories per user, 50 global memories, LRU eviction
 - **Management UI**: Rename users, merge profiles, delete individual memories from the dashboard
+- **Agent Memory (Auto-Learning)**: LLM saves its own observations and patterns (independent of user)
+- **Auto-Expire**: Agent memories older than 30 days with low usage are automatically cleaned up
 
 ### Dashboard & UI
 
@@ -280,7 +284,7 @@ Smart Assist provides these tools to the LLM:
 | `get_weather` | Current weather information |
 | `web_search` | DuckDuckGo web search |
 | `send` | Send links, text, or messages to any notification target |
-| `memory` | Save, recall, update, delete user memories and switch user identity |
+| `memory` | Save, recall, update, delete user/global/agent memories and switch user identity |
 | `await_response` | Keep microphone open for follow-up questions |
 
 ## Supported Models

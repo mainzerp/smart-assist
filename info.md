@@ -27,6 +27,8 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 - **Full Streaming**: Real-time token streaming to TTS
 - **Entity History Queries**: Query historical entity states
 - **Multi-Turn Context**: Pronoun resolution across conversation turns
+- **Smart Discovery Mode**: On-demand entity discovery via tools (saves tokens)
+- **Agent Memory**: LLM learns from interactions and saves observations for future use
 
 ### Music Assistant Integration
 
@@ -58,6 +60,7 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 - **Persistent User Memory**: Remembers preferences, facts, and instructions across sessions
 - **Multi-User Identity**: 5-layer identification (HA auth, session switch, satellite mapping, presence, fallback)
 - **Memory Tool**: LLM can save, recall, update, and delete memories
+- **Agent Memory**: LLM saves its own observations and patterns, auto-expires stale entries after 30 days
 
 ### Dashboard & UI
 
