@@ -121,8 +121,6 @@
             "confirm_critical": "Kritische Aktionen bestaetigen (Schloesser, Alarme)",
             "max_history": "Maximale Konversationshistorie",
             "enable_web_search": "Websuche aktivieren (DuckDuckGo)",
-            "enable_prompt_caching": "Prompt Caching aktivieren (reduziert Latenz und Kosten)",
-            "cache_ttl_extended": "Erweiterte Cache-Dauer (1 Stunde fuer Anthropic)",
             "enable_cache_warming": "Automatisches Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
             "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
@@ -136,8 +134,7 @@
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
-            "language": "Leer lassen fuer Auto-Erkennung (nutzt HA-Sprache). Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
-            "cache_ttl_extended": "Aktiviert 1-Stunden-Cache statt 5 Minuten. Gilt nur fuer Anthropic-Modelle.",
+            "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
             "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs.",
@@ -145,7 +142,7 @@
             "calendar_context": "Automatisch auf anstehende Termine hinweisen. Hinweis: Erhoehter Token-Verbrauch.",
             "entity_discovery_mode": "Full Index: Alle Entities im Prompt (ideal fuer kleine Setups). Smart Discovery: Keine Entity-Liste -- Entities werden per Tool-Aufrufe on-demand entdeckt (spart Tokens bei grossen Setups).",
             "enable_memory": "Erlaubt dem Assistenten, sich Benutzer-Praeferenzen, Namen und Anweisungen ueber Gespraeche hinweg zu merken.",
-            "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Entity-Zuordnungen, Muster, Gewohnheiten). Erfordert aktiviertes Gedaechtnis.",
+            "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist."
           }
         },
@@ -187,8 +184,6 @@
             "confirm_critical": "Kritische Aktionen bestaetigen",
             "max_history": "Maximale Konversationshistorie",
             "enable_web_search": "Websuche aktivieren",
-            "enable_prompt_caching": "Prompt Caching aktivieren",
-            "cache_ttl_extended": "Erweiterte Cache-Dauer",
             "enable_cache_warming": "Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall",
             "clean_responses": "Antworten fuer Sprachausgabe bereinigen",
@@ -250,16 +245,14 @@
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
             "task_system_prompt": "System Prompt",
-            "task_enable_prompt_caching": "Prompt Caching aktivieren",
             "task_enable_cache_warming": "Cache-Warming aktivieren"
           },
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
-            "language": "Leer lassen fuer Auto-Erkennung (nutzt HA-Sprache). Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
+            "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
-            "task_enable_prompt_caching": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch.",
             "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
           }
         },
@@ -288,7 +281,6 @@
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
             "task_system_prompt": "System Prompt",
-            "task_enable_prompt_caching": "Prompt Caching aktivieren",
             "task_enable_cache_warming": "Cache-Warming aktivieren"
           }
         }

@@ -28,14 +28,12 @@ from .const import (
     CONF_MAX_TOKENS,
     CONF_MODEL,
     CONF_PROVIDER,
-    CONF_TASK_ENABLE_PROMPT_CACHING,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
     DEFAULT_LLM_PROVIDER,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
-    DEFAULT_TASK_ENABLE_PROMPT_CACHING,
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DOMAIN,
@@ -131,9 +129,13 @@ class SmartAssistAITask(AITaskEntity):
             openrouter_provider=get_config(CONF_PROVIDER, DEFAULT_PROVIDER),
         )
         
-        # For OpenRouterClient, set additional caching options
+        # For OpenRouterClient, caching is always enabled (auto-detected by model)
         if hasattr(self._llm_client, '_enable_caching'):
-            self._llm_client._enable_caching = get_config(CONF_TASK_ENABLE_PROMPT_CACHING, DEFAULT_TASK_ENABLE_PROMPT_CACHING)
+            self._llm_client._enable_caching = True
+            # Auto-enable extended TTL for Anthropic models
+            if hasattr(self._llm_client, '_cache_ttl_extended'):
+                model = get_config(CONF_MODEL, DEFAULT_MODEL)
+                self._llm_client._cache_ttl_extended = model.startswith("anthropic/")
         
         # Initialize entity manager for context
         self._entity_manager = EntityManager(
@@ -259,8 +261,8 @@ Focus on completing the task efficiently and providing structured, useful output
     ) -> str:
         """Process LLM request with tool execution support."""
         iteration = 0
-        # Cache system + user message on first iteration (disabled by default for tasks)
-        cached_prefix_length = 2 if self._get_config(CONF_TASK_ENABLE_PROMPT_CACHING, DEFAULT_TASK_ENABLE_PROMPT_CACHING) else 0
+        # Always cache system + user message prefix
+        cached_prefix_length = 2
         
         while iteration < max_iterations:
             iteration += 1

@@ -59,14 +59,12 @@ try:
     from .const import (
         CONF_API_KEY,
         CONF_ASK_FOLLOWUP,
-        CONF_CACHE_TTL_EXTENDED,
         CONF_CALENDAR_CONTEXT,
         CONF_CLEAN_RESPONSES,
         CONF_CONFIRM_CRITICAL,
         CONF_ENABLE_MEMORY,
         CONF_ENABLE_AGENT_MEMORY,
         CONF_ENABLE_PRESENCE_HEURISTIC,
-        CONF_ENABLE_PROMPT_CACHING,
         CONF_ENABLE_QUICK_ACTIONS,
         CONF_ENTITY_DISCOVERY_MODE,
         CONF_EXPOSED_ONLY,
@@ -86,7 +84,6 @@ try:
         CONF_USER_MAPPINGS,
         CONF_USER_SYSTEM_PROMPT,
         DEFAULT_ASK_FOLLOWUP,
-        DEFAULT_CACHE_TTL_EXTENDED,
         DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
         DEFAULT_ENABLE_MEMORY,
@@ -222,11 +219,13 @@ class SmartAssistConversationEntity(ConversationEntity):
             ollama_timeout=ollama_timeout,
         )
         
-        # For OpenRouterClient, set additional caching options
+        # For OpenRouterClient, caching is always enabled (auto-detected by model)
         if hasattr(self._llm_client, 'enable_caching'):
-            self._llm_client._enable_caching = get_config(CONF_ENABLE_PROMPT_CACHING, True)
+            self._llm_client._enable_caching = True
         if hasattr(self._llm_client, '_cache_ttl_extended'):
-            self._llm_client._cache_ttl_extended = get_config(CONF_CACHE_TTL_EXTENDED, DEFAULT_CACHE_TTL_EXTENDED)
+            # Auto-enable extended TTL for Anthropic models
+            model = get_config(CONF_MODEL, DEFAULT_MODEL)
+            self._llm_client._cache_ttl_extended = model.startswith("anthropic/")
         
         # Store LLM client reference for sensors to access metrics
         domain_data = hass.data.setdefault(DOMAIN, {})
@@ -848,7 +847,6 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         confirm_critical = self._get_config(CONF_CONFIRM_CRITICAL, True)
         exposed_only = self._get_config(CONF_EXPOSED_ONLY, True)
-        caching_enabled = self._get_config(CONF_ENABLE_PROMPT_CACHING, True)
         ask_followup = self._get_config(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
         
         parts = []
@@ -1205,14 +1203,13 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             )
             cached_prefix_length += 1
 
-        # 3. Entity index (cached - only if caching is enabled and not smart_discovery)
-        caching_enabled = self._get_config(CONF_ENABLE_PROMPT_CACHING, True)
+        # 3. Entity index (cached - skip in smart_discovery mode)
         discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
         
         if discovery_mode == "smart_discovery":
             # Smart Discovery: NO entity index injected -- LLM discovers via tool
             _LOGGER.debug("Smart Discovery mode: skipping entity index injection")
-        elif caching_enabled:
+        else:
             entity_index, index_hash = self._entity_manager.get_entity_index()
 
             # Only update cache if hash changed

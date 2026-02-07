@@ -35,7 +35,6 @@ from .const import (
     CONF_API_KEY,
     CONF_ASK_FOLLOWUP,
     CONF_CACHE_REFRESH_INTERVAL,
-    CONF_CACHE_TTL_EXTENDED,
     CONF_CALENDAR_CONTEXT,
     CONF_CLEAN_RESPONSES,
     CONF_CONFIRM_CRITICAL,
@@ -43,7 +42,6 @@ from .const import (
     CONF_ENABLE_MEMORY,
     CONF_ENABLE_AGENT_MEMORY,
     CONF_ENABLE_PRESENCE_HEURISTIC,
-    CONF_ENABLE_PROMPT_CACHING,
     CONF_ENABLE_WEB_SEARCH,
     CONF_ENTITY_DISCOVERY_MODE,
     CONF_EXPOSED_ONLY,
@@ -60,13 +58,11 @@ from .const import (
     CONF_OLLAMA_URL,
     CONF_PROVIDER,
     CONF_TASK_ENABLE_CACHE_WARMING,
-    CONF_TASK_ENABLE_PROMPT_CACHING,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
     CONF_USER_SYSTEM_PROMPT,
     DEFAULT_ASK_FOLLOWUP,
     DEFAULT_CACHE_REFRESH_INTERVAL,
-    DEFAULT_CACHE_TTL_EXTENDED,
     DEFAULT_CALENDAR_CONTEXT,
     DEFAULT_CLEAN_RESPONSES,
     DEFAULT_CONFIRM_CRITICAL,
@@ -81,7 +77,6 @@ from .const import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     DEFAULT_TASK_ENABLE_CACHE_WARMING,
-    DEFAULT_TASK_ENABLE_PROMPT_CACHING,
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DEFAULT_USER_SYSTEM_PROMPT,
@@ -298,7 +293,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
             ),
-            vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
+            vol.Optional(CONF_LANGUAGE, default="auto"): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
@@ -310,8 +305,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
             ),
             vol.Required(CONF_ENABLE_WEB_SEARCH, default=True): BooleanSelector(),
-            vol.Required(CONF_ENABLE_PROMPT_CACHING, default=True): BooleanSelector(),
-            vol.Required(CONF_CACHE_TTL_EXTENDED, default=DEFAULT_CACHE_TTL_EXTENDED): BooleanSelector(),
             vol.Required(CONF_ENABLE_CACHE_WARMING, default=DEFAULT_ENABLE_CACHE_WARMING): BooleanSelector(),
             vol.Required(CONF_CACHE_REFRESH_INTERVAL, default=DEFAULT_CACHE_REFRESH_INTERVAL): NumberSelector(
                 NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
@@ -531,8 +524,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
             ),
             vol.Required(CONF_ENABLE_WEB_SEARCH): BooleanSelector(),
-            vol.Required(CONF_ENABLE_PROMPT_CACHING): BooleanSelector(),
-            vol.Required(CONF_CACHE_TTL_EXTENDED): BooleanSelector(),
             vol.Required(CONF_ENABLE_CACHE_WARMING): BooleanSelector(),
             vol.Required(CONF_CACHE_REFRESH_INTERVAL): NumberSelector(
                 NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
@@ -695,14 +686,13 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
             ),
-            vol.Optional(CONF_LANGUAGE, default=""): TextSelector(
+            vol.Optional(CONF_LANGUAGE, default="auto"): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
             vol.Required(CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
             ),
-            vol.Required(CONF_TASK_ENABLE_PROMPT_CACHING, default=DEFAULT_TASK_ENABLE_PROMPT_CACHING): BooleanSelector(),
             vol.Required(CONF_TASK_ENABLE_CACHE_WARMING, default=DEFAULT_TASK_ENABLE_CACHE_WARMING): BooleanSelector(),
         })
         
@@ -859,7 +849,6 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_TASK_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
             ),
-            vol.Required(CONF_TASK_ENABLE_PROMPT_CACHING): BooleanSelector(),
             vol.Required(CONF_TASK_ENABLE_CACHE_WARMING): BooleanSelector(),
         })
         

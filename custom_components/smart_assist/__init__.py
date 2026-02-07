@@ -27,12 +27,9 @@ except ImportError as e:
 try:
     from .const import (
         CONF_CACHE_REFRESH_INTERVAL,
-        CONF_CACHE_TTL_EXTENDED,
         CONF_DEBUG_LOGGING,
         CONF_ENABLE_CACHE_WARMING,
-        CONF_ENABLE_PROMPT_CACHING,
         DEFAULT_CACHE_REFRESH_INTERVAL,
-        DEFAULT_CACHE_TTL_EXTENDED,
         DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
         DOMAIN,
@@ -108,10 +105,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if subentry.subentry_type != "conversation":
             continue
         
-        caching_enabled = subentry.data.get(CONF_ENABLE_PROMPT_CACHING, True)
         warming_enabled = subentry.data.get(CONF_ENABLE_CACHE_WARMING, DEFAULT_ENABLE_CACHE_WARMING)
         
-        if caching_enabled and warming_enabled:
+        if warming_enabled:
             if hass.is_running:
                 _LOGGER.info("HA running, starting cache warming for %s...", subentry.title)
                 hass.async_create_task(_initial_cache_warming(hass, entry, subentry_id, subentry))
