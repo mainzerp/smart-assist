@@ -286,6 +286,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             )
         
         # Common settings for both providers
+        # Group: LLM Settings
         schema_dict.update({
             vol.Required(CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE): NumberSelector(
                 NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
@@ -293,28 +294,33 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
             ),
+            vol.Required(CONF_MAX_HISTORY, default=DEFAULT_MAX_HISTORY): NumberSelector(
+                NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
+            ),
+            # Group: Response Behavior
             vol.Optional(CONF_LANGUAGE, default="auto"): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
+            vol.Required(CONF_CLEAN_RESPONSES, default=DEFAULT_CLEAN_RESPONSES): BooleanSelector(),
+            vol.Required(CONF_ASK_FOLLOWUP, default=DEFAULT_ASK_FOLLOWUP): BooleanSelector(),
+            # Group: Entity Control
             vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
             vol.Required(CONF_ENTITY_DISCOVERY_MODE, default=DEFAULT_ENTITY_DISCOVERY_MODE): SelectSelector(
                 SelectSelectorConfig(options=["full_index", "smart_discovery"], mode=SelectSelectorMode.DROPDOWN, translation_key="entity_discovery_mode")
             ),
             vol.Required(CONF_CONFIRM_CRITICAL, default=DEFAULT_CONFIRM_CRITICAL): BooleanSelector(),
-            vol.Required(CONF_MAX_HISTORY, default=DEFAULT_MAX_HISTORY): NumberSelector(
-                NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
-            ),
+            # Group: Features
             vol.Required(CONF_ENABLE_WEB_SEARCH, default=True): BooleanSelector(),
+            vol.Required(CONF_CALENDAR_CONTEXT, default=DEFAULT_CALENDAR_CONTEXT): BooleanSelector(),
+            # Group: Memory & Personalization
+            vol.Required(CONF_ENABLE_MEMORY, default=DEFAULT_ENABLE_MEMORY): BooleanSelector(),
+            vol.Required(CONF_ENABLE_AGENT_MEMORY, default=DEFAULT_ENABLE_AGENT_MEMORY): BooleanSelector(),
+            vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC, default=DEFAULT_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
+            # Group: Performance
             vol.Required(CONF_ENABLE_CACHE_WARMING, default=DEFAULT_ENABLE_CACHE_WARMING): BooleanSelector(),
             vol.Required(CONF_CACHE_REFRESH_INTERVAL, default=DEFAULT_CACHE_REFRESH_INTERVAL): NumberSelector(
                 NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
             ),
-            vol.Required(CONF_CLEAN_RESPONSES, default=DEFAULT_CLEAN_RESPONSES): BooleanSelector(),
-            vol.Required(CONF_ASK_FOLLOWUP, default=DEFAULT_ASK_FOLLOWUP): BooleanSelector(),
-            vol.Required(CONF_CALENDAR_CONTEXT, default=DEFAULT_CALENDAR_CONTEXT): BooleanSelector(),
-            vol.Required(CONF_ENABLE_MEMORY, default=DEFAULT_ENABLE_MEMORY): BooleanSelector(),
-            vol.Required(CONF_ENABLE_AGENT_MEMORY, default=DEFAULT_ENABLE_AGENT_MEMORY): BooleanSelector(),
-            vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC, default=DEFAULT_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
         })
         
         return self.async_show_form(
@@ -505,6 +511,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             )
         
         # Common settings
+        # Group: LLM Settings
         schema_dict.update({
             vol.Required(CONF_TEMPERATURE): NumberSelector(
                 NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
@@ -512,28 +519,34 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
             ),
+            vol.Required(CONF_MAX_HISTORY): NumberSelector(
+                NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
+            ),
+            # Group: Response Behavior
             vol.Optional(CONF_LANGUAGE): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
+            vol.Required(CONF_CLEAN_RESPONSES): BooleanSelector(),
+            vol.Required(CONF_ASK_FOLLOWUP): BooleanSelector(),
+            # Group: Entity Control
             vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
             vol.Required(CONF_ENTITY_DISCOVERY_MODE): SelectSelector(
                 SelectSelectorConfig(options=["full_index", "smart_discovery"], mode=SelectSelectorMode.DROPDOWN, translation_key="entity_discovery_mode")
             ),
             vol.Required(CONF_CONFIRM_CRITICAL): BooleanSelector(),
-            vol.Required(CONF_MAX_HISTORY): NumberSelector(
-                NumberSelectorConfig(min=1, max=20, step=1, mode=NumberSelectorMode.SLIDER)
-            ),
+            # Group: Features
             vol.Required(CONF_ENABLE_WEB_SEARCH): BooleanSelector(),
+            vol.Required(CONF_CALENDAR_CONTEXT): BooleanSelector(),
+            # Group: Memory & Personalization
+            vol.Required(CONF_ENABLE_MEMORY): BooleanSelector(),
+            vol.Required(CONF_ENABLE_AGENT_MEMORY): BooleanSelector(),
+            vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
+            # Group: Performance
             vol.Required(CONF_ENABLE_CACHE_WARMING): BooleanSelector(),
             vol.Required(CONF_CACHE_REFRESH_INTERVAL): NumberSelector(
                 NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
             ),
-            vol.Required(CONF_CLEAN_RESPONSES): BooleanSelector(),
-            vol.Required(CONF_ASK_FOLLOWUP): BooleanSelector(),
-            vol.Required(CONF_CALENDAR_CONTEXT): BooleanSelector(),
-            vol.Required(CONF_ENABLE_MEMORY): BooleanSelector(),
-            vol.Required(CONF_ENABLE_AGENT_MEMORY): BooleanSelector(),
-            vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
+            # System Prompt
             vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
             ),
