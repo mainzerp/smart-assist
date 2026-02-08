@@ -135,6 +135,10 @@
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
+            "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",
+            "confirm_critical": "Fragt vor dem Sperren von Tueren, Aktivieren von Alarmen oder anderen sicherheitskritischen Aktionen nach Bestaetigung.",
+            "max_history": "Anzahl vorheriger Nachrichten, die als Kontext behalten werden. Hoehere Werte verbrauchen mehr Tokens.",
+            "enable_web_search": "Erlaubt dem Assistenten, ueber DuckDuckGo nach aktuellen Informationen im Web zu suchen.",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
             "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs.",
@@ -193,6 +197,26 @@
             "enable_agent_memory": "Agent Auto-Learning aktivieren",
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung",
             "user_system_prompt": "System Prompt"
+          },
+          "data_description": {
+            "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
+            "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
+            "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
+            "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",
+            "entity_discovery_mode": "Full Index: Alle Entities im Prompt (ideal fuer kleine Setups). Smart Discovery: Keine Entity-Liste -- Entities werden per Tool-Aufrufe on-demand entdeckt (spart Tokens bei grossen Setups).",
+            "confirm_critical": "Fragt vor dem Sperren von Tueren, Aktivieren von Alarmen oder anderen sicherheitskritischen Aktionen nach Bestaetigung.",
+            "max_history": "Anzahl vorheriger Nachrichten, die als Kontext behalten werden. Hoehere Werte verbrauchen mehr Tokens.",
+            "enable_web_search": "Erlaubt dem Assistenten, ueber DuckDuckGo nach aktuellen Informationen im Web zu suchen.",
+            "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
+            "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
+            "clean_responses": "Macht Antworten TTS-freundlich durch Entfernen von Emojis, Markdown-Formatierung und URLs.",
+            "ask_followup": "Wenn aktiviert, bietet der Assistent nach Aktionen weitere Hilfe an.",
+            "calendar_context": "Automatisch auf anstehende Termine hinweisen. Hinweis: Erhoehter Token-Verbrauch.",
+            "enable_memory": "Erlaubt dem Assistenten, sich Benutzer-Praeferenzen, Namen und Anweisungen ueber Gespraeche hinweg zu merken.",
+            "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
+            "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
+            "user_system_prompt": "Persoenlichkeit und Anweisungen fuer diesen Konversations-Agenten."
           }
         }
       },
@@ -253,6 +277,7 @@
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
+            "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",
             "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
           }
         },
@@ -282,6 +307,15 @@
             "exposed_only": "Nur freigegebene Entities verwenden",
             "task_system_prompt": "System Prompt",
             "task_enable_cache_warming": "Cache-Warming aktivieren"
+          },
+          "data_description": {
+            "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
+            "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
+            "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
+            "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",
+            "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
+            "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
           }
         }
       },
