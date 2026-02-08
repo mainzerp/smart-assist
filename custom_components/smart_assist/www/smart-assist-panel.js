@@ -61,6 +61,10 @@ class SmartAssistPanel extends HTMLElement {
     }
     this._loading = false;
     this._render();
+    // Also refresh history data if on history tab
+    if (this._activeTab === "history") {
+      this._loadHistory();
+    }
   }
 
   async _subscribe() {

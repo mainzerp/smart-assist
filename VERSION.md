@@ -4,9 +4,15 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.2  | 2026-02-08 |
+| Smart Assist | 1.11.3  | 2026-02-08 |
 
 ## Version History
+
+### v1.11.3 (2026-02-08) - History Tab Refresh Fix
+
+- Fix: Refresh button now also reloads History tab data (request history + tool analytics)
+- Previously, Refresh only reloaded main dashboard data; History tab required switching away and back
+- Files modified: `www/smart-assist-panel.js`
 
 ### v1.11.2 (2026-02-08) - Full Index Mode Fix
 
