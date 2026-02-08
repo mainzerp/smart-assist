@@ -147,9 +147,9 @@ LLM_PROVIDER_OPENROUTER: Final = "openrouter"
 LLM_PROVIDER_GROQ: Final = "groq"
 LLM_PROVIDER_OLLAMA: Final = "ollama"
 LLM_PROVIDERS: Final = {
-    LLM_PROVIDER_OPENROUTER: "OpenRouter (All Models)",
-    LLM_PROVIDER_GROQ: "Groq (Direct, Ultra Fast)",
-    LLM_PROVIDER_OLLAMA: "Ollama (Local, Private)",
+    LLM_PROVIDER_OPENROUTER: "OpenRouter",
+    LLM_PROVIDER_GROQ: "Groq",
+    LLM_PROVIDER_OLLAMA: "Ollama",
 }
 
 # Model prefixes that support prompt caching
