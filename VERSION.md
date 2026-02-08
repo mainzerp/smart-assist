@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.9.2   | 2026-02-07 |
+| Smart Assist | 1.9.3   | 2026-02-08 |
 
 ## Version History
+
+### v1.9.3 (2026-02-08) - Config UI Polish
+
+- Fix: Added descriptions to all switch/toggle entries in config UI (settings + reconfigure)
+- Fix: Grouped related config fields logically: LLM, Response, Entities, Features, Memory, Performance
+- All 4 config forms updated (Conversation settings/reconfigure, AI Task settings/reconfigure)
+- Translations updated (strings.json, en.json, de.json)
 
 ### v1.9.2 (2026-02-07) - UI Simplification
 
