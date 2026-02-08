@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.0  | 2026-02-08 |
+| Smart Assist | 1.11.1  | 2026-02-08 |
 
 ## Version History
+
+### v1.11.1 (2026-02-08) - Pipeline Trace Fix
+
+- Fix: Tool calls in non-streaming LLM iterations (iteration 2+) now appear in HA pipeline traces
+- Previously only iteration 1 (streaming) tool calls were visible in pipeline events; subsequent tool calls like `control` were invisible despite executing correctly
+- Added `_wrap_response_as_delta_stream()` helper to report non-streaming tool calls via `chat_log.async_add_delta_content_stream()`
+- Files modified: `conversation.py`
 
 ### v1.11.0 (2026-02-08) - Request History and Tool Analytics
 

@@ -601,9 +601,24 @@ class SmartAssistConversationEntity(ConversationEntity):
                     for tc in response.tool_calls:
                         tool_calls.append(tc)
                 
-                # If this is the final iteration (has content, no tool calls),
-                # we need to properly trigger TTS streaming for Companion App
-                if iteration_content and not response.tool_calls:
+                if response.tool_calls:
+                    # Report tool calls to HA's ChatLog so they appear in pipeline traces
+                    try:
+                        async for content_or_result in chat_log.async_add_delta_content_stream(
+                            self.entity_id or "",
+                            self._wrap_response_as_delta_stream(
+                                content=iteration_content,
+                                tool_calls=response.tool_calls,
+                            ),
+                        ):
+                            pass  # Tool calls already collected above
+                    except Exception as stream_err:
+                        _LOGGER.debug(
+                            "[USER-REQUEST] Failed to report tool calls to chat_log: %s",
+                            stream_err,
+                        )
+                elif iteration_content:
+                    # Final iteration (content, no tool calls) - trigger TTS streaming
                     try:
                         if chat_log.delta_listener:
                             # Send role first
@@ -805,6 +820,36 @@ class SmartAssistConversationEntity(ConversationEntity):
                         )
                     )
                 yield {"tool_calls": tool_inputs}
+
+    async def _wrap_response_as_delta_stream(
+        self,
+        content: str,
+        tool_calls: list[ToolCall],
+    ) -> AsyncGenerator[AssistantContentDeltaDict, None]:
+        """Wrap a non-streaming LLM response as a delta stream for ChatLog.
+
+        This allows non-streaming iterations to report tool calls to HA's
+        pipeline trace, just like the streaming path does.
+        """
+        from homeassistant.helpers import llm as ha_llm
+
+        yield {"role": "assistant"}
+
+        if content:
+            yield {"content": content}
+
+        if tool_calls:
+            tool_inputs = []
+            for tc in tool_calls:
+                tool_inputs.append(
+                    ha_llm.ToolInput(
+                        id=tc.id,
+                        tool_name=tc.name,
+                        tool_args=tc.arguments,
+                        external=True,
+                    )
+                )
+            yield {"tool_calls": tool_inputs}
 
     def _track_entity_from_tool_call(
         self,
