@@ -30,6 +30,7 @@ CONF_TASK_SYSTEM_PROMPT: Final = "task_system_prompt"
 CONF_TASK_ENABLE_PROMPT_CACHING: Final = "task_enable_prompt_caching"
 CONF_TASK_ENABLE_CACHE_WARMING: Final = "task_enable_cache_warming"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
+CONF_ENABLE_CANCEL_HANDLER: Final = "enable_cancel_handler"
 CONF_CALENDAR_CONTEXT: Final = "calendar_context"
 
 # Entity discovery mode
@@ -75,6 +76,7 @@ SESSION_MAX_MESSAGES: Final = 20  # Max messages per conversation session
 SESSION_RECENT_ENTITIES_MAX: Final = 5  # Max recent entities for pronoun resolution
 SESSION_EXPIRY_MINUTES: Final = 30  # Session timeout in minutes
 DEFAULT_DEBUG_LOGGING: Final = False  # Disabled by default
+DEFAULT_ENABLE_CANCEL_HANDLER: Final = True  # Enabled by default (fixes satellite hang)
 DEFAULT_CALENDAR_CONTEXT: Final = False  # Disabled by default (token cost)
 DEFAULT_ENTITY_DISCOVERY_MODE: Final = "full_index"  # Full entity index in prompt
 DEFAULT_ENABLE_MEMORY: Final = False  # Disabled by default

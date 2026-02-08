@@ -29,9 +29,11 @@ try:
         CONF_CACHE_REFRESH_INTERVAL,
         CONF_DEBUG_LOGGING,
         CONF_ENABLE_CACHE_WARMING,
+        CONF_ENABLE_CANCEL_HANDLER,
         DEFAULT_CACHE_REFRESH_INTERVAL,
         DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
+        DEFAULT_ENABLE_CANCEL_HANDLER,
         DOMAIN,
     )
     from .utils import apply_debug_logging
@@ -46,6 +48,109 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # Platforms are set up from subentries (conversation and ai_task)
 PLATFORMS: list[Platform] = [Platform.AI_TASK, Platform.CONVERSATION, Platform.SENSOR]
+
+
+class SmartAssistNevermindHandler:
+    """Custom handler for HassNevermind that uses LLM for natural TTS response.
+
+    Workaround for HA Core bug where the built-in NevermindIntentHandler
+    returns empty speech, causing voice satellites to hang.
+
+    Uses the first available Smart Assist LLM client to generate a brief,
+    natural-sounding cancel confirmation in the correct language.
+    Falls back to "OK" if no LLM client is available.
+    """
+
+    intent_type = "HassNevermind"
+    description = "Cancels the current request with a spoken confirmation"
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize with hass reference to access LLM clients."""
+        self._hass = hass
+
+    def _get_llm_client(self):
+        """Get the first available LLM client from Smart Assist agents."""
+        domain_data = self._hass.data.get(DOMAIN, {})
+        for entry_id, entry_data in domain_data.items():
+            if not isinstance(entry_data, dict):
+                continue
+            agents = entry_data.get("agents", {})
+            for _subentry_id, agent_info in agents.items():
+                llm_client = agent_info.get("llm_client")
+                if llm_client is not None:
+                    return llm_client
+        return None
+
+    async def async_handle(self, intent_obj) -> Any:
+        """Generate a natural cancel confirmation via LLM."""
+        response = intent_obj.create_response()
+
+        llm_client = self._get_llm_client()
+        if llm_client is not None:
+            try:
+                from .llm import ChatMessage
+                from .llm.models import MessageRole
+
+                lang = intent_obj.language or "en"
+
+                messages = [
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=(
+                            f"You are a voice assistant. The user just said "
+                            f"'cancel' or 'never mind'. Respond with a very "
+                            f"brief acknowledgment (max 5 words) in the "
+                            f"language with code '{lang}'. Use plain text "
+                            f"only, no emojis, no punctuation except period. "
+                            f"Vary your responses naturally."
+                        ),
+                    ),
+                    ChatMessage(
+                        role=MessageRole.USER,
+                        content="Cancel",
+                    ),
+                ]
+
+                llm_response = await llm_client.chat(
+                    messages=messages, tools=[]
+                )
+
+                if llm_response.content and llm_response.content.strip():
+                    speech = llm_response.content.strip()
+                    # Safety: cap at 50 chars to prevent runaway responses
+                    if len(speech) > 50:
+                        speech = speech[:50]
+                    response.async_set_speech(speech)
+                    _LOGGER.debug(
+                        "HassNevermind: LLM response: %s", speech
+                    )
+                    return response
+            except Exception as err:
+                _LOGGER.debug(
+                    "HassNevermind: LLM call failed, using fallback: %s", err
+                )
+
+        # Fallback: simple "OK" if no LLM available or call failed
+        response.async_set_speech("OK")
+        return response
+
+
+def _register_cancel_handler(hass: HomeAssistant) -> None:
+    """Register the custom HassNevermind intent handler."""
+    from homeassistant.helpers import intent as ha_intent
+    ha_intent.async_register(hass, SmartAssistNevermindHandler(hass))
+    _LOGGER.debug("Registered custom HassNevermind intent handler")
+
+
+def _unregister_cancel_handler(hass: HomeAssistant) -> None:
+    """Restore the original HassNevermind intent handler."""
+    try:
+        from homeassistant.components.intent import NevermindIntentHandler
+        from homeassistant.helpers import intent as ha_intent
+        ha_intent.async_register(hass, NevermindIntentHandler())
+        _LOGGER.debug("Restored original HassNevermind intent handler")
+    except ImportError:
+        pass
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -92,6 +197,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register frontend panel in sidebar
     from .frontend import async_register_frontend
     await async_register_frontend(hass)
+
+    # Register custom HassNevermind handler if enabled (fixes satellite hang)
+    cancel_enabled = get_config(CONF_ENABLE_CANCEL_HANDLER, DEFAULT_ENABLE_CANCEL_HANDLER)
+    if cancel_enabled:
+        _register_cancel_handler(hass)
 
     # Set up platforms (they will read from subentries)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -328,6 +438,9 @@ async def _perform_cache_warming(
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Smart Assist integration")
+
+    # Restore original HassNevermind handler
+    _unregister_cancel_handler(hass)
 
     # Close LLM client sessions for all agents
     try:

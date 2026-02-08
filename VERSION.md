@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.9.3   | 2026-02-08 |
+| Smart Assist | 1.10.0  | 2026-02-08 |
 
 ## Version History
+
+### v1.10.0 (2026-02-08) - Cancel Intent Handler
+
+**Feature: Cancel Intent Handler (LLM-powered)**
+
+- New custom `HassNevermind` intent handler that returns a spoken TTS confirmation
+- Fixes HA Core bug where the built-in handler returns empty speech, causing voice satellites to hang
+- Layer 1: Intent handler intercepts hassil-matched cancels ("Cancel", "Abbrechen", "Nevermind") and uses the LLM to generate a brief, natural acknowledgment in the correct language
+- Layer 2: System prompt instruction teaches the LLM to recognize cancel intent for phrases hassil does not match (e.g. "vergiss es", "lass mal", "schon gut") -- prevents the LLM from asking "What should I cancel?"
+- Falls back to "OK" when no LLM client is available
+- Toggleable via global options (Settings > Integrations > Smart Assist > Configure)
+- Enabled by default
+- No hardcoded translations or phrase lists -- the LLM handles all languages
+- Files modified: `__init__.py`, `const.py`, `config_flow.py`, `conversation.py`, `strings.json`, `en.json`, `de.json`
 
 ### v1.9.3 (2026-02-08) - Config UI Polish
 

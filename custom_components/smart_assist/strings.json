@@ -70,10 +70,12 @@
         "title": "Smart Assist Settings",
         "description": "Configure global settings for Smart Assist.",
         "data": {
-          "debug_logging": "Enable debug logging"
+          "debug_logging": "Enable debug logging",
+          "enable_cancel_handler": "Cancel intent handler"
         },
         "data_description": {
-          "debug_logging": "Enable verbose logging for debugging."
+          "debug_logging": "Enable verbose logging for debugging.",
+          "enable_cancel_handler": "Returns a TTS-spoken confirmation when the user says 'Cancel' or 'Never mind'. Fixes voice satellites hanging on empty cancel responses. Uses the LLM to generate a brief, natural response."
         }
       }
     }

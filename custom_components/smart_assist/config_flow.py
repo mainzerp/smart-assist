@@ -40,6 +40,7 @@ from .config_validators import (
 from .const import (
     CONF_API_KEY,
     CONF_DEBUG_LOGGING,
+    CONF_ENABLE_CANCEL_HANDLER,
     CONF_GROQ_API_KEY,
     CONF_LLM_PROVIDER,
     CONF_OLLAMA_KEEP_ALIVE,
@@ -48,6 +49,7 @@ from .const import (
     CONF_OLLAMA_TIMEOUT,
     CONF_OLLAMA_URL,
     DEFAULT_DEBUG_LOGGING,
+    DEFAULT_ENABLE_CANCEL_HANDLER,
     DOMAIN,
     LLM_PROVIDER_GROQ,
     LLM_PROVIDER_OLLAMA,
@@ -366,7 +368,17 @@ class SmartAssistOptionsFlow(OptionsFlow):
             # Apply debug logging setting immediately
             debug_enabled = user_input.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING)
             apply_debug_logging(debug_enabled)
-            
+
+            # Register/unregister cancel intent handler based on toggle
+            cancel_enabled = user_input.get(
+                CONF_ENABLE_CANCEL_HANDLER, DEFAULT_ENABLE_CANCEL_HANDLER
+            )
+            from . import _register_cancel_handler, _unregister_cancel_handler
+            if cancel_enabled:
+                _register_cancel_handler(self.hass)
+            else:
+                _unregister_cancel_handler(self.hass)
+
             return self.async_create_entry(title="", data=user_input)
         
         current = {**self._config_entry.data, **self._config_entry.options}
@@ -378,6 +390,13 @@ class SmartAssistOptionsFlow(OptionsFlow):
                     vol.Required(
                         CONF_DEBUG_LOGGING,
                         default=current.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+                    ): BooleanSelector(),
+                    vol.Required(
+                        CONF_ENABLE_CANCEL_HANDLER,
+                        default=current.get(
+                            CONF_ENABLE_CANCEL_HANDLER,
+                            DEFAULT_ENABLE_CANCEL_HANDLER,
+                        ),
                     ): BooleanSelector(),
                 }
             ),

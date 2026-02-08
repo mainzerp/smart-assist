@@ -70,10 +70,12 @@
         "title": "Smart Assist Einstellungen",
         "description": "Konfiguriere globale Einstellungen fuer Smart Assist.",
         "data": {
-          "debug_logging": "Debug-Logging aktivieren"
+          "debug_logging": "Debug-Logging aktivieren",
+          "enable_cancel_handler": "Cancel Intent Handler"
         },
         "data_description": {
-          "debug_logging": "Aktiviert ausfuehrliches Logging zur Fehlersuche."
+          "debug_logging": "Aktiviert ausfuehrliches Logging zur Fehlersuche.",
+          "enable_cancel_handler": "Gibt eine gesprochene Bestaetigung zurueck wenn der Nutzer 'Abbrechen' oder 'Vergiss es' sagt. Behebt das Haengenbleiben von Sprachsatelliten bei leeren Abbruch-Antworten. Nutzt die LLM fuer eine natuerliche Antwort."
         }
       }
     }

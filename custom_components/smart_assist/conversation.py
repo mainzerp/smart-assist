@@ -62,6 +62,7 @@ try:
         CONF_CALENDAR_CONTEXT,
         CONF_CLEAN_RESPONSES,
         CONF_CONFIRM_CRITICAL,
+        CONF_ENABLE_CANCEL_HANDLER,
         CONF_ENABLE_MEMORY,
         CONF_ENABLE_AGENT_MEMORY,
         CONF_ENABLE_PRESENCE_HEURISTIC,
@@ -86,6 +87,7 @@ try:
         DEFAULT_ASK_FOLLOWUP,
         DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
+        DEFAULT_ENABLE_CANCEL_HANDLER,
         DEFAULT_ENABLE_MEMORY,
         DEFAULT_ENABLE_AGENT_MEMORY,
         DEFAULT_ENABLE_PRESENCE_HEURISTIC,
@@ -295,6 +297,12 @@ class SmartAssistConversationEntity(ConversationEntity):
     def _get_config(self, key: str, default: Any = None) -> Any:
         """Get config value from subentry data."""
         return self._subentry.data.get(key, default)
+
+    def _get_global_config(self, key: str, default: Any = None) -> Any:
+        """Get config value from main entry options/data."""
+        if key in self._entry.options:
+            return self._entry.options[key]
+        return self._entry.data.get(key, default)
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -996,7 +1004,22 @@ Your own observations are injected as [AGENT MEMORY]. Use them to work more effi
             parts.append("""
 ## Notice
 Only exposed entities are available.""")
-        
+
+        # Cancel/abort handling instruction (if enabled globally)
+        cancel_enabled = self._get_global_config(
+            CONF_ENABLE_CANCEL_HANDLER, DEFAULT_ENABLE_CANCEL_HANDLER
+        )
+        if cancel_enabled:
+            parts.append("""
+## Cancel/Abort Handling [IMPORTANT]
+If the user says something that clearly means they want to cancel, abort, or dismiss
+the current interaction (e.g. "cancel", "never mind", "abbrechen", "vergiss es",
+"lass mal", "schon gut", "forget it"), respond with a VERY brief acknowledgment
+(1-3 words) and do NOT ask follow-up questions.
+CRITICAL: Do NOT interpret these phrases as requests to cancel specific devices,
+timers, or automations. They mean "I don't need anything anymore."
+Do NOT ask "What should I cancel?" -- just confirm briefly.""")
+
         # Error handling - compact
         parts.append("""
 ## Errors
