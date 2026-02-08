@@ -74,6 +74,14 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Agent Memory (Auto-Learning)**: LLM saves its own observations and patterns (independent of user)
 - **Auto-Expire**: Agent memories older than 30 days with low usage are automatically cleaned up
 
+### Cancel Intent Handler
+
+- **Satellite Fix**: Prevents voice satellites from hanging when users say "Cancel", "Abbrechen", or "Nevermind"
+- **LLM-Powered**: Generates a brief, natural TTS confirmation (e.g., "Alles klar.") instead of empty silence
+- **Per-Agent Selection**: Choose which conversation agent handles cancel intents (Settings > Integrations > Smart Assist > Agent > Reconfigure > "Use as cancel intent handler")
+- **Global Toggle**: Enable/disable the entire feature under Settings > Integrations > Smart Assist > Configure
+- **Auto-Fallback**: If no agent is explicitly selected, the first available agent is used
+
 ### Dashboard & UI
 
 - **Custom Sidebar Panel**: Admin-only panel in HA sidebar with `mdi:brain` icon
@@ -210,6 +218,7 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | Clean Responses | Remove markdown for TTS | false |
 | Ask Follow-up | Assistant asks clarifying questions | true |
 | Debug Logging | Enable verbose logging | false |
+| Cancel Intent Handler | Use LLM to respond to cancel/nevermind (fixes satellite hang) | true |
 | System Prompt | Custom instructions for assistant | - |
 
 ## Prompt Caching

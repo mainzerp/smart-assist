@@ -62,6 +62,13 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 - **Memory Tool**: LLM can save, recall, update, and delete memories
 - **Agent Memory**: LLM saves its own observations and patterns, auto-expires stale entries after 30 days
 
+### Cancel Intent Handler
+
+- **Satellite Fix**: Prevents voice satellites from hanging on cancel/nevermind
+- **LLM-Powered**: Generates natural TTS confirmation instead of empty silence
+- **Per-Agent Selection**: Choose which agent handles cancel intents in the agent's settings
+- **Global Toggle**: Enable/disable under Settings > Integrations > Smart Assist > Configure
+
 ### Dashboard & UI
 
 - **Custom Sidebar Panel**: Admin-only panel with overview, memory, and calendar tabs

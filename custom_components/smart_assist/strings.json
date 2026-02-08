@@ -130,7 +130,8 @@
             "enable_agent_memory": "Enable agent auto-learning",
             "enable_presence_heuristic": "Enable presence-based user detection",
             "enable_cache_warming": "Enable automatic cache warming",
-            "cache_refresh_interval": "Cache refresh interval (minutes)"
+            "cache_refresh_interval": "Cache refresh interval (minutes)",
+            "cancel_intent_agent": "Use as cancel intent handler"
           },
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
@@ -149,7 +150,8 @@
             "enable_agent_memory": "Allows the assistant to learn from interactions and save its own observations (patterns, habits, system insights). Requires memory to be enabled.",
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home.",
             "enable_cache_warming": "Keeps the prompt cache warm by sending periodic requests. Incurs small additional API costs.",
-            "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL."
+            "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL.",
+            "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used."
           }
         },
         "prompt": {
@@ -198,6 +200,7 @@
             "enable_presence_heuristic": "Presence-based user detection",
             "enable_cache_warming": "Enable cache warming",
             "cache_refresh_interval": "Cache refresh interval",
+            "cancel_intent_agent": "Use as cancel intent handler",
             "user_system_prompt": "System Prompt"
           },
           "data_description": {
@@ -218,7 +221,8 @@
             "enable_memory": "Allows the assistant to remember user preferences, names, and instructions across conversations.",
             "enable_agent_memory": "Allows the assistant to learn from interactions and save its own observations (patterns, habits, system insights). Requires memory to be enabled.",
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home.",
-            "user_system_prompt": "Personality and instructions for this conversation agent."
+            "user_system_prompt": "Personality and instructions for this conversation agent.",
+            "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used."
           }
         }
       },

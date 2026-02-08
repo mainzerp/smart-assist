@@ -27,10 +27,12 @@ except ImportError as e:
 try:
     from .const import (
         CONF_CACHE_REFRESH_INTERVAL,
+        CONF_CANCEL_INTENT_AGENT,
         CONF_DEBUG_LOGGING,
         CONF_ENABLE_CACHE_WARMING,
         CONF_ENABLE_CANCEL_HANDLER,
         DEFAULT_CACHE_REFRESH_INTERVAL,
+        DEFAULT_CANCEL_INTENT_AGENT,
         DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_ENABLE_CANCEL_HANDLER,
@@ -69,17 +71,40 @@ class SmartAssistNevermindHandler:
         self._hass = hass
 
     def _get_llm_client(self):
-        """Get the first available LLM client from Smart Assist agents."""
+        """Get the LLM client for cancel intent handling.
+
+        Prefers the agent explicitly marked as cancel intent handler.
+        Falls back to the first available LLM client.
+        """
         domain_data = self._hass.data.get(DOMAIN, {})
+        fallback_client = None
+
         for entry_id, entry_data in domain_data.items():
             if not isinstance(entry_data, dict):
                 continue
+
+            # Get config entry to check subentry settings
+            entry = self._hass.config_entries.async_get_entry(entry_id)
             agents = entry_data.get("agents", {})
-            for _subentry_id, agent_info in agents.items():
+
+            for subentry_id, agent_info in agents.items():
                 llm_client = agent_info.get("llm_client")
-                if llm_client is not None:
-                    return llm_client
-        return None
+                if llm_client is None:
+                    continue
+
+                # Check if this subentry is marked as the cancel intent agent
+                if entry is not None:
+                    subentry = entry.subentries.get(subentry_id)
+                    if subentry is not None and subentry.data.get(
+                        CONF_CANCEL_INTENT_AGENT, DEFAULT_CANCEL_INTENT_AGENT
+                    ):
+                        return llm_client
+
+                # Keep first available as fallback
+                if fallback_client is None:
+                    fallback_client = llm_client
+
+        return fallback_client
 
     async def async_handle(self, intent_obj) -> Any:
         """Generate a natural cancel confirmation via LLM."""

@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.10.0  | 2026-02-08 |
+| Smart Assist | 1.10.1  | 2026-02-08 |
 
 ## Version History
+
+### v1.10.1 (2026-02-08) - Cancel Handler Agent Selection
+
+- Feature: Per-agent "Use as cancel intent handler" toggle in conversation agent settings
+- Cancel intent handler now prefers the explicitly selected agent instead of picking the first available
+- Falls back to first available agent if no agent is explicitly selected
+- Updated README.md and info.md with cancel intent handler documentation
+- Files modified: `__init__.py`, `const.py`, `config_subentry_flows.py`, `manifest.json`, `strings.json`, `en.json`, `de.json`, `README.md`, `info.md`
 
 ### v1.10.0 (2026-02-08) - Cancel Intent Handler
 

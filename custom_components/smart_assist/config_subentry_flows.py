@@ -36,6 +36,7 @@ from .const import (
     CONF_ASK_FOLLOWUP,
     CONF_CACHE_REFRESH_INTERVAL,
     CONF_CALENDAR_CONTEXT,
+    CONF_CANCEL_INTENT_AGENT,
     CONF_CLEAN_RESPONSES,
     CONF_CONFIRM_CRITICAL,
     CONF_ENABLE_CACHE_WARMING,
@@ -64,6 +65,7 @@ from .const import (
     DEFAULT_ASK_FOLLOWUP,
     DEFAULT_CACHE_REFRESH_INTERVAL,
     DEFAULT_CALENDAR_CONTEXT,
+    DEFAULT_CANCEL_INTENT_AGENT,
     DEFAULT_CLEAN_RESPONSES,
     DEFAULT_CONFIRM_CRITICAL,
     DEFAULT_ENABLE_CACHE_WARMING,
@@ -321,6 +323,8 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_CACHE_REFRESH_INTERVAL, default=DEFAULT_CACHE_REFRESH_INTERVAL): NumberSelector(
                 NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
             ),
+            # Group: Cancel Intent
+            vol.Required(CONF_CANCEL_INTENT_AGENT, default=DEFAULT_CANCEL_INTENT_AGENT): BooleanSelector(),
         })
         
         return self.async_show_form(
@@ -546,6 +550,8 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_CACHE_REFRESH_INTERVAL): NumberSelector(
                 NumberSelectorConfig(min=1, max=55, step=1, unit_of_measurement="min", mode=NumberSelectorMode.BOX)
             ),
+            # Cancel Intent
+            vol.Required(CONF_CANCEL_INTENT_AGENT): BooleanSelector(),
             # System Prompt
             vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)

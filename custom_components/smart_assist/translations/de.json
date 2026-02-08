@@ -130,7 +130,8 @@
             "enable_agent_memory": "Agent Auto-Learning aktivieren",
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung aktivieren",
             "enable_cache_warming": "Automatisches Cache-Warming aktivieren",
-            "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)"
+            "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
+            "cancel_intent_agent": "Als Cancel Intent Handler verwenden"
           },
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
@@ -149,7 +150,8 @@
             "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
-            "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen."
+            "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
+            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
           }
         },
         "prompt": {
@@ -198,6 +200,7 @@
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung",
             "enable_cache_warming": "Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall",
+            "cancel_intent_agent": "Als Cancel Intent Handler verwenden",
             "user_system_prompt": "System Prompt"
           },
           "data_description": {
@@ -218,7 +221,8 @@
             "enable_memory": "Erlaubt dem Assistenten, sich Benutzer-Praeferenzen, Namen und Anweisungen ueber Gespraeche hinweg zu merken.",
             "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
-            "user_system_prompt": "Persoenlichkeit und Anweisungen fuer diesen Konversations-Agenten."
+            "user_system_prompt": "Persoenlichkeit und Anweisungen fuer diesen Konversations-Agenten.",
+            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
           }
         }
       },
