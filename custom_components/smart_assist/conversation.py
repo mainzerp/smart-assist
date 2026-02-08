@@ -1001,15 +1001,11 @@ There is NO entity index in this prompt. You MUST discover entities using tools:
 - Infer domain from user intent: "light"/"lamp" -> try light first, then switch
 - Infer area from user context: "kitchen light" -> domain=light, area=kitchen
 - Domain fallback map: light->switch, fan->switch, cover->switch, lock->switch""")
-        elif caching_enabled:
+        else:
             parts.append("""
 ## Entity Lookup
 1. Check ENTITY INDEX first to find entity_ids
 2. Only use get_entities tool if not found in index""")
-        else:
-            parts.append("""
-## Entity Lookup
-- Use get_entities with domain filter to find entities""")
         
         # Pronoun resolution hint
         parts.append("""

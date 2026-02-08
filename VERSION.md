@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.1  | 2026-02-08 |
+| Smart Assist | 1.11.2  | 2026-02-08 |
 
 ## Version History
+
+### v1.11.2 (2026-02-08) - Full Index Mode Fix
+
+- Fix: NameError (`caching_enabled` undefined) in `_build_system_prompt` when Entity Discovery mode is set to "full index"
+- The `caching_enabled` variable was a leftover from v1.9.2 when the prompt caching toggle was removed
+- Now always uses the "check ENTITY INDEX first" instruction for full index mode
+- Files modified: `conversation.py`
 
 ### v1.11.1 (2026-02-08) - Pipeline Trace Fix
 
