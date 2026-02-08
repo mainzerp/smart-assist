@@ -4,9 +4,39 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.10.1  | 2026-02-08 |
+| Smart Assist | 1.11.0  | 2026-02-08 |
 
 ## Version History
+
+### v1.11.0 (2026-02-08) - Request History and Tool Analytics
+
+**Feature: Per-Request History Log**
+
+- Track individual request metrics: timestamp, tokens (prompt/completion/cached), response time, tools used, success/error status
+- Persistent storage via HA Storage API (FIFO eviction at 500 entries)
+- Paginated history browser in dashboard History tab
+- Per-agent filtering support
+- Debounced saves (30s) with forced flush on shutdown
+
+**Feature: Tool Usage Analytics**
+
+- Track tool call frequency, success rates, and average execution times
+- Analytics computed on-demand from request history (no dual storage)
+- Summary cards: logged requests, avg response time, avg tokens/request, total tool calls
+- Tool analytics table: name, calls, success rate, avg time, last used
+- Clear history button with optional agent filter
+
+**Technical Changes**
+
+- New module: `context/request_history.py` (RequestHistoryStore, RequestHistoryEntry, ToolCallRecord, ToolAnalytics)
+- Per-request token tracking via `_last_prompt_tokens`, `_last_completion_tokens`, `_last_cached_tokens` on LLMMetrics
+- Tool execution timing injected via `ToolRegistry.execute()` wrapper
+- `_call_llm_streaming_with_tools()` now returns 4-tuple (content, await_response, iterations, tool_records)
+- History recorded in `_build_result()` after response delivery (no latency impact)
+- 3 new WebSocket commands: `smart_assist/request_history`, `smart_assist/tool_analytics`, `smart_assist/request_history_clear`
+- Dashboard: new History tab with tool analytics table, request history table, pagination, clear
+- Files modified: `const.py`, `tools/base.py`, `llm/base_client.py`, `llm/openrouter_client.py`, `llm/groq_client.py`, `llm/ollama_client.py`, `conversation.py`, `websocket.py`, `__init__.py`, `www/smart-assist-panel.js`
+- Files created: `context/request_history.py`
 
 ### v1.10.1 (2026-02-08) - Cancel Handler Agent Selection
 

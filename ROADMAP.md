@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-08 (v1.10.0)
+> Last updated: 2026-02-08 (v1.11.0)
 
 ## Completed Milestones
 
@@ -41,6 +41,8 @@
 | Token-Efficient Entity Discovery | v1.8.0 | Smart Discovery mode: no entity index in prompt, on-demand entity discovery via tool calls, 100% token savings on entity context |
 | Agent Memory (Auto-Learning) | v1.9.0 | Agent-level memory for LLM observations, entity mappings, patterns. Auto-saves surprising discoveries. Grows prompt context over time. |
 | Cancel Intent Handler | v1.10.0 | Custom `HassNevermind` handler returns LLM-generated TTS confirmation instead of empty response. Fixes voice satellite hang on "Cancel"/"Abbrechen". Toggleable, enabled by default. |
+| Per-Request History Log | v1.11.0 | Track individual request metrics (timestamp, tokens, response_time, tools_used) for trend analysis in dashboard History tab. Persistent storage, pagination, per-agent filtering. |
+| Tool Usage Analytics | v1.11.0 | Track tool call frequency, success rates, and avg execution times. Dashboard visualization with summary cards and analytics table. Computed on-demand from request history. |
 
 ---
 
@@ -81,8 +83,6 @@ These features are not yet assigned to a specific version.
 | Feature | Description | Effort |
 | ------- | ----------- | ------ |
 | Dashboard Generation | Create HA dashboards via natural language ("Create an energy dashboard for the kitchen"). Requires v1.7.0 panel infrastructure. | Medium |
-| Per-Request History Log | Track individual request metrics (timestamp, tokens, response_time, tools_used) for trend analysis in dashboard. | Medium |
-| Tool Usage Analytics | Track tool call frequency and success rates for dashboard visualization. | Low |
 | MCP Server Mode | Expose Smart Assist tools via Model Context Protocol (MCP) for external clients (Claude Desktop, LM Studio, etc.). Enables external LLMs to discover and control HA entities through Smart Assist tools without full entity context dumps. Inspired by [mcp-assist](https://github.com/mike-nott/mcp-assist). | High |
 | RAG Integration | Search own documents, manuals, recipes with vector embeddings. Use device manuals for troubleshooting advice, recipe retrieval for kitchen assistants, or household rules/instructions. | High |
 | LLM Fallback Chain | Try local LLM (Ollama) first, fallback to cloud provider if local model fails or is unavailable. Balances privacy, cost, and reliability. | Medium |

@@ -50,6 +50,10 @@ class LLMMetrics:
     cached_tokens: int = 0
     empty_responses: int = 0
     stream_timeouts: int = 0
+    # Per-request tracking (last request only, not persisted)
+    _last_prompt_tokens: int = 0
+    _last_completion_tokens: int = 0
+    _last_cached_tokens: int = 0
     
     @property
     def average_response_time_ms(self) -> float:

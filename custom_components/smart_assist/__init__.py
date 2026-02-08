@@ -204,6 +204,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await memory_manager.async_load()
     hass.data[DOMAIN][entry.entry_id]["memory_manager"] = memory_manager
 
+    # Initialize request history store
+    from .context.request_history import RequestHistoryStore
+    request_history = RequestHistoryStore(hass)
+    await request_history.async_load()
+    hass.data[DOMAIN][entry.entry_id]["request_history"] = request_history
+
     # Helper to get config values (options override data)
     def get_config(key: str, default: Any = None) -> Any:
         """Get config value from options first, then data, then default."""
@@ -487,6 +493,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("Memory manager shutdown complete")
     except Exception as err:
         _LOGGER.warning("Error shutting down memory manager: %s", err)
+
+    # Save pending request history before unloading
+    try:
+        request_history = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("request_history")
+        if request_history:
+            await request_history.async_shutdown()
+            _LOGGER.debug("Request history store shutdown complete")
+    except Exception as err:
+        _LOGGER.warning("Error shutting down request history store: %s", err)
 
     # Remove sidebar panel
     try:

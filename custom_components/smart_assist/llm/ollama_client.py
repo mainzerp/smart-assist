@@ -435,6 +435,10 @@ class OllamaClient(BaseLLMClient):
                 self._metrics.total_response_time_ms += elapsed_ms
                 self._metrics.total_prompt_tokens += usage["prompt_tokens"]
                 self._metrics.total_completion_tokens += usage["completion_tokens"]
+                # Per-request tracking
+                self._metrics._last_prompt_tokens = usage["prompt_tokens"]
+                self._metrics._last_completion_tokens = usage["completion_tokens"]
+                self._metrics._last_cached_tokens = 0
                 self._model_loaded = True
                 
                 _LOGGER.debug(
@@ -540,6 +544,10 @@ class OllamaClient(BaseLLMClient):
                             self._metrics.total_response_time_ms += elapsed_ms
                             self._metrics.total_prompt_tokens += data.get("prompt_eval_count", 0)
                             self._metrics.total_completion_tokens += data.get("eval_count", 0)
+                            # Per-request tracking
+                            self._metrics._last_prompt_tokens = data.get("prompt_eval_count", 0)
+                            self._metrics._last_completion_tokens = data.get("eval_count", 0)
+                            self._metrics._last_cached_tokens = 0
                             self._model_loaded = True
                             break
                             
@@ -641,6 +649,10 @@ class OllamaClient(BaseLLMClient):
                             self._metrics.total_response_time_ms += elapsed_ms
                             self._metrics.total_prompt_tokens += data.get("prompt_eval_count", 0)
                             self._metrics.total_completion_tokens += data.get("eval_count", 0)
+                            # Per-request tracking
+                            self._metrics._last_prompt_tokens = data.get("prompt_eval_count", 0)
+                            self._metrics._last_completion_tokens = data.get("eval_count", 0)
+                            self._metrics._last_cached_tokens = 0
                             self._model_loaded = True
                             
                             # Emit tool calls if any

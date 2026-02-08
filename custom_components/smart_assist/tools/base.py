@@ -129,15 +129,21 @@ class ToolRegistry:
             return ToolResult(
                 success=False,
                 message=f"Unknown tool: {name}",
+                data={"execution_time_ms": 0.0},
             )
 
         try:
+            import time as _time
+            start = _time.monotonic()
             _LOGGER.debug("Executing tool: %s with args: %s", name, arguments)
             result = await tool.execute(**arguments)
+            elapsed_ms = (_time.monotonic() - start) * 1000
+            result.data["execution_time_ms"] = round(elapsed_ms, 2)
             _LOGGER.debug(
-                "Tool %s result: success=%s, message=%s",
+                "Tool %s result: success=%s, time=%.1fms, message=%s",
                 name,
                 result.success,
+                elapsed_ms,
                 result.message[:100] if result.message else "None",
             )
             return result
@@ -146,4 +152,5 @@ class ToolRegistry:
             return ToolResult(
                 success=False,
                 message=f"Tool error: {err}",
+                data={"execution_time_ms": 0.0},
             )

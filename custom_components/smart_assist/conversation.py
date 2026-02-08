@@ -111,11 +111,15 @@ try:
         OLLAMA_DEFAULT_TIMEOUT,
         OLLAMA_DEFAULT_URL,
         TTS_STREAM_MIN_CHARS,
+        REQUEST_HISTORY_INPUT_MAX_LENGTH,
+        REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
+        REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
     from .context.conversation import ConversationManager
     from .context.memory import MemoryManager
+    from .context.request_history import RequestHistoryStore, RequestHistoryEntry, ToolCallRecord
     from .context.user_resolver import UserResolver
     from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
     from .llm.models import MessageRole, ToolCall
@@ -357,6 +361,9 @@ class SmartAssistConversationEntity(ConversationEntity):
         This method uses real token-by-token streaming for faster TTS responses.
         The assistant pipeline can start TTS synthesis before the full response is ready.
         """
+        import time as _time
+        request_start_time = _time.monotonic()
+        
         _LOGGER.debug(
             "[USER-REQUEST] New message: user_id=%s, text_length=%d, language=%s, satellite=%s, device=%s",
             user_input.conversation_id,
@@ -438,7 +445,7 @@ class SmartAssistConversationEntity(ConversationEntity):
 
         try:
             # Use streaming with tool loop
-            final_content, await_response_called = await self._call_llm_streaming_with_tools(
+            final_content, await_response_called, llm_iterations, tool_call_records = await self._call_llm_streaming_with_tools(
                 messages=messages,
                 tools=tools,
                 cached_prefix_length=cached_prefix_length,
@@ -472,7 +479,13 @@ class SmartAssistConversationEntity(ConversationEntity):
 
             _LOGGER.debug("Streaming response complete. continue=%s", continue_conversation)
 
-            return self._build_result(user_input, chat_log, final_response, continue_conversation, user_id=user_id)
+            return self._build_result(
+                user_input, chat_log, final_response, continue_conversation,
+                user_id=user_id,
+                request_start_time=request_start_time,
+                llm_iterations=llm_iterations,
+                tool_call_records=tool_call_records,
+            )
 
         except Exception as err:
             _LOGGER.error("Error processing conversation: %s", err)
@@ -483,7 +496,15 @@ class SmartAssistConversationEntity(ConversationEntity):
                     content=error_msg,
                 )
             )
-            return self._build_result(user_input, chat_log, error_msg, continue_conversation=False, user_id=user_id)
+            return self._build_result(
+                user_input, chat_log, error_msg, continue_conversation=False,
+                user_id=user_id,
+                request_start_time=request_start_time,
+                llm_iterations=0,
+                tool_call_records=[],
+                request_success=False,
+                request_error=str(err),
+            )
 
     async def _call_llm_streaming_with_tools(
         self,
@@ -493,7 +514,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         chat_log: ChatLog,
         conversation_id: str | None = None,
         max_iterations: int = MAX_TOOL_ITERATIONS,
-    ) -> tuple[str, bool]:
+    ) -> tuple[str, bool, int, list[ToolCallRecord]]:
         """Call LLM with streaming and handle tool calls in-loop.
         
         Implements streaming with tool execution. Content deltas are sent
@@ -509,14 +530,17 @@ class SmartAssistConversationEntity(ConversationEntity):
             max_iterations: Maximum tool call iterations
         
         Returns:
-            Tuple of (final_response_text, await_response_called)
+            Tuple of (final_response_text, await_response_called, llm_iterations, tool_call_records)
             - final_response_text: The final response after all tool calls
             - await_response_called: True if await_response tool was called
+            - llm_iterations: Number of LLM call rounds
+            - tool_call_records: List of ToolCallRecord for history tracking
         """
         iteration = 0
         working_messages = messages.copy()
         final_content = ""
         await_response_called = False
+        all_tool_call_records: list[ToolCallRecord] = []
         
         while iteration < max_iterations:
             iteration += 1
@@ -605,7 +629,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             # If no tool calls, we're done
             if not tool_calls:
                 _LOGGER.debug("[USER-REQUEST] Complete (iteration %d, no tool calls)", iteration)
-                return final_content, await_response_called
+                return final_content, await_response_called, iteration, all_tool_call_records
             
             # Check if await_response is in the tool calls (signal, not executed with others)
             await_response_calls = [tc for tc in tool_calls if tc.name == "await_response"]
@@ -625,7 +649,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                             MAX_CONSECUTIVE_FOLLOWUPS
                         )
                         # Return a polite abort message instead of continuing
-                        return "I did not understand. Please try again.", False
+                        return "I did not understand. Please try again.", False, iteration, all_tool_call_records
                 
                 # Extract message from await_response tool call
                 if await_response_calls[0].arguments:
@@ -639,7 +663,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                 if not other_tool_calls:
                     if not final_content.strip():
                         _LOGGER.warning("[USER-REQUEST] await_response called without message - check tool definition")
-                    return final_content, await_response_called
+                    return final_content, await_response_called, iteration, all_tool_call_records
             
             # Execute other tool calls (not await_response) and add results to messages for next iteration
             if other_tool_calls:
@@ -687,6 +711,14 @@ class SmartAssistConversationEntity(ConversationEntity):
                     if isinstance(item, Exception):
                         _LOGGER.error("Tool execution failed: %s", item)
                         failed_tc = other_tool_calls[i]
+                        all_tool_call_records.append(ToolCallRecord(
+                            name=failed_tc.name,
+                            success=False,
+                            execution_time_ms=0.0,
+                            arguments_summary=RequestHistoryStore.truncate(
+                                str(failed_tc.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
+                            ),
+                        ))
                         working_messages.append(
                             ChatMessage(
                                 role=MessageRole.TOOL,
@@ -697,6 +729,14 @@ class SmartAssistConversationEntity(ConversationEntity):
                         )
                         continue
                     tool_call, result = item
+                    all_tool_call_records.append(ToolCallRecord(
+                        name=tool_call.name,
+                        success=result.success,
+                        execution_time_ms=result.data.get("execution_time_ms", 0.0),
+                        arguments_summary=RequestHistoryStore.truncate(
+                            str(tool_call.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
+                        ),
+                    ))
                     working_messages.append(
                         ChatMessage(
                             role=MessageRole.TOOL,
@@ -724,7 +764,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Max iterations reached
         _LOGGER.warning("Max tool iterations (%d) reached", max_iterations)
-        return final_content, await_response_called
+        return final_content, await_response_called, iteration, all_tool_call_records
 
     async def _create_delta_stream(
         self,
@@ -1447,6 +1487,11 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         response_text: str,
         continue_conversation: bool = True,
         user_id: str = "default",
+        request_start_time: float | None = None,
+        llm_iterations: int = 1,
+        tool_call_records: list | None = None,
+        request_success: bool = True,
+        request_error: str | None = None,
     ) -> ConversationResult:
         """Build a ConversationResult from the chat log."""
         intent_response = intent.IntentResponse(language=user_input.language)
@@ -1460,6 +1505,54 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
                 m = self._llm_client.metrics
                 tokens_used = (m.total_prompt_tokens or 0) + (m.total_completion_tokens or 0)
             self._memory_manager.record_conversation(user_id, tokens_used=0)
+        
+        # Record request history
+        if request_start_time is not None:
+            import time as _time
+            from datetime import datetime as _datetime
+            elapsed_ms = (_time.monotonic() - request_start_time) * 1000
+            
+            # Get per-request token counts
+            prompt_tokens = 0
+            completion_tokens = 0
+            cached_tokens = 0
+            if self._llm_client and hasattr(self._llm_client, "metrics"):
+                m = self._llm_client.metrics
+                prompt_tokens = getattr(m, "_last_prompt_tokens", 0)
+                completion_tokens = getattr(m, "_last_completion_tokens", 0)
+                cached_tokens = getattr(m, "_last_cached_tokens", 0)
+            
+            history_store = self.hass.data.get(DOMAIN, {}).get(
+                self._entry.entry_id, {}
+            ).get("request_history")
+            
+            if history_store:
+                entry = RequestHistoryEntry(
+                    id=RequestHistoryStore.generate_id(),
+                    timestamp=_datetime.now().astimezone().isoformat(),
+                    agent_id=self._subentry.subentry_id,
+                    agent_name=self._subentry.title,
+                    conversation_id=user_input.conversation_id,
+                    user_id=user_id,
+                    input_text=RequestHistoryStore.truncate(
+                        user_input.text, REQUEST_HISTORY_INPUT_MAX_LENGTH
+                    ),
+                    response_text=RequestHistoryStore.truncate(
+                        response_text, REQUEST_HISTORY_RESPONSE_MAX_LENGTH
+                    ),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cached_tokens=cached_tokens,
+                    response_time_ms=elapsed_ms,
+                    llm_provider=self._get_config(CONF_LLM_PROVIDER, DEFAULT_LLM_PROVIDER),
+                    model=self._get_config(CONF_MODEL, DEFAULT_MODEL),
+                    llm_iterations=llm_iterations,
+                    tools_used=tool_call_records or [],
+                    success=request_success,
+                    error=request_error,
+                )
+                history_store.add_entry(entry)
+                self.hass.async_create_task(history_store.async_save())
         
         # Signal sensors to update their state (per subentry)
         async_dispatcher_send(

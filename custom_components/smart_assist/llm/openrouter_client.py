@@ -181,6 +181,11 @@ class OpenRouterClient(BaseLLMClient):
                 self._metrics.total_response_time_ms += elapsed_ms
                 self._metrics.total_prompt_tokens += result.prompt_tokens
                 self._metrics.total_completion_tokens += result.completion_tokens
+                # Per-request tracking
+                self._metrics._last_prompt_tokens = result.prompt_tokens
+                self._metrics._last_completion_tokens = result.completion_tokens
+                cached_in_usage = result.usage.get("cache_read_input_tokens", 0) or result.usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                self._metrics._last_cached_tokens = cached_in_usage or 0
                 
                 # Track cache hits from usage data
                 if "cache_read_input_tokens" in result.usage:
@@ -293,8 +298,12 @@ class OpenRouterClient(BaseLLMClient):
                                     _LOGGER.debug("Got usage in stream: %s", usage)
                                     self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                                     self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                                    # Per-request tracking
+                                    self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
+                                    self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
                                     # Track cache hits and cached tokens
                                     cached = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                                    self._metrics._last_cached_tokens = cached or 0
                                     if cached > 0:
                                         self._metrics.cache_hits += 1
                                         self._metrics.cached_tokens += cached
@@ -486,8 +495,12 @@ class OpenRouterClient(BaseLLMClient):
                             _LOGGER.debug("Got usage in full stream: %s", usage)
                             self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                             self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                            # Per-request tracking
+                            self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
+                            self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
                             # Track cache hits and cached tokens
                             cached = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                            self._metrics._last_cached_tokens = cached or 0
                             if cached > 0:
                                 self._metrics.cache_hits += 1
                                 self._metrics.cached_tokens += cached

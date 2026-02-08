@@ -56,12 +56,23 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_memory_merge_users)
     websocket_api.async_register_command(hass, ws_memory_delete)
     websocket_api.async_register_command(hass, ws_subscribe)
+    websocket_api.async_register_command(hass, ws_request_history)
+    websocket_api.async_register_command(hass, ws_tool_analytics)
+    websocket_api.async_register_command(hass, ws_request_history_clear)
     _LOGGER.debug("Registered Smart Assist WebSocket commands")
 
 
 def _get_subentry_config(data: dict[str, Any], key: str, default: Any = None) -> Any:
     """Get config value from subentry data with default."""
     return data.get(key, default)
+
+
+def _get_history_summary(entry_data: dict[str, Any], agent_id: str) -> dict[str, Any]:
+    """Get request history summary for a specific agent."""
+    request_history = entry_data.get("request_history")
+    if not request_history:
+        return {}
+    return request_history.get_summary_stats(agent_id=agent_id)
 
 
 def _build_agent_data(
@@ -113,6 +124,7 @@ def _build_agent_data(
         "metrics": metrics_dict,
         "cache_warming": cache_warming,
         "tools": tools_list,
+        "history_summary": _get_history_summary(entry_data, subentry_id),
     }
 
 
@@ -563,3 +575,109 @@ async def ws_subscribe(
 
     connection.subscriptions[msg["id"]] = unsub_all
     connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/request_history",
+        vol.Optional("agent_id"): str,
+        vol.Optional("limit", default=50): int,
+        vol.Optional("offset", default=0): int,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_request_history(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return request history entries."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        connection.send_result(msg["id"], {"entries": [], "total": 0})
+        return
+
+    entry = entries[0]
+    store = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("request_history")
+    if not store:
+        connection.send_result(msg["id"], {"entries": [], "total": 0})
+        return
+
+    agent_id = msg.get("agent_id")
+    limit = msg.get("limit", 50)
+    offset = msg.get("offset", 0)
+
+    history_entries, total = store.get_entries(
+        limit=limit, offset=offset, agent_id=agent_id
+    )
+    connection.send_result(msg["id"], {
+        "entries": history_entries,
+        "total": total,
+    })
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/tool_analytics",
+        vol.Optional("agent_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_tool_analytics(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return tool usage analytics."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        connection.send_result(msg["id"], {"tools": [], "summary": {}})
+        return
+
+    entry = entries[0]
+    store = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("request_history")
+    if not store:
+        connection.send_result(msg["id"], {"tools": [], "summary": {}})
+        return
+
+    agent_id = msg.get("agent_id")
+    tools = store.get_tool_analytics(agent_id=agent_id)
+    summary = store.get_summary_stats(agent_id=agent_id)
+
+    connection.send_result(msg["id"], {
+        "tools": tools,
+        "summary": summary,
+    })
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/request_history_clear",
+        vol.Optional("agent_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_request_history_clear(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Clear request history."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        connection.send_result(msg["id"], {"removed": 0})
+        return
+
+    entry = entries[0]
+    store = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("request_history")
+    if not store:
+        connection.send_result(msg["id"], {"removed": 0})
+        return
+
+    agent_id = msg.get("agent_id")
+    removed = store.clear(agent_id=agent_id)
+    await store._force_save()
+    connection.send_result(msg["id"], {"removed": removed})

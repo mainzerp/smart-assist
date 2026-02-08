@@ -132,10 +132,14 @@ class GroqClient(BaseLLMClient):
                                 _LOGGER.debug("Got usage in stream: %s", usage)
                                 self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                                 self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                                # Per-request tracking
+                                self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
+                                self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
                                 
                                 # Check for cached tokens
                                 prompt_details = usage.get("prompt_tokens_details", {})
                                 cached = prompt_details.get("cached_tokens", 0)
+                                self._metrics._last_cached_tokens = cached or 0
                                 prompt_tokens = usage.get("prompt_tokens", 0)
                                 _LOGGER.debug(
                                     "Groq cache stats: cached_tokens=%d, prompt_tokens=%d, cache_hit=%s",
@@ -246,9 +250,13 @@ class GroqClient(BaseLLMClient):
                             _LOGGER.debug("Got usage in full stream: %s", usage)
                             self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                             self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                            # Per-request tracking
+                            self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
+                            self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
                             
                             prompt_details = usage.get("prompt_tokens_details", {})
                             cached = prompt_details.get("cached_tokens", 0)
+                            self._metrics._last_cached_tokens = cached or 0
                             prompt_tokens = usage.get("prompt_tokens", 0)
                             _LOGGER.debug(
                                 "Groq cache stats: cached_tokens=%d, prompt_tokens=%d, cache_hit=%s",
@@ -358,9 +366,13 @@ class GroqClient(BaseLLMClient):
                 if usage := data.get("usage"):
                     self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
                     self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                    # Per-request tracking
+                    self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
+                    self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
                     
                     prompt_details = usage.get("prompt_tokens_details", {})
                     cached = prompt_details.get("cached_tokens", 0)
+                    self._metrics._last_cached_tokens = cached or 0
                     prompt_tokens = usage.get("prompt_tokens", 0)
                     _LOGGER.debug(
                         "Groq cache stats: cached_tokens=%d, prompt_tokens=%d, cache_hit=%s",

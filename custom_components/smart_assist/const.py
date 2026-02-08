@@ -85,6 +85,14 @@ DEFAULT_ENABLE_MEMORY: Final = False  # Disabled by default
 DEFAULT_ENABLE_AGENT_MEMORY: Final = True  # Enabled by default when memory is active
 DEFAULT_ENABLE_PRESENCE_HEURISTIC: Final = False  # Disabled by default
 
+# Request history storage constants
+REQUEST_HISTORY_STORAGE_KEY: Final = "smart_assist_request_history"
+REQUEST_HISTORY_STORAGE_VERSION: Final = 1
+REQUEST_HISTORY_MAX_ENTRIES: Final = 500
+REQUEST_HISTORY_INPUT_MAX_LENGTH: Final = 200
+REQUEST_HISTORY_RESPONSE_MAX_LENGTH: Final = 300
+REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH: Final = 100
+
 # Memory storage constants
 MEMORY_STORAGE_KEY: Final = "smart_assist_memory"
 MEMORY_STORAGE_VERSION: Final = 1

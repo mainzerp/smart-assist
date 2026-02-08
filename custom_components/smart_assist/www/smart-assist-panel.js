@@ -17,6 +17,10 @@ class SmartAssistPanel extends HTMLElement {
     this._memoryExpanded = null;
     this._memoryDetails = null;
     this._unsub = null;
+    this._historyData = null;
+    this._historyLoading = false;
+    this._toolAnalytics = null;
+    this._historyPage = 0;
   }
 
   set hass(hass) {
@@ -188,6 +192,7 @@ class SmartAssistPanel extends HTMLElement {
       + '<button class="tab-btn ' + (this._activeTab === "overview" ? "active" : "") + '" data-tab="overview">Overview</button>'
       + '<button class="tab-btn ' + (this._activeTab === "memory" ? "active" : "") + '" data-tab="memory">Memory</button>'
       + '<button class="tab-btn ' + (this._activeTab === "calendar" ? "active" : "") + '" data-tab="calendar">Calendar</button>'
+      + '<button class="tab-btn ' + (this._activeTab === "history" ? "active" : "") + '" data-tab="history">History</button>'
       + '</div>';
 
     // Tab content
@@ -197,6 +202,8 @@ class SmartAssistPanel extends HTMLElement {
       html += this._renderMemoryTab();
     } else if (this._activeTab === "calendar") {
       html += this._renderCalendarTab();
+    } else if (this._activeTab === "history") {
+      html += this._renderHistoryTab();
     }
 
     return html;
@@ -334,6 +341,140 @@ class SmartAssistPanel extends HTMLElement {
     return html;
   }
 
+  _renderHistoryTab() {
+    let html = '';
+
+    // Tool Analytics Section
+    if (this._toolAnalytics && this._toolAnalytics.tools) {
+      const tools = this._toolAnalytics.tools;
+      const summary = this._toolAnalytics.summary || {};
+
+      // Summary cards
+      html += '<div class="overview-grid">'
+        + '<div class="metric-card"><div class="label">Logged Requests</div><div class="value">'
+        + this._fmt(summary.total_requests || 0) + '</div></div>'
+        + '<div class="metric-card"><div class="label">Avg Response</div><div class="value">'
+        + Math.round(summary.avg_response_time_ms || 0) + '</div><div class="sub">ms</div></div>'
+        + '<div class="metric-card"><div class="label">Avg Tokens</div><div class="value">'
+        + this._fmt(summary.avg_tokens_per_request || 0) + '</div><div class="sub">per request</div></div>'
+        + '<div class="metric-card"><div class="label">Tool Calls</div><div class="value">'
+        + this._fmt(summary.total_tool_calls || 0) + '</div></div>'
+        + '</div>';
+
+      // Tool analytics table
+      if (tools.length > 0) {
+        let rows = '';
+        for (const t of tools) {
+          const srClass = this._successColor(t.success_rate || 100);
+          rows += '<tr>'
+            + '<td><strong>' + this._esc(t.name) + '</strong></td>'
+            + '<td>' + (t.total_calls || 0) + '</td>'
+            + '<td class="' + srClass + '">'
+            + (t.success_rate || 100).toFixed(1) + '%</td>'
+            + '<td>' + Math.round(t.average_execution_time_ms || 0) + ' ms</td>'
+            + '<td style="font-size:12px;color:var(--sa-text-secondary);">'
+            + (t.last_used ? new Date(t.last_used).toLocaleString() : '-') + '</td>'
+            + '</tr>';
+        }
+        html += '<div class="card"><h3>Tool Usage Analytics</h3>'
+          + '<table><thead><tr><th>Tool</th><th>Calls</th>'
+          + '<th>Success Rate</th><th>Avg Time</th><th>Last Used</th></tr></thead>'
+          + '<tbody>' + rows + '</tbody></table></div>';
+      }
+    }
+
+    // Request History Table
+    html += '<div class="card"><h3>Request History</h3>';
+
+    if (this._historyLoading) {
+      html += '<div class="loading">Loading history...</div>';
+    } else if (!this._historyData || !this._historyData.entries || this._historyData.entries.length === 0) {
+      html += '<div style="color:var(--sa-text-secondary);font-size:14px;padding:20px 0;">No request history yet. Entries will appear here as conversations are processed.</div>';
+    } else {
+      const entries = this._historyData.entries;
+      const total = this._historyData.total || 0;
+
+      let rows = '';
+      for (const e of entries) {
+        const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '-';
+        const tokens = (e.prompt_tokens || 0) + (e.completion_tokens || 0);
+        const toolNames = (e.tools_used || []).map(function(t) { return t.name; }).join(', ') || '-';
+        const statusCls = e.success ? 'success' : 'error';
+        const statusLabel = e.success ? 'OK' : 'Error';
+
+        rows += '<tr>'
+          + '<td style="white-space:nowrap;font-size:12px;">' + time + '</td>'
+          + '<td>' + this._esc(e.agent_name || '-') + '</td>'
+          + '<td>' + this._esc(e.user_id || '-') + '</td>'
+          + '<td title="' + this._esc(e.input_text || '') + '">'
+          + this._esc((e.input_text || '').substring(0, 60))
+          + ((e.input_text || '').length > 60 ? '...' : '') + '</td>'
+          + '<td>' + this._fmt(tokens) + '</td>'
+          + '<td>' + Math.round(e.response_time_ms || 0) + '</td>'
+          + '<td title="' + this._esc(toolNames) + '">'
+          + this._esc(toolNames.substring(0, 30))
+          + (toolNames.length > 30 ? '...' : '') + '</td>'
+          + '<td><span class="cal-status ' + statusCls + '">' + statusLabel + '</span></td>'
+          + '</tr>';
+      }
+
+      html += '<table><thead><tr>'
+        + '<th>Time</th><th>Agent</th><th>User</th>'
+        + '<th>Input</th><th>Tokens</th><th>Time (ms)</th>'
+        + '<th>Tools</th><th>Status</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table>';
+
+      // Pagination
+      const pageSize = 50;
+      const currentPage = this._historyPage || 0;
+      const totalPages = Math.ceil(total / pageSize);
+      if (totalPages > 1) {
+        html += '<div class="history-pagination">'
+          + '<button class="refresh-btn history-prev" '
+          + (currentPage <= 0 ? 'disabled' : '') + '>Previous</button>'
+          + '<span>' + (currentPage + 1) + ' / ' + totalPages + '</span>'
+          + '<button class="refresh-btn history-next" '
+          + (currentPage >= totalPages - 1 ? 'disabled' : '') + '>Next</button>'
+          + '</div>';
+      }
+    }
+
+    // Clear history button
+    html += '<div style="margin-top:12px;text-align:right;">'
+      + '<button class="refresh-btn" id="clear-history-btn">'
+      + 'Clear History</button></div>';
+    html += '</div>';
+
+    return html;
+  }
+
+  async _loadHistory() {
+    this._historyLoading = true;
+    this._render();
+    try {
+      const agentId = this._selectedAgent || undefined;
+      const offset = (this._historyPage || 0) * 50;
+      const [historyResult, analyticsResult] = await Promise.all([
+        this._hass.callWS({
+          type: "smart_assist/request_history",
+          agent_id: agentId,
+          limit: 50,
+          offset: offset,
+        }),
+        this._hass.callWS({
+          type: "smart_assist/tool_analytics",
+          agent_id: agentId,
+        }),
+      ]);
+      this._historyData = historyResult;
+      this._toolAnalytics = analyticsResult;
+    } catch (err) {
+      console.error("Failed to load history:", err);
+    }
+    this._historyLoading = false;
+    this._render();
+  }
+
   _fmtEventTime(timeStr) {
     if (!timeStr) return "";
     try {
@@ -450,6 +591,9 @@ class SmartAssistPanel extends HTMLElement {
     root.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         this._activeTab = btn.dataset.tab;
+        if (btn.dataset.tab === "history") {
+          this._loadHistory();
+        }
         this._render();
       });
     });
@@ -491,6 +635,36 @@ class SmartAssistPanel extends HTMLElement {
         e.stopPropagation();
         this._deleteMemory(btn.dataset.user, btn.dataset.memory);
       });
+    });
+
+    // History pagination
+    const prevBtn = root.querySelector(".history-prev");
+    if (prevBtn) prevBtn.addEventListener("click", () => {
+      this._historyPage = Math.max(0, (this._historyPage || 0) - 1);
+      this._loadHistory();
+    });
+    const nextBtn = root.querySelector(".history-next");
+    if (nextBtn) nextBtn.addEventListener("click", () => {
+      this._historyPage = (this._historyPage || 0) + 1;
+      this._loadHistory();
+    });
+
+    // Clear history
+    const clearBtn = root.getElementById("clear-history-btn");
+    if (clearBtn) clearBtn.addEventListener("click", async () => {
+      if (!confirm("Clear all request history? This cannot be undone.")) return;
+      try {
+        await this._hass.callWS({
+          type: "smart_assist/request_history_clear",
+          agent_id: this._selectedAgent || undefined,
+        });
+        this._historyData = null;
+        this._toolAnalytics = null;
+        this._historyPage = 0;
+        await this._loadHistory();
+      } catch (err) {
+        alert("Failed to clear history: " + (err.message || err));
+      }
     });
   }
 
@@ -684,7 +858,10 @@ class SmartAssistPanel extends HTMLElement {
       // States
       + ".loading,.error-msg{text-align:center;padding:60px 20px;color:var(--sa-text-secondary);font-size:16px;}"
       + ".error-msg{color:var(--sa-error);}"
-      + ".sub{font-size:11px;color:var(--sa-text-secondary);margin-top:4px;}";
+      + ".sub{font-size:11px;color:var(--sa-text-secondary);margin-top:4px;}"
+      // History pagination
+      + ".history-pagination{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:12px;font-size:13px;color:var(--sa-text-secondary);}"
+      + ".history-pagination button:disabled{opacity:0.4;cursor:not-allowed;}";
   }
 }
 
