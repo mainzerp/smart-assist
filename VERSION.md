@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.3  | 2026-02-08 |
+| Smart Assist | 1.11.4  | 2026-02-09 |
 
 ## Version History
+
+### v1.11.4 (2026-02-09) - Group Entity Handling Fix
+
+- Fix: Group entities (e.g., light groups) no longer incorrectly report "already on/off" when only some members are in the desired state
+- The "already on" early-return optimization now detects group entities and always forwards the service call to Home Assistant
+- `get_entity_state` now includes individual member states for group entities, giving the LLM full visibility
+- System prompt updated with group entity handling guidance
+- Files modified: `tools/unified_control.py`, `tools/entity_tools.py`, `conversation.py`
 
 ### v1.11.3 (2026-02-08) - History Tab Refresh Fix
 

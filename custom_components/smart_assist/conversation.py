@@ -1027,7 +1027,8 @@ When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
         parts.append("""
 ## Entity Control
 Use 'control' tool for lights, switches, covers, fans, climate, locks, etc.
-Domain auto-detected from entity_id.""")
+Domain auto-detected from entity_id.
+For group entities (containing multiple devices): always execute the action - do not skip based on group state alone, as group 'on' means any member is on, not all.""")
 
         # Music/Radio instructions - only if music_assistant tool is registered
         if (await self._get_tool_registry()).has_tool("music_assistant"):

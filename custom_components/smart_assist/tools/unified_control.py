@@ -215,11 +215,16 @@ class UnifiedControlTool(BaseTool):
         _LOGGER.debug("Entity %s current state: %s", entity_id, state.state)
         
         # Check if entity is already in the desired state (simple on/off actions without extras)
+        # IMPORTANT: Skip this optimization for group entities (light groups, groups, etc.)
+        # because a group state "on" means ANY member is on, not ALL members.
+        # Calling turn_on on a partially-on group correctly turns on all members.
+        is_group = isinstance(state.attributes.get("entity_id"), list)
         current = state.state
-        if action == "turn_on" and current == "on" and not any([brightness, color_temp, rgb_color, temperature, hvac_mode, preset, volume, source, position]):
-            return ToolResult(success=True, message=f"{entity_id} is already on.")
-        if action == "turn_off" and current == "off":
-            return ToolResult(success=True, message=f"{entity_id} is already off.")
+        if not is_group:
+            if action == "turn_on" and current == "on" and not any([brightness, color_temp, rgb_color, temperature, hvac_mode, preset, volume, source, position]):
+                return ToolResult(success=True, message=f"{entity_id} is already on.")
+            if action == "turn_off" and current == "off":
+                return ToolResult(success=True, message=f"{entity_id} is already off.")
         
         try:
             # Route to domain-specific handler
