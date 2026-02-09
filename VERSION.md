@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.6  | 2026-02-09 |
+| Smart Assist | 1.11.7  | 2026-02-09 |
 
 ## Version History
+
+### v1.11.7 (2026-02-09) - Dashboard Button Layout
+
+- Manual Refresh button moved left, icon-only with border
+- Auto-Refresh button icon-only (no text label), pulse dot indicator when active
+- Both buttons now visually consistent with outlined style
+- Files modified: `www/smart-assist-panel.js`, `VERSION.md`
 
 ### v1.11.6 (2026-02-09) - Dashboard UI Polish
 

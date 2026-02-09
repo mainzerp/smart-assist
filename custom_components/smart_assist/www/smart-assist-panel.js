@@ -241,14 +241,19 @@ class SmartAssistPanel extends HTMLElement {
 
     // Header
     let html = '<div class="header"><h1>Smart Assist</h1><div class="header-actions">'
-      + '<div class="auto-refresh-control">'
-      + '<button class="refresh-btn auto-refresh-toggle ' + (this._autoRefreshEnabled ? 'active' : '') + '" id="auto-refresh-btn" title="Auto-Refresh ' + (this._autoRefreshEnabled ? 'deaktivieren' : 'aktivieren') + '">'
-      + (this._autoRefreshEnabled ? '<span class="pulse-dot"></span>' : '')
-      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;">'
+      + '<button class="refresh-btn" id="refresh-btn" title="Jetzt aktualisieren">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">'
       + '<path d="M23 4v6h-6M1 20v-6h6"/>'
       + '<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>'
       + '</svg>'
-      + (this._autoRefreshEnabled ? this._autoRefreshInterval + 's' : 'Off')
+      + '</button>'
+      + '<div class="auto-refresh-control">'
+      + '<button class="refresh-btn auto-refresh-toggle ' + (this._autoRefreshEnabled ? 'active' : '') + '" id="auto-refresh-btn" title="Auto-Refresh ' + (this._autoRefreshEnabled ? 'deaktivieren' : 'aktivieren') + '">'
+      + (this._autoRefreshEnabled ? '<span class="pulse-dot"></span>' : '')
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">'
+      + '<path d="M23 4v6h-6M1 20v-6h6"/>'
+      + '<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>'
+      + '</svg>'
       + '</button>'
       + '<select class="auto-refresh-select" id="auto-refresh-interval" title="Auto-Refresh Intervall">'
       + '<option value="5"' + (this._autoRefreshInterval === 5 ? ' selected' : '') + '>5s</option>'
@@ -256,7 +261,6 @@ class SmartAssistPanel extends HTMLElement {
       + '<option value="30"' + (this._autoRefreshInterval === 30 ? ' selected' : '') + '>30s</option>'
       + '<option value="60"' + (this._autoRefreshInterval === 60 ? ' selected' : '') + '>60s</option>'
       + '</select></div>'
-      + '<button class="refresh-btn" id="refresh-btn">Refresh</button>'
       + '</div></div>';
 
     // Agent selector (if multiple)
