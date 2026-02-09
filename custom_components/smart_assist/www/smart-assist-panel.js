@@ -242,10 +242,15 @@ class SmartAssistPanel extends HTMLElement {
     // Header
     let html = '<div class="header"><h1>Smart Assist</h1><div class="header-actions">'
       + '<div class="auto-refresh-control">'
-      + '<button class="refresh-btn auto-refresh-toggle ' + (this._autoRefreshEnabled ? 'active' : '') + '" id="auto-refresh-btn">'
+      + '<button class="refresh-btn auto-refresh-toggle ' + (this._autoRefreshEnabled ? 'active' : '') + '" id="auto-refresh-btn" title="Auto-Refresh ' + (this._autoRefreshEnabled ? 'deaktivieren' : 'aktivieren') + '">'
       + (this._autoRefreshEnabled ? '<span class="pulse-dot"></span>' : '')
-      + 'Auto</button>'
-      + '<select class="auto-refresh-select" id="auto-refresh-interval">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;">'
+      + '<path d="M23 4v6h-6M1 20v-6h6"/>'
+      + '<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>'
+      + '</svg>'
+      + (this._autoRefreshEnabled ? this._autoRefreshInterval + 's' : 'Off')
+      + '</button>'
+      + '<select class="auto-refresh-select" id="auto-refresh-interval" title="Auto-Refresh Intervall">'
       + '<option value="5"' + (this._autoRefreshInterval === 5 ? ' selected' : '') + '>5s</option>'
       + '<option value="10"' + (this._autoRefreshInterval === 10 ? ' selected' : '') + '>10s</option>'
       + '<option value="30"' + (this._autoRefreshInterval === 30 ? ' selected' : '') + '>30s</option>'
@@ -887,7 +892,7 @@ class SmartAssistPanel extends HTMLElement {
       + ".metric-card .sub{font-size:11px;color:var(--sa-text-secondary);margin-top:4px;}"
       // Content grid
       + ".content-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;}"
-      + ".card{background:var(--sa-card-bg);border-radius:var(--sa-border-radius);padding:20px;box-shadow:var(--ha-card-box-shadow,0 2px 6px rgba(0,0,0,0.1));}"
+      + ".card{background:var(--sa-card-bg);border-radius:var(--sa-border-radius);padding:20px;box-shadow:var(--ha-card-box-shadow,0 2px 6px rgba(0,0,0,0.1));margin-bottom:16px;}"
       + ".card h3{margin:0 0 16px 0;font-size:16px;font-weight:500;color:var(--sa-text);}"
       // Bar chart
       + ".bar-row{display:flex;align-items:center;margin-bottom:8px;gap:8px;}"

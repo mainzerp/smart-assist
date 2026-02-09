@@ -4,9 +4,15 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.5  | 2026-02-09 |
+| Smart Assist | 1.11.6  | 2026-02-09 |
 
 ## Version History
+
+### v1.11.6 (2026-02-09) - Dashboard UI Polish
+
+- Fix: Added consistent spacing (margin-bottom) between all dashboard cards
+- Improved: Auto-Refresh button redesigned with reload icon, active interval display, and tooltip
+- Files modified: `www/smart-assist-panel.js`, `VERSION.md`
 
 ### v1.11.5 (2026-02-09) - Dashboard Auto-Refresh
 
