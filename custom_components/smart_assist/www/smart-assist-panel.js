@@ -21,6 +21,10 @@ class SmartAssistPanel extends HTMLElement {
     this._historyLoading = false;
     this._toolAnalytics = null;
     this._historyPage = 0;
+    this._autoRefreshEnabled = true;
+    this._autoRefreshInterval = 30;
+    this._autoRefreshTimer = null;
+    this._boundVisibilityHandler = null;
   }
 
   set hass(hass) {
@@ -29,6 +33,11 @@ class SmartAssistPanel extends HTMLElement {
     if (first) {
       this._fetchData();
       this._subscribe();
+      const stored = localStorage.getItem("smart_assist_auto_refresh");
+      this._autoRefreshEnabled = stored !== "false";
+      const storedInterval = localStorage.getItem("smart_assist_auto_refresh_interval");
+      if (storedInterval) this._autoRefreshInterval = parseInt(storedInterval, 10) || 30;
+      if (this._autoRefreshEnabled) this._startAutoRefresh();
     }
   }
 
@@ -36,9 +45,18 @@ class SmartAssistPanel extends HTMLElement {
   set panel(val) { this._panel = val; }
   set route(val) { this._route = val; }
 
-  connectedCallback() { this._render(); }
+  connectedCallback() {
+    this._render();
+    this._boundVisibilityHandler = () => this._handleVisibilityChange();
+    document.addEventListener("visibilitychange", this._boundVisibilityHandler);
+  }
 
   disconnectedCallback() {
+    this._stopAutoRefresh();
+    if (this._boundVisibilityHandler) {
+      document.removeEventListener("visibilitychange", this._boundVisibilityHandler);
+      this._boundVisibilityHandler = null;
+    }
     if (this._unsub) {
       try { this._unsub(); } catch (_) {}
       this._unsub = null;
@@ -75,6 +93,49 @@ class SmartAssistPanel extends HTMLElement {
       );
     } catch (err) {
       console.warn("Smart Assist: Could not subscribe to updates:", err);
+    }
+  }
+
+  _startAutoRefresh() {
+    this._stopAutoRefresh();
+    this._autoRefreshTimer = setInterval(() => {
+      this._fetchData();
+    }, this._autoRefreshInterval * 1000);
+  }
+
+  _stopAutoRefresh() {
+    if (this._autoRefreshTimer) {
+      clearInterval(this._autoRefreshTimer);
+      this._autoRefreshTimer = null;
+    }
+  }
+
+  _toggleAutoRefresh() {
+    this._autoRefreshEnabled = !this._autoRefreshEnabled;
+    localStorage.setItem("smart_assist_auto_refresh", String(this._autoRefreshEnabled));
+    if (this._autoRefreshEnabled) {
+      this._startAutoRefresh();
+    } else {
+      this._stopAutoRefresh();
+    }
+    this._render();
+  }
+
+  _setAutoRefreshInterval(seconds) {
+    this._autoRefreshInterval = seconds;
+    localStorage.setItem("smart_assist_auto_refresh_interval", String(seconds));
+    if (this._autoRefreshEnabled) {
+      this._startAutoRefresh();
+    }
+    this._render();
+  }
+
+  _handleVisibilityChange() {
+    if (document.hidden) {
+      this._stopAutoRefresh();
+    } else if (this._autoRefreshEnabled) {
+      this._fetchData();
+      this._startAutoRefresh();
     }
   }
 
@@ -179,7 +240,19 @@ class SmartAssistPanel extends HTMLElement {
     const agentIds = Object.keys(agents);
 
     // Header
-    let html = '<div class="header"><h1>Smart Assist</h1><div class="header-actions"><button class="refresh-btn" id="refresh-btn">Refresh</button></div></div>';
+    let html = '<div class="header"><h1>Smart Assist</h1><div class="header-actions">'
+      + '<div class="auto-refresh-control">'
+      + '<button class="refresh-btn auto-refresh-toggle ' + (this._autoRefreshEnabled ? 'active' : '') + '" id="auto-refresh-btn">'
+      + (this._autoRefreshEnabled ? '<span class="pulse-dot"></span>' : '')
+      + 'Auto</button>'
+      + '<select class="auto-refresh-select" id="auto-refresh-interval">'
+      + '<option value="5"' + (this._autoRefreshInterval === 5 ? ' selected' : '') + '>5s</option>'
+      + '<option value="10"' + (this._autoRefreshInterval === 10 ? ' selected' : '') + '>10s</option>'
+      + '<option value="30"' + (this._autoRefreshInterval === 30 ? ' selected' : '') + '>30s</option>'
+      + '<option value="60"' + (this._autoRefreshInterval === 60 ? ' selected' : '') + '>60s</option>'
+      + '</select></div>'
+      + '<button class="refresh-btn" id="refresh-btn">Refresh</button>'
+      + '</div></div>';
 
     // Agent selector (if multiple)
     if (agentIds.length > 1) {
@@ -589,6 +662,14 @@ class SmartAssistPanel extends HTMLElement {
     const refreshBtn = root.getElementById("refresh-btn");
     if (refreshBtn) refreshBtn.addEventListener("click", () => this._fetchData());
 
+    const autoRefreshBtn = root.getElementById("auto-refresh-btn");
+    if (autoRefreshBtn) autoRefreshBtn.addEventListener("click", () => this._toggleAutoRefresh());
+
+    const autoRefreshSelect = root.getElementById("auto-refresh-interval");
+    if (autoRefreshSelect) autoRefreshSelect.addEventListener("change", (e) => {
+      this._setAutoRefreshInterval(parseInt(e.target.value, 10));
+    });
+
     const retryBtn = root.getElementById("retry-btn");
     if (retryBtn) retryBtn.addEventListener("click", () => this._fetchData());
 
@@ -865,7 +946,13 @@ class SmartAssistPanel extends HTMLElement {
       + ".sub{font-size:11px;color:var(--sa-text-secondary);margin-top:4px;}"
       // History pagination
       + ".history-pagination{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:12px;font-size:13px;color:var(--sa-text-secondary);}"
-      + ".history-pagination button:disabled{opacity:0.4;cursor:not-allowed;}";
+      + ".history-pagination button:disabled{opacity:0.4;cursor:not-allowed;}"
+      + ".auto-refresh-control{display:flex;align-items:center;gap:4px;}"
+      + ".auto-refresh-toggle.active{border-color:var(--sa-success);color:var(--sa-success);}"
+      + ".auto-refresh-select{background:var(--sa-card-bg);border:1px solid var(--sa-divider);border-radius:20px;padding:5px 8px;color:var(--sa-text);font-size:12px;cursor:pointer;outline:none;}"
+      + ".auto-refresh-select:focus{border-color:var(--sa-primary);}"
+      + ".pulse-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--sa-success);margin-right:4px;animation:pulse 1.5s infinite;}"
+      + "@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}";
   }
 }
 

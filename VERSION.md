@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.4  | 2026-02-09 |
+| Smart Assist | 1.11.5  | 2026-02-09 |
 
 ## Version History
+
+### v1.11.5 (2026-02-09) - Dashboard Auto-Refresh
+
+- Feature: Dashboard now auto-refreshes data on a configurable interval (default: 30 seconds, ON by default)
+- Toggle button ("Auto") with pulsing green dot indicator when active
+- Interval dropdown: 5s, 10s, 30s, 60s
+- Settings persisted in localStorage (smart_assist_auto_refresh, smart_assist_auto_refresh_interval)
+- Auto-refresh pauses when browser tab is hidden and resumes (with immediate fetch) on return
+- Intervals properly cleaned up on component disconnect
+- Files modified: `www/smart-assist-panel.js`, `VERSION.md`
 
 ### v1.11.4 (2026-02-09) - Group Entity Handling Fix
 
