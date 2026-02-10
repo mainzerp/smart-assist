@@ -107,11 +107,13 @@ class GetEntitiesTool(BaseTool):
                     individual_ids.append(e.entity_id)
 
             if group_ids:
-                message += f"\n\nNote: {', '.join(group_ids)} are GROUP entities that control multiple members. Prefer controlling the group instead of individual members."
-
-            all_ids = [e.entity_id for e in entities[:20]]
-            ids_str = str(all_ids)
-            message += f"\nTip: To control all at once: control(entity_ids={ids_str}, action=...)"
+                # Group entity found - recommend using ONLY the group
+                message += f"\n\nIMPORTANT: {', '.join(group_ids)} = GROUP entity that already controls all members. Use control(entity_id=\"{group_ids[0]}\", action=...) - do NOT control individual members separately!"
+            else:
+                # No group entity - suggest batch control
+                all_ids = [e.entity_id for e in entities[:20]]
+                ids_str = str(all_ids)
+                message += f"\nTip: To control all at once: control(entity_ids={ids_str}, action=...)"
 
         return ToolResult(
             success=True,

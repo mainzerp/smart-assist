@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.12.2  | 2026-02-10 |
+| Smart Assist | 1.12.3  | 2026-02-10 |
 
 ## Version History
+
+### v1.12.3 (2026-02-10) - Group Entity Priority in Tool Hints
+
+- Fix: When get_entities finds a GROUP entity, only show group control tip (not batch tip with all IDs)
+- Previously: batch tip included group+members, causing LLM to batch-control individual entities instead of using the group
+- Now: GROUP entity hint says "use control(entity_id=group) - do NOT control individual members separately"
+- Batch tip (entity_ids) only shown when NO group entity exists
+- Files modified: `tools/entity_tools.py`
 
 ### v1.12.2 (2026-02-10) - Dynamic Area List in Prompt
 
