@@ -955,7 +955,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         parts.append("""
 ## Response Format
 - Keep responses brief (1-2 sentences for actions, 2-3 for information)
-- Confirm actions concisely: "Light is on." not "I have successfully turned on the light for you."
+- Confirm actions naturally and concisely - vary your wording, be creative but short (e.g. "Done!", "Light's on.", "All set.", "Living room light is on now.")
 - ALWAYS use tools to check states - never guess or assume values
 - Use plain text only - no markdown, no bullet points, no formatting
 - Responses are spoken aloud (TTS) - avoid URLs, special characters, abbreviations""")
@@ -1019,8 +1019,9 @@ When user says "it", "that", "the same one", check [Recent Entities] in context 
 ## Calendar Reminders [MANDATORY]
 When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
 - FIRST answer the user's actual question/request completely
-- THEN append the reminder at the END of your response as a separate sentence
-- Format: "[your complete answer]. Uebrigens, [reminder text]."
+- THEN append the reminder at the END of your response as a natural, separate sentence
+- Use a casual transition phrase in the response language (e.g. "By the way", "Oh, just so you know", "Also") - vary the phrasing each time, do not repeat the same transition
+- Format: "[your complete answer]. [transition phrase], [reminder text]."
 - NEVER start your response with the reminder or weave it into unrelated answers""")
         
         # Control instructions - compact
@@ -1448,12 +1449,8 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         now = datetime.now()
         time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
         
-        relevant_states = self._entity_manager.get_relevant_entity_states(user_text)
-        
         # Build context prefix for user message
         context_parts = [f"[Context: {time_context}]"]
-        if relevant_states:
-            context_parts.append(f"[States: {relevant_states}]")
         if calendar_context:
             _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
             context_parts.append(calendar_context)

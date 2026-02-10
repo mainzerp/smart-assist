@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.8  | 2026-02-10 |
+| Smart Assist | 1.11.9  | 2026-02-10 |
 
 ## Version History
+
+### v1.11.9 (2026-02-10) - Prompt Improvements
+
+- Improved: Response confirmations now encourage natural, varied phrasing instead of rigid examples
+- Fix: Calendar reminder transition phrase no longer hardcoded in German ("Uebrigens") -- now language-neutral with variation hint
+- Removed: Pre-injected entity states (`[States: ...]`) from user message context -- LLM now uses `get_entities` tool for all state lookups
+- Files modified: `conversation.py`
 
 ### v1.11.8 (2026-02-10) - Group Entity LLM Tool Call Fix
 
