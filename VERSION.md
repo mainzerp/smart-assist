@@ -4,9 +4,17 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.12.0  | 2026-02-10 |
+| Smart Assist | 1.12.1  | 2026-02-10 |
 
 ## Version History
+
+### v1.12.1 (2026-02-10) - Area Name Language Fix
+
+- Fix: LLM no longer translates area names to English (e.g. "kitchen" instead of "Kueche") when calling get_entities
+- Fix: Prompt examples now use local language area names to correctly prime the LLM
+- Added: Translation fallback in get_entities area matching (English->German) as safety net
+- Impact: Room commands now resolve in 2 iterations instead of 4 (no wasted retry)
+- Files modified: `conversation.py`, `tools/entity_tools.py`
 
 ### v1.12.0 (2026-02-10) - Batch Control and Smart Entity Discovery
 

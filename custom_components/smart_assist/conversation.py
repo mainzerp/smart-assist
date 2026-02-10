@@ -985,7 +985,8 @@ For ANY request involving devices, lights, switches, sensors, or any home entity
 
 STEP 1: Call get_entities(domain=...) to discover entities
   - Infer domain from intent: "light"/"lamp" -> domain="light"; "turn off kitchen" -> try "light", then "switch"
-  - Use area parameter for room context: "kitchen light" -> domain="light", area="kitchen"
+  - Use area parameter for room context: "Kueche" -> domain="light", area="Kueche"
+  - IMPORTANT: area names are in the HOME ASSISTANT configured language (usually local language, NOT English). Use the EXACT area name the user says, do NOT translate it.
   - Use name_filter for specific devices: "desk lamp" -> domain="light", name_filter="desk"
 STEP 2: Use the entity_id(s) from the results to call control() or get_entity_state()
 
@@ -993,23 +994,23 @@ You MUST call get_entities BEFORE any control action. You do NOT know any entity
 If get_entities returns no results, try related domains (light->switch, fan->switch, cover->switch) or broaden filters.
 
 EXAMPLE - Room command with group entity (PREFERRED):
-  User: "turn off kitchen" / "Kueche ausschalten"
-  -> get_entities(domain="light", area="kitchen")
-  -> Result includes light.kitchen [GROUP, 5 members] + individual members
-  -> control(entity_id="light.kitchen", action="turn_off")  // Group controls all members!
+  User: "Kueche ausschalten"
+  -> get_entities(domain="light", area="Kueche")
+  -> Result includes light.kuche [GROUP, 5 members] + individual members
+  -> control(entity_id="light.kuche", action="turn_off")  // Group controls all members!
   -> Response: (confirm in configured language)
 
 EXAMPLE - Room command without group entity (use batch):
-  User: "turn off bedroom"
-  -> get_entities(domain="light", area="bedroom")
-  -> Result: light.bedroom_ceiling, light.bedroom_lamp (no GROUP entity)
-  -> control(entity_ids=["light.bedroom_ceiling", "light.bedroom_lamp"], action="turn_off")
+  User: "Schlafzimmer aus"
+  -> get_entities(domain="light", area="Schlafzimmer")
+  -> Result: light.schlafzimmer_decke, light.nachttischlampe (no GROUP entity)
+  -> control(entity_ids=["light.schlafzimmer_decke", "light.nachttischlampe"], action="turn_off")
 
 EXAMPLE - Specific device:
-  User: "turn on desk lamp" / "Schreibtischlampe an"
-  -> get_entities(domain="light", name_filter="desk")
-  -> Result: light.desk_lamp
-  -> control(entity_id="light.desk_lamp", action="turn_on")
+  User: "Schreibtischlampe an"
+  -> get_entities(domain="light", name_filter="Schreibtisch")
+  -> Result: light.schreibtischlampe
+  -> control(entity_id="light.schreibtischlampe", action="turn_on")
 
 DECISION LOGIC:
 1. If a GROUP entity matches the user's room/area intent -> control just the group (it handles members internally)

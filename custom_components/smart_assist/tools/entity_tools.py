@@ -62,12 +62,33 @@ class GetEntitiesTool(BaseTool):
         # Apply optional filters
         if area:
             area_lower = area.lower()
-            # Try exact match first, fall back to substring
+            # Try exact match first, fall back to substring, then translation fallback
             exact = [e for e in entities if e.area_name and e.area_name.lower() == area_lower]
             if exact:
                 entities = exact
             else:
-                entities = [e for e in entities if e.area_name and area_lower in e.area_name.lower()]
+                substring = [e for e in entities if e.area_name and area_lower in e.area_name.lower()]
+                if substring:
+                    entities = substring
+                else:
+                    # Translation fallback: LLM sometimes uses English area names
+                    area_translations = {
+                        "kitchen": "küche", "bedroom": "schlafzimmer",
+                        "living room": "wohnzimmer", "bathroom": "badezimmer",
+                        "hallway": "flur", "garage": "garage",
+                        "office": "büro", "garden": "garten",
+                        "balcony": "balkon", "basement": "keller",
+                        "attic": "dachboden", "dining room": "esszimmer",
+                        "laundry": "waschküche", "nursery": "kinderzimmer",
+                        "guest room": "gästezimmer", "corridor": "flur",
+                    }
+                    translated = area_translations.get(area_lower)
+                    if translated:
+                        exact_t = [e for e in entities if e.area_name and e.area_name.lower() == translated]
+                        if exact_t:
+                            entities = exact_t
+                        else:
+                            entities = [e for e in entities if e.area_name and translated in e.area_name.lower()]
         if name_filter:
             filter_lower = name_filter.lower()
             entities = [e for e in entities if filter_lower in e.friendly_name.lower()]
