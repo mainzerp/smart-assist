@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.9  | 2026-02-10 |
+| Smart Assist | 1.11.10 | 2026-02-10 |
 
 ## Version History
+
+### v1.11.10 (2026-02-10) - Smart Discovery Reliability
+
+- Fix: LLM no longer returns empty responses in smart_discovery mode (e.g. "Kueche ausschalten")
+- Enhanced: Entity Discovery prompt moved to position #2 (HIGHEST PRIORITY) with step-by-step workflow and concrete example
+- Enhanced: Entity Control section now includes discovery reminder in smart_discovery mode
+- Added: Empty-response retry mechanism -- if LLM returns empty on first iteration, a nudge message triggers re-evaluation
+- Added: Discovery mode hint injected into user message context for additional priming
+- Files modified: `conversation.py`
 
 ### v1.11.9 (2026-02-10) - Prompt Improvements
 

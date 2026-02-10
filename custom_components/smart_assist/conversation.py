@@ -643,6 +643,26 @@ class SmartAssistConversationEntity(ConversationEntity):
             
             # If no tool calls, we're done
             if not tool_calls:
+                # Retry once if response is empty/useless on first iteration
+                # This handles cases where the LLM doesn't know what to do (e.g., smart_discovery with no entity context)
+                if iteration == 1 and not final_content.strip():
+                    _LOGGER.warning(
+                        "[USER-REQUEST] Empty response with no tool calls on first iteration. "
+                        "Retrying with nudge."
+                    )
+                    # Add a system nudge to push the LLM toward tool usage
+                    working_messages.append(
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=(
+                                "You returned an empty response. The user is asking you to do something. "
+                                "Use the get_entities tool to discover entities, then use control to act on them. "
+                                "Call a tool now."
+                            ),
+                        )
+                    )
+                    continue  # Re-enter the while loop for another LLM call
+
                 _LOGGER.debug("[USER-REQUEST] Complete (iteration %d, no tool calls)", iteration)
                 return final_content, await_response_called, iteration, all_tool_call_records
             
@@ -951,6 +971,35 @@ class SmartAssistConversationEntity(ConversationEntity):
 ## LANGUAGE REQUIREMENT [CRITICAL]
 {language_instruction} This applies to ALL responses including follow-up questions, confirmations, and error messages. Never mix languages.""")
         
+        # Entity discovery strategy (placed early for maximum LLM attention)
+        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
+        if discovery_mode == "smart_discovery":
+            parts.append("""
+## MANDATORY WORKFLOW -- Entity Discovery [HIGHEST PRIORITY]
+You have NO entity information. You do NOT know any entity IDs.
+For ANY request involving devices, lights, switches, sensors, or any home entity:
+
+STEP 1: Call get_entities(domain=...) to discover entities
+  - Infer domain from intent: "light"/"lamp" -> domain="light"; "turn off kitchen" -> try "light", then "switch"
+  - Use area parameter for room context: "kitchen light" -> domain="light", area="kitchen"
+  - Use name_filter for specific devices: "desk lamp" -> domain="light", name_filter="desk"
+STEP 2: Use the entity_id(s) from the results to call control() or get_entity_state()
+
+You MUST call get_entities BEFORE any control action. You do NOT know any entity IDs without it.
+If get_entities returns no results, try related domains (light->switch, fan->switch, cover->switch) or broaden filters.
+
+EXAMPLE:
+  User: "turn off kitchen"
+  -> get_entities(domain="light", area="kitchen")
+  -> Result: light.kitchen_ceiling, light.kitchen_counter
+  -> control(entity_id="light.kitchen_ceiling", action="turn_off")
+  -> control(entity_id="light.kitchen_counter", action="turn_off")
+  -> Response: (confirm in configured language)
+
+NEVER respond without calling tools when the user asks about devices.
+NEVER fabricate entity IDs. NEVER say "I don't have access to entities."
+- NEVER use entity_ids from [Recent Entities] for new requests - those are ONLY for resolving pronouns ("it", "that", "the same one")""")
+
         # Response format guidelines
         parts.append("""
 ## Response Format
@@ -983,25 +1032,8 @@ If your response ends with a question mark (?), you MUST call await_response."""
 - Keep responses action-focused
 - If uncertain about entity, ask for clarification""")
         
-        # Entity lookup strategy
-        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
-        if discovery_mode == "smart_discovery":
-            parts.append("""
-## Entity Lookup [CRITICAL]
-There is NO entity index in this prompt. You MUST discover entities using tools:
-1. Use get_entities(domain) to find entities - ALWAYS specify a domain
-2. Use area and name_filter to narrow results based on user context
-3. If no results found: BROADEN your search before giving up
-   - Try related domains: lights are often registered as switch, fans as switch, etc.
-   - Try without area filter (area names may differ)
-   - Try a broader name_filter or no name_filter
-- NEVER guess or fabricate entity_ids - always discover them first
-- NEVER claim you performed an action without actually calling the control tool
-- NEVER use entity_ids from [Recent Entities] for new requests - those are ONLY for resolving pronouns ("it", "that", "the same one")
-- Infer domain from user intent: "light"/"lamp" -> try light first, then switch
-- Infer area from user context: "kitchen light" -> domain=light, area=kitchen
-- Domain fallback map: light->switch, fan->switch, cover->switch, lock->switch""")
-        else:
+        # Entity lookup strategy (smart_discovery handled above, near top of prompt)
+        if discovery_mode != "smart_discovery":
             parts.append("""
 ## Entity Lookup
 1. Check ENTITY INDEX first to find entity_ids
@@ -1025,8 +1057,13 @@ When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
 - NEVER start your response with the reminder or weave it into unrelated answers""")
         
         # Control instructions - compact
-        parts.append("""
-## Entity Control [CRITICAL]
+        # In smart_discovery mode, add reminder that get_entities comes first
+        control_preamble = ""
+        if discovery_mode == "smart_discovery":
+            control_preamble = "\nREMINDER: You must call get_entities() first to discover entity IDs before using control.\n"
+
+        parts.append(f"""
+## Entity Control [CRITICAL]{control_preamble}
 Use 'control' tool for lights, switches, covers, fans, climate, locks, etc.
 Domain auto-detected from entity_id.
 
@@ -1451,6 +1488,12 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         
         # Build context prefix for user message
         context_parts = [f"[Context: {time_context}]"]
+
+        # In smart_discovery mode, add reminder in user context
+        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
+        if discovery_mode == "smart_discovery":
+            context_parts.append("[Entity Discovery Mode: Use get_entities tool to find entities before controlling them]")
+
         if calendar_context:
             _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
             context_parts.append(calendar_context)
