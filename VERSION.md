@@ -4,11 +4,20 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.12.1  | 2026-02-10 |
+| Smart Assist | 1.12.2  | 2026-02-10 |
 
 ## Version History
 
-### v1.12.1 (2026-02-10) - Area Name Language Fix
+### v1.12.2 (2026-02-10) - Dynamic Area List in Prompt
+
+- Reverted v1.12.1 hardcoded language in prompt examples (language-neutral again)
+- Reverted hardcoded English->German translation fallback in get_entities
+- New: System prompt now includes dynamic AVAILABLE AREAS list from Home Assistant area registry
+- LLM sees exact area names and matches user intent to correct area - works for any language
+- Minimal token cost (~20-30 tokens for typical setups)
+- Files modified: `conversation.py`, `tools/entity_tools.py`
+
+### v1.12.1 (2026-02-10) - Area Name Language Fix (reverted in v1.12.2)
 
 - Fix: LLM no longer translates area names to English (e.g. "kitchen" instead of "Kueche") when calling get_entities
 - Fix: Prompt examples now use local language area names to correctly prime the LLM

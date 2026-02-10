@@ -985,8 +985,7 @@ For ANY request involving devices, lights, switches, sensors, or any home entity
 
 STEP 1: Call get_entities(domain=...) to discover entities
   - Infer domain from intent: "light"/"lamp" -> domain="light"; "turn off kitchen" -> try "light", then "switch"
-  - Use area parameter for room context: "Kueche" -> domain="light", area="Kueche"
-  - IMPORTANT: area names are in the HOME ASSISTANT configured language (usually local language, NOT English). Use the EXACT area name the user says, do NOT translate it.
+  - Use area parameter for room context: use the EXACT area name from the AVAILABLE AREAS list below
   - Use name_filter for specific devices: "desk lamp" -> domain="light", name_filter="desk"
 STEP 2: Use the entity_id(s) from the results to call control() or get_entity_state()
 
@@ -994,23 +993,23 @@ You MUST call get_entities BEFORE any control action. You do NOT know any entity
 If get_entities returns no results, try related domains (light->switch, fan->switch, cover->switch) or broaden filters.
 
 EXAMPLE - Room command with group entity (PREFERRED):
-  User: "Kueche ausschalten"
-  -> get_entities(domain="light", area="Kueche")
-  -> Result includes light.kuche [GROUP, 5 members] + individual members
-  -> control(entity_id="light.kuche", action="turn_off")  // Group controls all members!
+  User: "turn off kitchen"
+  -> get_entities(domain="light", area="<matching area from AVAILABLE AREAS>")
+  -> Result includes light.kitchen [GROUP, 5 members] + individual members
+  -> control(entity_id="light.kitchen", action="turn_off")  // Group controls all members!
   -> Response: (confirm in configured language)
 
 EXAMPLE - Room command without group entity (use batch):
-  User: "Schlafzimmer aus"
-  -> get_entities(domain="light", area="Schlafzimmer")
-  -> Result: light.schlafzimmer_decke, light.nachttischlampe (no GROUP entity)
-  -> control(entity_ids=["light.schlafzimmer_decke", "light.nachttischlampe"], action="turn_off")
+  User: "turn off bedroom"
+  -> get_entities(domain="light", area="<matching area from AVAILABLE AREAS>")
+  -> Result: light.bedroom_ceiling, light.bedroom_lamp (no GROUP entity)
+  -> control(entity_ids=["light.bedroom_ceiling", "light.bedroom_lamp"], action="turn_off")
 
 EXAMPLE - Specific device:
-  User: "Schreibtischlampe an"
-  -> get_entities(domain="light", name_filter="Schreibtisch")
-  -> Result: light.schreibtischlampe
-  -> control(entity_id="light.schreibtischlampe", action="turn_on")
+  User: "turn on desk lamp"
+  -> get_entities(domain="light", name_filter="desk")
+  -> Result: light.desk_lamp
+  -> control(entity_id="light.desk_lamp", action="turn_on")
 
 DECISION LOGIC:
 1. If a GROUP entity matches the user's room/area intent -> control just the group (it handles members internally)
@@ -1020,6 +1019,16 @@ DECISION LOGIC:
 NEVER respond without calling tools when the user asks about devices.
 NEVER fabricate entity IDs. NEVER say "I don't have access to entities."
 - NEVER use entity_ids from [Recent Entities] for new requests - those are ONLY for resolving pronouns ("it", "that", "the same one")""")
+
+            # Inject available area names so LLM uses correct names
+            from homeassistant.helpers import area_registry as ar
+            area_reg = ar.async_get(self.hass)
+            area_names = sorted(area.name for area in area_reg.async_list_areas())
+            if area_names:
+                parts.append(f"""
+## AVAILABLE AREAS
+Use these EXACT area names for get_entities(area=...): {', '.join(area_names)}
+Match the user's spoken room/area to the closest name from this list.""")
 
         # Response format guidelines
         parts.append("""
