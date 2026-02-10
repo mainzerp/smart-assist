@@ -40,9 +40,28 @@ class EntityState:
     state: str
     attributes: dict[str, Any]
 
-    def to_compact_string(self) -> str:
-        """Convert to compact string representation."""
+    def to_compact_string(self, hass: Any = None) -> str:
+        """Convert to compact string representation.
+        
+        Args:
+            hass: Optional HomeAssistant instance. If provided, group member
+                  states are resolved to show on/off breakdown.
+        """
         parts = [f"{self.entity_id}: {self.state}"]
+
+        # Check if this is a group entity (has member entity_ids)
+        member_ids = self.attributes.get("entity_id")
+        if isinstance(member_ids, list) and member_ids:
+            # Show group indicator with member on/off breakdown
+            if hass is not None:
+                on_count = sum(
+                    1 for mid in member_ids
+                    if (s := hass.states.get(mid)) and s.state == "on"
+                )
+                off_count = len(member_ids) - on_count
+                parts.append(f"GROUP({len(member_ids)} members: {on_count} on, {off_count} off)")
+            else:
+                parts.append(f"GROUP({len(member_ids)} members)")
 
         # Add domain-specific key attributes
         domain = self.entity_id.split(".")[0]
@@ -283,9 +302,9 @@ class EntityManager:
         if not states:
             return "No relevant entities found for this query."
 
-        lines = ["Current states:"]
+        lines = ["Current states (info only - always use control tool for actions):"]
         for state in states:
-            lines.append(f"  {state.to_compact_string()}")
+            lines.append(f"  {state.to_compact_string(hass=self._hass)}")
 
         return "\n".join(lines)
 
@@ -296,6 +315,6 @@ class EntityManager:
 
         lines = ["All entity states:"]
         for state in states:
-            lines.append(f"  {state.to_compact_string()}")
+            lines.append(f"  {state.to_compact_string(hass=self._hass)}")
 
         return "\n".join(lines)

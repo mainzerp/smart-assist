@@ -117,7 +117,7 @@ class GetEntityStateTool(BaseTool):
             attributes=dict(state.attributes),
         )
 
-        message = entity_state.to_compact_string()
+        message = entity_state.to_compact_string(hass=self._hass)
 
         # For group entities, include member states so the LLM can see
         # which members are on/off (group state "on" = ANY member on)
@@ -132,7 +132,7 @@ class GetEntityStateTool(BaseTool):
                         state=member_state.state,
                         attributes=dict(member_state.attributes),
                     )
-                    member_lines.append(f"  {member_es.to_compact_string()}")
+                    member_lines.append(f"  {member_es.to_compact_string(hass=self._hass)}")
                 else:
                     member_lines.append(f"  {member_id}: unavailable")
             message += f"\nGroup members ({len(member_ids)}):\n" + "\n".join(member_lines)

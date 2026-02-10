@@ -1025,10 +1025,16 @@ When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
         
         # Control instructions - compact
         parts.append("""
-## Entity Control
+## Entity Control [CRITICAL]
 Use 'control' tool for lights, switches, covers, fans, climate, locks, etc.
 Domain auto-detected from entity_id.
-For group entities (containing multiple devices): always execute the action - do not skip based on group state alone, as group 'on' means any member is on, not all.""")
+
+MANDATORY RULES:
+- ALWAYS call the 'control' tool for ANY on/off/toggle request. NEVER skip the tool call.
+- Do NOT say "already on" or "already off" based on context states - the tool handles idempotency.
+- Group entities (marked GROUP in states): state 'on' means ANY member is on, NOT all. Always call the tool.
+- Context states are informational ONLY. The tool decides whether action is needed.
+- If user says "turn on X" → call control(entity_id, action=turn_on). Always. No exceptions.""")
 
         # Music/Radio instructions - only if music_assistant tool is registered
         if (await self._get_tool_registry()).has_tool("music_assistant"):

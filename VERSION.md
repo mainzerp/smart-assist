@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.7  | 2026-02-09 |
+| Smart Assist | 1.11.8  | 2026-02-10 |
 
 ## Version History
+
+### v1.11.8 (2026-02-10) - Group Entity LLM Tool Call Fix
+
+- Fix: LLM now always calls the control tool for group entities, even when context shows "on" state
+- Fix: Group entities display member breakdown (e.g., "GROUP(5 members: 3 on, 2 off)") so LLM understands mixed states
+- Enhanced: System prompt strengthened with [CRITICAL] rules to prevent tool call skipping based on context states
+- Enhanced: Context states now explicitly labeled as "info only - always use control tool for actions"
+- Impact: Eliminates cases where LLM says "already on/off" without actually calling the tool
+- Files modified: `context/entity_manager.py`, `conversation.py`, `tools/entity_tools.py`, `VERSION.md`
 
 ### v1.11.7 (2026-02-09) - Dashboard Button Layout
 
