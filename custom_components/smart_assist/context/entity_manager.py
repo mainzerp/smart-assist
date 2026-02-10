@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -110,6 +111,9 @@ class EntityManager:
         self._exposed_only = exposed_only
         self._entity_index_cache: list[EntityInfo] | None = None
         self._entity_index_hash: str | None = None
+        self._entity_index_text: str | None = None
+        self._entity_index_last_check: float = 0.0
+        self._entity_index_ttl: float = 30.0  # seconds
 
     def _get_area_name(self, entity_id: str) -> str | None:
         """Get area name for an entity."""
@@ -179,25 +183,39 @@ class EntityManager:
     def get_entity_index(self, force_refresh: bool = False) -> tuple[str, str]:
         """Get entity index for caching and its hash.
 
+        Uses a time-based TTL to avoid rebuilding on every call.
+
         Returns:
             Tuple of (index_text, hash)
         """
-        current_entities = self.get_all_entities()
-        current_hash = self._compute_index_hash(current_entities)
+        now = time.monotonic()
 
-        # Return cached if hash matches
+        # Return cached if TTL not expired
         if (
             not force_refresh
-            and self._entity_index_cache is not None
+            and self._entity_index_text is not None
+            and self._entity_index_hash is not None
+            and (now - self._entity_index_last_check) < self._entity_index_ttl
+        ):
+            return self._entity_index_text, self._entity_index_hash
+
+        current_entities = self.get_all_entities()
+        current_hash = self._compute_index_hash(current_entities)
+        self._entity_index_last_check = now
+
+        # Return cached text if hash matches (entities unchanged)
+        if (
+            self._entity_index_text is not None
             and self._entity_index_hash == current_hash
         ):
-            return self._format_entity_index(self._entity_index_cache), current_hash
+            return self._entity_index_text, current_hash
 
         # Update cache
         self._entity_index_cache = current_entities
         self._entity_index_hash = current_hash
+        self._entity_index_text = self._format_entity_index(current_entities)
 
-        return self._format_entity_index(current_entities), current_hash
+        return self._entity_index_text, current_hash
 
     def _compute_index_hash(self, entities: list[EntityInfo]) -> str:
         """Compute hash of entity index for cache invalidation."""

@@ -54,8 +54,7 @@ class WebSearchTool(BaseTool):
                 # New ddgs API: DDGS().text() returns list directly
                 return DDGS().text(query, max_results=max_results)
 
-            import asyncio
-            results = await asyncio.get_event_loop().run_in_executor(None, search)
+            results = await self._hass.async_add_executor_job(search)
 
             if not results:
                 return ToolResult(

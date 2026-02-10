@@ -262,19 +262,19 @@ class CalendarReminderTracker:
         is_all_day = self._is_all_day_event(start_str)
 
         if current_stage == ReminderStage.DAY_BEFORE:
-            # All-day events: "Morgen hast du 'Event'" (no time)
-            # Timed events: "Morgen um HH:MM hast du 'Event'"
+            # All-day events: "Tomorrow: 'Event'" (no time)
+            # Timed events: "Tomorrow at HH:MM: 'Event'"
             if is_all_day:
                 if owner:
-                    reminder_text = f"{owner} hat morgen '{summary}'"
+                    reminder_text = f"{owner} has '{summary}' tomorrow"
                 else:
-                    reminder_text = f"Morgen hast du '{summary}'"
+                    reminder_text = f"Tomorrow: '{summary}'"
             else:
                 time_str = event_start.strftime("%H:%M")
                 if owner:
-                    reminder_text = f"{owner} hat morgen um {time_str} '{summary}'"
+                    reminder_text = f"{owner} has '{summary}' tomorrow at {time_str}"
                 else:
-                    reminder_text = f"Morgen um {time_str} hast du '{summary}'"
+                    reminder_text = f"Tomorrow at {time_str}: '{summary}'"
         elif current_stage == ReminderStage.HOURS_BEFORE:
             # Make both timezone-aware or naive for calculation
             if event_start.tzinfo is None:
@@ -283,9 +283,9 @@ class CalendarReminderTracker:
                 now_calc = dt_util.as_local(now)
             hours = int((event_start - now_calc).total_seconds() / 3600)
             if owner:
-                reminder_text = f"{owner} hat in etwa {hours} Stunden '{summary}'"
+                reminder_text = f"{owner} has '{summary}' in about {hours} hours"
             else:
-                reminder_text = f"In etwa {hours} Stunden hast du '{summary}'"
+                reminder_text = f"In about {hours} hours: '{summary}'"
         elif current_stage == ReminderStage.HOUR_BEFORE:
             # Make both timezone-aware or naive for calculation
             if event_start.tzinfo is None:
@@ -294,9 +294,9 @@ class CalendarReminderTracker:
                 now_calc = dt_util.as_local(now)
             minutes = int((event_start - now_calc).total_seconds() / 60)
             if owner:
-                reminder_text = f"{owner} hat in {minutes} Minuten '{summary}'"
+                reminder_text = f"{owner} has '{summary}' in {minutes} minutes"
             else:
-                reminder_text = f"In {minutes} Minuten hast du '{summary}'"
+                reminder_text = f"In {minutes} minutes: '{summary}'"
         else:
             return False, ""
 

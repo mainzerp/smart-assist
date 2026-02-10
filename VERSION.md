@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.12.4  | 2026-02-10 |
+| Smart Assist | 1.12.5  | 2026-02-10 |
 
 ## Version History
+
+### v1.12.5 (2026-02-10) - Code Review Fixes (Phase 1-3)
+
+- Fix: tokens_used in record_conversation now uses per-request tokens instead of hardcoded 0
+- Fix: Replaced private auth API (_store._users) with async_get_user() in user_resolver.py
+- Fix: Replaced deprecated asyncio.get_event_loop().run_in_executor() with hass.async_add_executor_job() in search_tools.py
+- Fix: datetime.now() replaced with dt_util.now() for HA timezone consistency (conversation.py, memory.py)
+- Fix: Hardcoded German strings replaced with English in calendar_tools.py and calendar_reminder.py
+- Fix: Fragile duration string-parsing replaced with integer-based duration_mins in entity_tools.py
+- Fix: WebSocket send_message wrapped in try/except for closed connections in websocket.py
+- Perf: Entity index caching with 30s TTL in entity_manager.py (avoids rebuilding on every request)
+- Quality: Removed ~340 lines of dead legacy tool classes from entity_tools.py
+- Quality: Moved 5 inline imports to module level in conversation.py (re, time, timedelta, dt_util)
+- Files modified: conversation.py, user_resolver.py, search_tools.py, memory.py, entity_tools.py, calendar_tools.py, calendar_reminder.py, entity_manager.py, websocket.py
 
 ### v1.12.4 (2026-02-10) - Prevent Redundant Domain Search
 

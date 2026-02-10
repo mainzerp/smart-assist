@@ -43,7 +43,7 @@ class UserResolver:
         """Update user-satellite mappings (e.g., after config change)."""
         self._user_mappings = mappings
 
-    def resolve_user(
+    async def resolve_user(
         self,
         satellite_id: str | None = None,
         device_id: str | None = None,
@@ -63,7 +63,7 @@ class UserResolver:
         """
         # Layer 1: Companion App (authenticated HA user)
         if context_user_id:
-            user_name = self._resolve_ha_user(context_user_id)
+            user_name = await self._resolve_ha_user(context_user_id)
             if user_name:
                 _LOGGER.debug("User resolved via HA auth: %s", user_name)
                 return user_name
@@ -94,14 +94,12 @@ class UserResolver:
         _LOGGER.debug("User resolved to default (no identification available)")
         return "default"
 
-    def _resolve_ha_user(self, ha_user_id: str) -> str | None:
+    async def _resolve_ha_user(self, ha_user_id: str) -> str | None:
         """Map HA user_id to a memory user name."""
         try:
-            # HA stores users in the auth module
-            # We use the user's display name as the memory user_id
-            for user in self._hass.auth._store._users.values():
-                if user.id == ha_user_id and user.name:
-                    return user.name.lower().strip()
+            user = await self._hass.auth.async_get_user(ha_user_id)
+            if user and user.name:
+                return user.name.lower().strip()
         except Exception:
             _LOGGER.debug("Could not resolve HA user_id: %s", ha_user_id)
         return None

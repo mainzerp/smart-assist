@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import time
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Literal, TYPE_CHECKING
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ try:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers import intent, device_registry as dr
     from homeassistant.helpers.dispatcher import async_dispatcher_send
+    from homeassistant.util import dt as dt_util
     from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 except ImportError as e:
     _LOGGER.error("Smart Assist: Failed to import HA core modules: %s", e)
@@ -361,8 +364,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         This method uses real token-by-token streaming for faster TTS responses.
         The assistant pipeline can start TTS synthesis before the full response is ready.
         """
-        import time as _time
-        request_start_time = _time.monotonic()
+        request_start_time = time.monotonic()
         
         _LOGGER.debug(
             "[USER-REQUEST] New message: user_id=%s, text_length=%d, language=%s, satellite=%s, device=%s",
@@ -403,7 +405,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             user_input.conversation_id or ""
         )
         
-        user_id = self._user_resolver.resolve_user(
+        user_id = await self._user_resolver.resolve_user(
             satellite_id=satellite_id,
             device_id=device_id,
             session_user_id=session_user_id,
@@ -1213,9 +1215,6 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             return ""
         
         try:
-            from datetime import timedelta
-            from homeassistant.util import dt as dt_util
-            
             now = dt_util.now()
             # Get events for next 28 hours to cover day-before reminders
             end = now + timedelta(hours=28)
@@ -1521,7 +1520,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
 
         # 6. Current context (dynamic - NOT cached) + user message
         # Combined into single user message to keep dynamic content at the end
-        now = datetime.now()
+        now = dt_util.now()
         time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
         
         # Build context prefix for user message
@@ -1567,8 +1566,6 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
 
         Returns response string if handled, None if LLM is needed.
         """
-        import re
-        
         text_lower = text.lower().strip()
 
         # "turn on/off the [entity]" pattern
@@ -1625,18 +1622,15 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         
         # Record conversation stats for user
         if self._memory_enabled and self._memory_manager and user_id != "default":
-            tokens_used = 0
+            per_request_tokens = 0
             if self._llm_client and hasattr(self._llm_client, "metrics"):
-                # Approximate tokens from last request
                 m = self._llm_client.metrics
-                tokens_used = (m.total_prompt_tokens or 0) + (m.total_completion_tokens or 0)
-            self._memory_manager.record_conversation(user_id, tokens_used=0)
+                per_request_tokens = getattr(m, "_last_prompt_tokens", 0) + getattr(m, "_last_completion_tokens", 0)
+            self._memory_manager.record_conversation(user_id, tokens_used=per_request_tokens)
         
         # Record request history
         if request_start_time is not None:
-            import time as _time
-            from datetime import datetime as _datetime
-            elapsed_ms = (_time.monotonic() - request_start_time) * 1000
+            elapsed_ms = (time.monotonic() - request_start_time) * 1000
             
             # Get per-request token counts
             prompt_tokens = 0
@@ -1655,7 +1649,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
             if history_store:
                 entry = RequestHistoryEntry(
                     id=RequestHistoryStore.generate_id(),
-                    timestamp=_datetime.now().astimezone().isoformat(),
+                    timestamp=dt_util.now().isoformat(),
                     agent_id=self._subentry.subentry_id,
                     agent_name=self._subentry.title,
                     conversation_id=user_input.conversation_id,

@@ -545,7 +545,10 @@ async def ws_subscribe(
                 )
             except Exception:  # noqa: BLE001
                 result["calendar"] = {"enabled": False, "events": [], "calendars": 0}
-            connection.send_message(websocket_api.event_message(msg["id"], result))
+            try:
+                connection.send_message(websocket_api.event_message(msg["id"], result))
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("WebSocket connection closed before message could be sent")
 
         hass.async_create_task(_send_with_calendar())
 

@@ -357,16 +357,16 @@ class CreateCalendarEventTool(BaseTool):
                     from datetime import datetime
                     dt = datetime.fromisoformat(start_date_time.replace("Z", "+00:00"))
                     time_str = dt.strftime("%H:%M")
-                    date_str = dt.strftime("%d.%m.%Y")
-                    confirmation = f"'{summary}' am {date_str} um {time_str}"
+                    date_str = dt.strftime("%Y-%m-%d")
+                    confirmation = f"'{summary}' on {date_str} at {time_str}"
                 except (ValueError, TypeError):
                     confirmation = f"'{summary}' at {start_date_time}"
             else:
-                confirmation = f"'{summary}' am {start_date} (ganztaegig)"
+                confirmation = f"'{summary}' on {start_date} (all day)"
 
             return ToolResult(
                 success=True,
-                message=f"Termin erstellt: {confirmation} in {calendar_name}s Kalender.",
+                message=f"Created event: {confirmation} in {calendar_name}'s calendar.",
                 data={
                     "calendar": calendar_entity_id,
                     "summary": summary,
@@ -378,7 +378,7 @@ class CreateCalendarEventTool(BaseTool):
             _LOGGER.error("Failed to create calendar event: %s", err)
             return ToolResult(
                 success=False,
-                message=f"Fehler beim Erstellen des Termins: {err}",
+                message=f"Failed to create calendar event: {err}",
             )
 
     def _get_available_calendars(self) -> list[dict[str, str]]:

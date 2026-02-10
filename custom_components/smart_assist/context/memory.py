@@ -540,7 +540,8 @@ class MemoryManager:
         stats["total_conversations"] = stats.get("total_conversations", 0) + 1
         stats["total_tokens_used"] = stats.get("total_tokens_used", 0) + tokens_used
         if not stats.get("first_interaction"):
-            stats["first_interaction"] = datetime.now().isoformat()
+            from homeassistant.util import dt as dt_util
+            stats["first_interaction"] = dt_util.now().isoformat()
         self._dirty = True
 
     # =========================================================================
@@ -593,7 +594,8 @@ class MemoryManager:
         if not memories:
             return
 
-        now = datetime.now()
+        from homeassistant.util import dt as dt_util
+        now = dt_util.now()
         threshold = MEMORY_AGENT_EXPIRE_DAYS
         before_count = len(memories)
         kept: list[dict] = []
