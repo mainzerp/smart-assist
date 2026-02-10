@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.12.3  | 2026-02-10 |
+| Smart Assist | 1.12.4  | 2026-02-10 |
 
 ## Version History
+
+### v1.12.4 (2026-02-10) - Prevent Redundant Domain Search
+
+- Fix: LLM no longer searches additional domains (e.g. switch) when the first domain search (e.g. light) already returned results
+- Prompt clarified: fallback domain search is ONLY for zero-result cases
+- Reduces iterations from 3 to 2 for room commands like "Kueche ausschalten"
+- Files modified: `conversation.py`
 
 ### v1.12.3 (2026-02-10) - Group Entity Priority in Tool Hints
 

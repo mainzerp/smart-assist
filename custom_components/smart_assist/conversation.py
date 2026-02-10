@@ -990,7 +990,7 @@ STEP 1: Call get_entities(domain=...) to discover entities
 STEP 2: Use the entity_id(s) from the results to call control() or get_entity_state()
 
 You MUST call get_entities BEFORE any control action. You do NOT know any entity IDs without it.
-If get_entities returns no results, try related domains (light->switch, fan->switch, cover->switch) or broaden filters.
+ONLY if get_entities returns ZERO results, try a related domain (light->switch, fan->switch, cover->switch). Do NOT search additional domains if you already found matching entities.
 
 EXAMPLE - Room command with group entity (PREFERRED):
   User: "turn off kitchen"
