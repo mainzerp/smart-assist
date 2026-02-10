@@ -62,7 +62,12 @@ class GetEntitiesTool(BaseTool):
         # Apply optional filters
         if area:
             area_lower = area.lower()
-            entities = [e for e in entities if e.area_name and area_lower in e.area_name.lower()]
+            # Try exact match first, fall back to substring
+            exact = [e for e in entities if e.area_name and e.area_name.lower() == area_lower]
+            if exact:
+                entities = exact
+            else:
+                entities = [e for e in entities if e.area_name and area_lower in e.area_name.lower()]
         if name_filter:
             filter_lower = name_filter.lower()
             entities = [e for e in entities if filter_lower in e.friendly_name.lower()]
@@ -73,14 +78,44 @@ class GetEntitiesTool(BaseTool):
                 message="No entities found matching the filters.",
             )
 
-        entity_list = "\n".join(
-            f"- {e.entity_id}: {e.friendly_name}" + (f" ({e.area_name})" if e.area_name else "")
-            for e in entities[:20]  # Limit to 20
-        )
+        # Build entity list with state and group indicators
+        entity_lines: list[str] = []
+        for e in entities[:20]:
+            hass_state = self._hass.states.get(e.entity_id)
+            state_str = ""
+            group_str = ""
+            if hass_state:
+                state_str = f" [{hass_state.state}]"
+                member_ids = hass_state.attributes.get("entity_id")
+                if isinstance(member_ids, list) and member_ids:
+                    group_str = f" [GROUP, {len(member_ids)} members]"
+            area_str = f" ({e.area_name})" if e.area_name else ""
+            entity_lines.append(f"- {e.entity_id}: {e.friendly_name}{area_str}{state_str}{group_str}")
+        entity_list = "\n".join(entity_lines)
+
+        message = f"Found {len(entities)} entities:\n{entity_list}"
+
+        # Add smart control hints when multiple entities found
+        if len(entities) > 1:
+            group_ids: list[str] = []
+            individual_ids: list[str] = []
+            for e in entities[:20]:
+                st = self._hass.states.get(e.entity_id)
+                if st and isinstance(st.attributes.get("entity_id"), list):
+                    group_ids.append(e.entity_id)
+                else:
+                    individual_ids.append(e.entity_id)
+
+            if group_ids:
+                message += f"\n\nNote: {', '.join(group_ids)} are GROUP entities that control multiple members. Prefer controlling the group instead of individual members."
+
+            all_ids = [e.entity_id for e in entities[:20]]
+            ids_str = str(all_ids)
+            message += f"\nTip: To control all at once: control(entity_ids={ids_str}, action=...)"
 
         return ToolResult(
             success=True,
-            message=f"Found {len(entities)} entities:\n{entity_list}",
+            message=message,
             data={"entities": [e.entity_id for e in entities]},
         )
 

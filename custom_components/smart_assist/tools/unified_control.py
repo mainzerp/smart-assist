@@ -32,20 +32,28 @@ class UnifiedControlTool(BaseTool):
     """
 
     name = "control"
-    description = """Control any entity. Actions depend on entity type:
+    description = """Control any entity (single or batch). Actions depend on entity type:
 - All: turn_on, turn_off, toggle
 - light.*: set brightness (0-100), color_temp (2000-6500K), rgb_color [r,g,b]
 - climate.*: set temperature, hvac_mode (off/heat/cool/auto), preset
 - media_player.*: play, pause, stop, next, previous, volume (0-100), source
 - cover.*: open, close, stop, position (0-100)
-- script.*: turn_on/run to execute"""
+- script.*: turn_on/run to execute
+Use entity_ids (array) to control multiple entities with the same action in one call."""
     
     parameters = [
         ToolParameter(
             name="entity_id",
             type="string",
-            description="The entity ID to control (e.g., light.living_room)",
-            required=True,
+            description="The entity ID to control (e.g., light.living_room). Use entity_ids for multiple entities.",
+            required=False,
+        ),
+        ToolParameter(
+            name="entity_ids",
+            type="array",
+            description="Multiple entity IDs to control with the same action (e.g., turn off all kitchen lights). Use instead of entity_id when controlling multiple entities at once.",
+            required=False,
+            items={"type": "string"},
         ),
         ToolParameter(
             name="action",
@@ -136,7 +144,8 @@ class UnifiedControlTool(BaseTool):
 
     async def execute(
         self,
-        entity_id: str,
+        entity_id: str | None = None,
+        entity_ids: list[str] | None = None,
         action: str | None = None,
         brightness: int | None = None,
         color_temp: int | None = None,
@@ -149,15 +158,66 @@ class UnifiedControlTool(BaseTool):
         position: int | None = None,
         state: str | None = None,  # Alias for 'action' (some models use this)
     ) -> ToolResult:
-        """Execute unified control based on entity domain."""
+        """Execute unified control -- dispatches to batch or single."""
         # Handle 'state' as alias for 'action' (some models incorrectly use this)
         if action is None and state is not None:
             action = "turn_on" if state in ("on", "true", "1") else "turn_off" if state in ("off", "false", "0") else state
             _LOGGER.debug("Mapped 'state=%s' to 'action=%s'", state, action)
-        
+
         if action is None:
             return ToolResult(success=False, message="Missing required parameter: 'action'")
-        
+
+        # Batch mode: entity_ids takes priority
+        if entity_ids and len(entity_ids) > 0:
+            results: list[str] = []
+            errors: list[str] = []
+            for eid in entity_ids:
+                single_result = await self._execute_single(
+                    entity_id=eid, action=action, brightness=brightness,
+                    color_temp=color_temp, rgb_color=rgb_color,
+                    temperature=temperature, hvac_mode=hvac_mode, preset=preset,
+                    volume=volume, source=source, position=position,
+                )
+                if single_result.success:
+                    results.append(eid)
+                else:
+                    errors.append(f"{eid}: {single_result.message}")
+
+            if errors:
+                return ToolResult(
+                    success=len(results) > 0,
+                    message=f"Controlled {len(results)}/{len(results)+len(errors)} entities. Errors: {'; '.join(errors)}",
+                )
+            return ToolResult(
+                success=True,
+                message=f"Successfully executed {action} on {len(results)} entities.",
+            )
+
+        if not entity_id:
+            return ToolResult(success=False, message="Missing required parameter: 'entity_id' or 'entity_ids'")
+
+        return await self._execute_single(
+            entity_id=entity_id, action=action, brightness=brightness,
+            color_temp=color_temp, rgb_color=rgb_color,
+            temperature=temperature, hvac_mode=hvac_mode, preset=preset,
+            volume=volume, source=source, position=position,
+        )
+
+    async def _execute_single(
+        self,
+        entity_id: str,
+        action: str,
+        brightness: int | None = None,
+        color_temp: int | None = None,
+        rgb_color: list[int] | None = None,
+        temperature: float | None = None,
+        hvac_mode: str | None = None,
+        preset: str | None = None,
+        volume: int | None = None,
+        source: str | None = None,
+        position: int | None = None,
+    ) -> ToolResult:
+        """Execute unified control for a single entity."""
         domain = entity_id.split(".")[0]
         
         # Validate and clamp numeric parameters

@@ -4,9 +4,29 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.11.10 | 2026-02-10 |
+| Smart Assist | 1.12.0  | 2026-02-10 |
 
 ## Version History
+
+### v1.12.0 (2026-02-10) - Batch Control and Smart Entity Discovery
+
+**Feature: Batch Entity Control**
+- New `entity_ids` (array) parameter on `control` tool for controlling multiple entities in a single call
+- Room-level commands ("Kueche ausschalten") now complete in 2 LLM iterations instead of N+1
+- Prevents LLM from forgetting entities during sequential tool calls
+- Backward compatible: `entity_id` (singular) continues to work for single-entity commands
+
+**Feature: Enhanced Entity Discovery**
+- `get_entities` now includes current state (`[on]`/`[off]`) and group indicator (`[GROUP, N members]`) in results
+- Smart control hints: group-aware tip and batch control suggestion with entity IDs
+- Area matching improved: exact match first, substring fallback
+
+**Enhanced: Group-Aware Decision Logic**
+- System prompt teaches LLM 3-tier decision: GROUP entity (preferred) > batch entity_ids > single entity_id
+- Entity Control section updated with GROUP ENTITIES and BATCH CONTROL rules
+- Entity tracking updated to handle both `entity_id` and `entity_ids` from tool calls
+
+- Files modified: `tools/base.py`, `tools/unified_control.py`, `tools/entity_tools.py`, `conversation.py`
 
 ### v1.11.10 (2026-02-10) - Smart Discovery Reliability
 

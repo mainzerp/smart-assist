@@ -22,6 +22,7 @@ class ToolParameter:
     required: bool = True
     enum: list[str] | None = None
     default: Any = None
+    items: dict[str, str] | None = None  # For array types: {"type": "string"}
 
 
 @dataclass
@@ -68,6 +69,8 @@ class BaseTool(ABC):
             }
             if param.enum:
                 prop["enum"] = param.enum
+            if param.items:
+                prop["items"] = param.items
             properties[param.name] = prop
 
             if param.required:

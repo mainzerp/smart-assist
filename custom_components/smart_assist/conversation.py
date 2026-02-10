@@ -898,16 +898,18 @@ class SmartAssistConversationEntity(ConversationEntity):
             return
         
         entity_id = arguments.get("entity_id")
-        if not entity_id:
+        entity_ids = arguments.get("entity_ids")
+
+        # Collect all entity IDs to track
+        ids_to_track: list[str] = []
+        if entity_ids and isinstance(entity_ids, list):
+            ids_to_track.extend(entity_ids)
+        elif entity_id:
+            ids_to_track.append(entity_id)
+
+        if not ids_to_track:
             return
-        
-        # Get friendly name from state
-        state = self.hass.states.get(entity_id)
-        if state:
-            friendly_name = state.attributes.get("friendly_name", entity_id)
-        else:
-            friendly_name = entity_id
-        
+
         # Determine action type
         if tool_name.startswith("control"):
             action = "controlled"
@@ -915,17 +917,19 @@ class SmartAssistConversationEntity(ConversationEntity):
             action = "queried"
         else:
             action = "queried"
-        
-        # Track in conversation manager
-        self._conversation_manager.add_recent_entity(
-            conversation_id, entity_id, friendly_name, action
-        )
-        _LOGGER.debug(
-            "[CONTEXT] Tracked entity for pronoun resolution: %s (%s) - %s",
-            entity_id,
-            friendly_name,
-            action,
-        )
+
+        for eid in ids_to_track:
+            state = self.hass.states.get(eid)
+            friendly_name = state.attributes.get("friendly_name", eid) if state else eid
+            self._conversation_manager.add_recent_entity(
+                conversation_id, eid, friendly_name, action
+            )
+            _LOGGER.debug(
+                "[CONTEXT] Tracked entity for pronoun resolution: %s (%s) - %s",
+                eid,
+                friendly_name,
+                action,
+            )
 
     async def _build_system_prompt(self) -> str:
         """Build or return cached system prompt based on configuration.
@@ -988,13 +992,29 @@ STEP 2: Use the entity_id(s) from the results to call control() or get_entity_st
 You MUST call get_entities BEFORE any control action. You do NOT know any entity IDs without it.
 If get_entities returns no results, try related domains (light->switch, fan->switch, cover->switch) or broaden filters.
 
-EXAMPLE:
-  User: "turn off kitchen"
+EXAMPLE - Room command with group entity (PREFERRED):
+  User: "turn off kitchen" / "Kueche ausschalten"
   -> get_entities(domain="light", area="kitchen")
-  -> Result: light.kitchen_ceiling, light.kitchen_counter
-  -> control(entity_id="light.kitchen_ceiling", action="turn_off")
-  -> control(entity_id="light.kitchen_counter", action="turn_off")
+  -> Result includes light.kitchen [GROUP, 5 members] + individual members
+  -> control(entity_id="light.kitchen", action="turn_off")  // Group controls all members!
   -> Response: (confirm in configured language)
+
+EXAMPLE - Room command without group entity (use batch):
+  User: "turn off bedroom"
+  -> get_entities(domain="light", area="bedroom")
+  -> Result: light.bedroom_ceiling, light.bedroom_lamp (no GROUP entity)
+  -> control(entity_ids=["light.bedroom_ceiling", "light.bedroom_lamp"], action="turn_off")
+
+EXAMPLE - Specific device:
+  User: "turn on desk lamp" / "Schreibtischlampe an"
+  -> get_entities(domain="light", name_filter="desk")
+  -> Result: light.desk_lamp
+  -> control(entity_id="light.desk_lamp", action="turn_on")
+
+DECISION LOGIC:
+1. If a GROUP entity matches the user's room/area intent -> control just the group (it handles members internally)
+2. If no group entity but user wants all entities in area -> use entity_ids to batch-control all
+3. If user names a specific device -> use entity_id for that one entity
 
 NEVER respond without calling tools when the user asks about devices.
 NEVER fabricate entity IDs. NEVER say "I don't have access to entities."
@@ -1072,7 +1092,15 @@ MANDATORY RULES:
 - Do NOT say "already on" or "already off" based on context states - the tool handles idempotency.
 - Group entities (marked GROUP in states): state 'on' means ANY member is on, NOT all. Always call the tool.
 - Context states are informational ONLY. The tool decides whether action is needed.
-- If user says "turn on X" → call control(entity_id, action=turn_on). Always. No exceptions.""")
+- If user says "turn on X" → call control(entity_id, action=turn_on). Always. No exceptions.
+
+GROUP ENTITIES: If search results include a GROUP entity for the target area, prefer controlling the group.
+A group entity controls all its members in one call. Do NOT control individual members separately.
+
+BATCH CONTROL (when no group exists):
+- Use entity_ids (array) to control multiple entities: control(entity_ids=[...], action="turn_off")
+- Use entity_ids when: user wants all entities in a room AND no group entity covers them
+- Use entity_id (singular) when: user names a specific device OR a group entity covers the room""")
 
         # Music/Radio instructions - only if music_assistant tool is registered
         if (await self._get_tool_registry()).has_tool("music_assistant"):
