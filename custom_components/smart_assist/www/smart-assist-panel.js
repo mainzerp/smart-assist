@@ -608,10 +608,10 @@ class SmartAssistPanel extends HTMLElement {
         + '<div class="value" style="font-size:20px;">' + this._esc(prompt.agent_name) + '</div></div>'
         + '<div class="metric-card"><div class="label">System Prompt Length</div>'
         + '<div class="value">' + this._fmt(prompt.system_prompt ? prompt.system_prompt.length : 0) + '</div>'
-        + '<div class="sub">characters</div></div>'
+        + '<div class="sub">' + (prompt.system_prompt ? prompt.system_prompt.length : 0).toLocaleString() + ' chars / ~' + this._fmt(Math.round((prompt.system_prompt ? prompt.system_prompt.length : 0) / 4)) + ' tokens</div></div>'
         + '<div class="metric-card"><div class="label">User Prompt Length</div>'
         + '<div class="value">' + this._fmt(prompt.user_prompt ? prompt.user_prompt.length : 0) + '</div>'
-        + '<div class="sub">characters</div></div>'
+        + '<div class="sub">' + (prompt.user_prompt ? prompt.user_prompt.length : 0).toLocaleString() + ' chars / ~' + this._fmt(Math.round((prompt.user_prompt ? prompt.user_prompt.length : 0) / 4)) + ' tokens</div></div>'
         + '</div>';
     }
 
