@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.12.6  | 2026-02-10 |
+| Smart Assist | 1.13.0  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.0 (2026-02-11) - Prompt Preview Tab & Music Prompt Fix
+
+**New Features:**
+- Dashboard: New "Prompt" tab shows the full system prompt and user custom instructions for each agent
+- WebSocket: New `smart_assist/system_prompt` command to retrieve built prompts
+- Prompt preview displays agent name, prompt lengths, and formatted sections with visual headers
+
+**Improvements:**
+- Prompt: Clarified music_assistant vs control tool usage for playback transport (stop/pause/resume/volume)
+
+- Files modified: websocket.py, www/smart-assist-panel.js, prompt_builder.py
 
 ### v1.12.6 (2026-02-10) - Code Review v2 Fixes (Phase 5-8)
 
