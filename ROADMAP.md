@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-09 (v1.11.5)
+> Last updated: 2026-02-11 (v1.13.1)
 
 ## Completed Milestones
 
@@ -46,40 +46,28 @@
 | Cancel Handler Agent Selection | v1.10.1 | Per-agent "Use as cancel intent handler" toggle. Preferred agent selection instead of first-available fallback. |
 | Group Entity Handling Fix | v1.11.4 | Group entities (light groups) no longer incorrectly short-circuit "already on/off". Member states exposed to LLM. |
 | Dashboard Auto-Refresh | v1.11.5 | Configurable auto-refresh (5s/10s/30s/60s, default 30s ON). Pauses when tab hidden, persisted in localStorage. |
+| Batch Entity Control | v1.12.0 | Batch `entity_ids` parameter on `control` tool for multi-entity control in a single call. Enhanced entity discovery with live state and group indicators. |
+| Code Review Fixes Phase 1-3 | v1.12.5 | Token tracking fix, deprecated API replacements, datetime consistency, entity index caching (30s TTL), ~340 lines dead code removed. |
+| Code Review v2 Fixes Phase 5-8 | v1.12.6 | Memory access_count fix, LLM client stream dedup (~360 lines removed), conversation.py split into 3 files, shared EntityManager, Ollama AI Task provider. |
+| Prompt Preview Tab | v1.13.0 | Dashboard "Prompt" tab showing full system prompt and custom instructions per agent. WebSocket `smart_assist/system_prompt` command. |
+| Prompt & Tool Token Optimization | v1.13.1 | System prompt condensed ~38% (~700-800 tokens saved), tool definitions condensed (~1120 tokens saved), ~1800-1920 fewer tokens per request total. |
 
 ---
 
 ## Planned Features
-
-### v1.12.0 - Persistent Alarms and Scheduling
 
 | Feature | Description | Priority |
 | ------- | ----------- | -------- |
 | Persistent Alarms | Real alarm clock functionality with absolute times. Creates HA automations for persistence across restarts. Supports repeating alarms, alarm management. Survives HA restarts unlike timer-based solution. | High |
 | Proactive Notifications | LLM-triggered alerts based on entity state changes ("Your energy usage is unusually high today"). Architecture: HA automation triggers (state, numeric_state, person, calendar) call `conversation.process` to invoke Smart Assist LLM with context. Includes arrival/departure greetings via person triggers and calendar-triggered briefings. | Medium |
 | Weather Suggestions | Context-aware hints ("It will rain, should I close the windows?") | Low |
-
-### v1.13.0 - Vision and Camera Analysis
-
-| Feature | Description | Priority |
-| ------- | ----------- | -------- |
 | Camera Image Analysis | "Who is at the door?" - Analyze doorbell/camera snapshots with vision-capable LLM | High |
 | Object Detection | "Is my car in the driveway?" - Check specific objects in camera view | Medium |
 | Motion Summary | "What happened in the garage?" - Summarize recent camera activity | Medium |
-
-### v1.14.0 - Natural Language Automations
-
-| Feature | Description | Priority |
-| ------- | ----------- | -------- |
 | Natural Language Automations | "When I come home, turn on the lights" - Creates HA automations from natural language. Leverages HA 2026.1/2026.2 purpose-specific triggers (person arrived/left, climate mode, light brightness, calendar events) and conditions for more natural automation generation. | High |
 | Trigger Type Catalog | System prompt includes catalog of available purpose-specific triggers and conditions from HA 2025.12/2026.1/2026.2. LLM suggests the most appropriate trigger type for each scenario. | Medium |
 | Routine Creation | "Create a 'Good Night' routine" - Define multi-step sequences via conversation | Medium |
 | Conditional Actions | "Turn off lights only if no one is home" - Smart conditionals in automations | Medium |
-
-### v1.15.0 - Proactive State Monitoring
-
-| Feature | Description | Priority |
-| ------- | ----------- | -------- |
 | Entity State Watcher | Per-agent configurable watchlist of entities. When watched entities change, Smart Assist's LLM evaluates the change in context and decides whether to act (notify, control devices, log to memory). Uses `async_track_state_change_event()` with configurable cooldown (5min-1hr). | High |
 | Automation Blueprints | Ready-made HA automation blueprints that call `conversation.process` for common monitoring scenarios (security alerts, energy warnings, comfort adjustments, arrival/departure greetings). Zero-code approach. | Medium |
 | Anomaly Detection | Agent memory learns normal state patterns over time. Detects and reports anomalies ("The garage door has been open for 3 hours, which is unusual for a Tuesday"). Requires historical baseline. | Low |
@@ -100,6 +88,7 @@ These features are not yet assigned to a specific version.
 | LLM Fallback Chain | Try local LLM (Ollama) first, fallback to cloud provider if local model fails or is unavailable. Balances privacy, cost, and reliability. | Medium |
 | Todo / Shopping List Integration | Voice-controlled todo/shopping lists via HA `todo` platform. "Add milk to the shopping list", "What's on my list?", "Mark eggs as done". Works with HA Shopping List, Todoist, Bring!, Google Tasks. HA 2026.2 fixed `todo.*` action data conversion. | Low |
 | SQLite History Queries | LLM generates read-only SQL queries against HA's recorder database for complex historical questions ("When was the last time the garage door was open for more than 30 minutes?"). Restricted to exposed entities. | High |
+| Structured Output Mode | Force LLM to return JSON schema-validated responses in `ai_task.generate_data`. Enables structured data extraction for automations (e.g., parse shopping items from a URL, classify sensor anomalies). Builds on existing AI Task platform. | Medium |
 
 ### Medium Priority
 
@@ -127,6 +116,8 @@ These features are not yet assigned to a specific version.
 | Privacy Mode | Voice command to temporarily disable LLM processing. "Stop listening" disables agent, "Start listening" re-enables. Visual indicator in dashboard. | Low |
 | Config Export/Import | Export Smart Assist configuration (agents, tools, memory, prompts) as portable JSON. Import on new installation for HA migrations. | Low |
 | Smart Notification Routing | Automatically choose best notification channel based on context. At home: TTS via voice satellite. Away: push notification. Sleeping: queue for morning briefing. Configurable routing rules per user. | Medium |
+| Multi-Modal Input | Accept images in conversation (via Companion App or chat UI) for vision-capable LLM analysis. "What plant is this?", "Read this label." Separate from Camera Image Analysis which is security-focused. | High |
+| Automation Suggestions | Analyze user behavior patterns from request history and agent memory. Suggest automations proactively ("You turn on living room lights at 18:00 daily. Create an automation?"). Builds on v1.11.0 request history and v1.9.0 agent memory. | Medium |
 
 ---
 
