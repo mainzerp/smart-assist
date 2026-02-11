@@ -4,9 +4,24 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.1  | 2026-02-11 |
+| Smart Assist | 1.13.2  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.2 (2026-02-11) - Timer Fix & Dashboard Scroll Fix
+
+**Bug Fixes:**
+- Fix: Timer commands now execute correctly when timer expires (was routing to built-in Assist agent instead of Smart Assist due to missing `conversation_agent_id`)
+- Fix: Dashboard scroll position properly preserved during auto-refresh (uses actual scroll container instead of `window`, skips loading renders during refresh)
+
+**UI:**
+- Prompt tab metric cards now show estimated token counts alongside character counts
+
+**Docs:**
+- README and info.md updated with History/Prompt tabs, Ollama provider, Entity Discovery Mode
+- Roadmap overhauled with v1.12.0-v1.13.1 completed features and new future feature proposals
+
+- Files modified: tools/base.py, tools/timer_tools.py, conversation.py, www/smart-assist-panel.js, README.md, info.md, ROADMAP.md
 
 ### v1.13.1 (2026-02-11) - Prompt & Tool Token Optimization
 
