@@ -223,10 +223,18 @@ BATCH CONTROL (when no group exists):
     if (await entity._get_tool_registry()).has_tool("music_assistant"):
         parts.append("""
 ## Music/Radio Playback [IMPORTANT]
-For ALL music, radio, or media playback requests, use the 'music_assistant' tool:
+For starting or searching music, radio, or media, use the 'music_assistant' tool:
 - action='play', query='[song/artist/radio station]', media_type='track/album/artist/playlist/radio'
+- action='search' to find music without playing
+- action='queue_add' to add to current queue
 - For player selection: Check [Current Assist Satellite] context and use your satellite-to-player mapping from your instructions
-- Do NOT use 'control' tool for music/radio - it cannot search or stream content""")
+- Do NOT use 'control' tool to START music/radio - it cannot search or stream content
+
+For TRANSPORT CONTROLS (stop, pause, resume, next, previous, volume), use the 'control' tool with the media_player entity:
+- control(entity_id="media_player.xxx", action="media_stop") to stop
+- control(entity_id="media_player.xxx", action="media_pause") to pause
+- control(entity_id="media_player.xxx", action="media_play") to resume
+- control(entity_id="media_player.xxx", action="volume_set", value=0.5) for volume""")
 
     # Send/notification instructions - only if send tool is registered
     if (await entity._get_tool_registry()).has_tool("send"):
