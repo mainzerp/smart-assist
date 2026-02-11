@@ -71,8 +71,10 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 
 ### Dashboard & UI
 
-- **Custom Sidebar Panel**: Admin-only panel with overview, memory, and calendar tabs
+- **Custom Sidebar Panel**: Admin-only panel with overview, memory, calendar, history, and prompt tabs
 - **Memory Management**: Rename users, merge profiles, delete individual memories
+- **History & Analytics**: Per-request history log with token usage, tool calls, and tool usage analytics
+- **Prompt Preview**: View full system prompt and custom instructions for each agent
 - **Real-Time Updates**: WebSocket API with live metric subscription
 
 ### AI Task Platform

@@ -88,6 +88,8 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Overview Tab**: Total requests, success rate, response time, tokens, cache hit rate, registered tools
 - **Memory Tab**: Browse user profiles, view/manage individual memories, rename/merge/delete users
 - **Calendar Tab**: Upcoming events with reminder status badges (upcoming/pending/announced/passed)
+- **History Tab**: Per-request history log with token usage, response times, tool calls, and success/error status; tool usage analytics with call frequency, success rates, and average execution times
+- **Prompt Tab**: View the full system prompt and user custom instructions for each agent; displays agent name, prompt lengths, and formatted sections
 - **Real-Time Updates**: WebSocket API with subscription for live metric updates
 - **Theme Integration**: Adapts to HA light/dark mode via CSS custom properties
 
@@ -154,7 +156,7 @@ When you add these mappings, the LLM will use them directly from the system prom
 2. Click **Add Integration**
 3. Search for "Smart Assist"
 4. Follow the setup wizard:
-   - **Step 1**: Choose your LLM provider (Groq or OpenRouter)
+   - **Step 1**: Choose your LLM provider (Groq, OpenRouter, or Ollama)
    - **Step 2**: Enter your API key
      - Groq: [Get API key](https://console.groq.com/keys)
      - OpenRouter: [Get API key](https://openrouter.ai/keys)
@@ -201,6 +203,7 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | Max History | Conversation history length | 10 |
 | Web Search | Enable DuckDuckGo search | true |
 | Calendar Context | Inject proactive calendar reminders | false |
+| Entity Discovery Mode | Entity lookup strategy: "Full Index" (all in prompt) or "Smart Discovery" (on-demand via tools) | Full Index |
 
 ### Caching Settings
 
