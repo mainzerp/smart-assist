@@ -166,6 +166,7 @@ class TimerTool(BaseTool):
             "HassStartTimer",
             slots,
             device_id=self._device_id,
+            conversation_agent_id=self._conversation_agent_id,
         )
         
         # Build duration string for response

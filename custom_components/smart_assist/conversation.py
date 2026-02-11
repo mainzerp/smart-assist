@@ -421,6 +421,8 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Set device_id on tools so timer intents know which device to use
         (await self._get_tool_registry()).set_device_id(device_id)
+        # Set conversation_agent_id so timer commands route back to this agent
+        (await self._get_tool_registry()).set_conversation_agent_id(self.entity_id)
         
         # Set user context on memory tool
         tool_registry = await self._get_tool_registry()

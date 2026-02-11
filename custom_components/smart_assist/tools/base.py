@@ -51,6 +51,7 @@ class BaseTool(ABC):
         """Initialize the tool."""
         self._hass = hass
         self._device_id: str | None = None
+        self._conversation_agent_id: str | None = None
 
     @abstractmethod
     async def execute(self, **kwargs: Any) -> ToolResult:
@@ -123,6 +124,11 @@ class ToolRegistry:
         """Set device_id on all registered tools for conversation context."""
         for tool in self._tools.values():
             tool._device_id = device_id
+
+    def set_conversation_agent_id(self, agent_id: str | None) -> None:
+        """Set conversation_agent_id on all tools so timer commands route back to this agent."""
+        for tool in self._tools.values():
+            tool._conversation_agent_id = agent_id
 
     async def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         """Execute a tool by name."""
