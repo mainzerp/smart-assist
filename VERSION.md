@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.6  | 2026-02-11 |
+| Smart Assist | 1.13.7  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.7 (2026-02-11) - Group vs Area Prompt Fix
+
+**Improvements:**
+- Prompt: Area/room requests now always batch-control individual entities instead of substituting a group
+- Prompt: Groups treated as regular entities -- no special handling, HA manages member propagation
+- Entity tool: Removed aggressive group-only hint, replaced with neutral batch tip
+
+- Files modified: prompt_builder.py, entity_tools.py
 
 ### v1.13.6 (2026-02-11) - Dashboard Stability & Cancel Detection
 
