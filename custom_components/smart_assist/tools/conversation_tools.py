@@ -24,18 +24,18 @@ class AwaitResponseTool(BaseTool):
     """
 
     name = "await_response"
-    description = "Ask the user a question and keep microphone open for their response."
+    description = "Ask user a question and keep mic open for response."
     parameters = [
         ToolParameter(
             name="message",
             type="string",
-            description="The question or message to speak to the user before waiting for response",
+            description="Question/message to speak before waiting",
             required=True,
         ),
         ToolParameter(
             name="reason",
             type="string",
-            description="Why waiting: clarification, confirmation, choice, or follow_up",
+            description="Reason for waiting",
             required=True,
             enum=["clarification", "confirmation", "choice", "follow_up"],
         )

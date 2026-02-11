@@ -26,64 +26,52 @@ class MemoryTool(BaseTool):
 
     name = "memory"
     description = (
-        "Save, recall, update, or delete user memories and preferences. "
-        "Use this to remember user preferences, named entities (people, pets), "
-        "and instructions. Also use 'switch_user' when a user identifies themselves."
+        "Manage persistent user memories/preferences. "
+        "'switch_user' when user identifies themselves."
     )
     parameters = [
         ToolParameter(
             name="action",
             type="string",
-            description=(
-                "Action to perform: "
-                "save (new memory), "
-                "list (show memories), "
-                "update (modify existing), "
-                "delete (remove), "
-                "search (find by keyword), "
-                "switch_user (change active user profile for this session)"
-            ),
+            description="Memory action",
             required=True,
             enum=["save", "list", "update", "delete", "search", "switch_user"],
         ),
         ToolParameter(
             name="content",
             type="string",
-            description=(
-                "Memory content to save, updated content, or user name for switch_user. "
-                "Keep concise (max 100 chars)."
-            ),
+            description="Content or user name (max 100 chars)",
             required=False,
         ),
         ToolParameter(
             name="category",
             type="string",
-            description="Memory category for organization",
+            description="Category",
             required=False,
             enum=["preference", "named_entity", "pattern", "instruction", "fact", "observation"],
         ),
         ToolParameter(
             name="memory_id",
             type="string",
-            description="Memory ID for update/delete operations",
+            description="Memory ID (for update/delete)",
             required=False,
         ),
         ToolParameter(
             name="query",
             type="string",
-            description="Search query text (for search action)",
+            description="Search query",
             required=False,
         ),
         ToolParameter(
             name="tags",
             type="string",
-            description="Comma-separated tags (e.g., 'light,evening,bedroom')",
+            description="Comma-separated tags",
             required=False,
         ),
         ToolParameter(
             name="scope",
             type="string",
-            description="Memory scope: user (personal), global (household-wide), or agent (LLM's own observations and learnings)",
+            description="Visibility scope",
             required=False,
             enum=["user", "global", "agent"],
             default="user",

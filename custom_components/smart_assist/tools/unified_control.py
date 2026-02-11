@@ -32,88 +32,87 @@ class UnifiedControlTool(BaseTool):
     """
 
     name = "control"
-    description = """Control any entity (single or batch). Actions depend on entity type:
-- All: turn_on, turn_off, toggle
-- light.*: set brightness (0-100), color_temp (2000-6500K), rgb_color [r,g,b]
-- climate.*: set temperature, hvac_mode (off/heat/cool/auto), preset
-- media_player.*: play, pause, stop, next, previous, volume (0-100), source
-- cover.*: open, close, stop, position (0-100)
-- script.*: turn_on/run to execute
-Use entity_ids (array) to control multiple entities with the same action in one call."""
+    description = """Control any entity (single/batch). Domain auto-detected.
+- light: brightness, color_temp, rgb_color
+- climate: temperature, hvac_mode, preset
+- media_player: play/pause/stop/next/previous, volume, source
+- cover: open/close/stop, position
+- script: turn_on to run
+entity_ids array for batch."""
     
     parameters = [
         ToolParameter(
             name="entity_id",
             type="string",
-            description="The entity ID to control (e.g., light.living_room). Use entity_ids for multiple entities.",
+            description="Entity ID (use entity_ids for batch)",
             required=False,
         ),
         ToolParameter(
             name="entity_ids",
             type="array",
-            description="Multiple entity IDs to control with the same action (e.g., turn off all kitchen lights). Use instead of entity_id when controlling multiple entities at once.",
+            description="Entity ID array for batch control",
             required=False,
             items={"type": "string"},
         ),
         ToolParameter(
             name="action",
             type="string",
-            description="Action: turn_on, turn_off, toggle, play, pause, stop, open, close, etc.",
+            description="turn_on, turn_off, toggle, play, pause, stop, open, close, etc.",
             required=True,
         ),
         # Optional parameters for domain-specific control
         ToolParameter(
             name="brightness",
             type="number",
-            description="Light brightness percentage (0-100)",
+            description="Brightness % (0-100)",
             required=False,
         ),
         ToolParameter(
             name="color_temp",
             type="number",
-            description="Light color temperature in Kelvin (2000-6500)",
+            description="Color temp in Kelvin (2000-6500)",
             required=False,
         ),
         ToolParameter(
             name="rgb_color",
             type="array",
-            description="Light RGB color as [R, G, B] (0-255 each)",
+            description="RGB as [R,G,B] (0-255)",
             required=False,
         ),
         ToolParameter(
             name="temperature",
             type="number",
-            description="Climate target temperature in Celsius",
+            description="Target temp (Celsius)",
             required=False,
         ),
         ToolParameter(
             name="hvac_mode",
             type="string",
-            description="Climate HVAC mode: off, heat, cool, heat_cool, auto, dry, fan_only",
+            description="off, heat, cool, heat_cool, auto, dry, fan_only",
             required=False,
         ),
         ToolParameter(
             name="preset",
             type="string",
-            description="Climate preset mode (e.g., away, home, comfort)",
+            description="Preset (away, home, comfort, etc.)",
             required=False,
         ),
         ToolParameter(
             name="volume",
             type="number",
-            description="Media player volume (0-100)",
+            description="Volume % (0-100)",
             required=False,
         ),
         ToolParameter(
             name="source",
             type="string",
-            description="Media player input source",
+            description="Input source",
             required=False,
         ),
         ToolParameter(
             name="position",
             type="number",
-            description="Cover position percentage (0=closed, 100=open)",
+            description="Position % (0=closed, 100=open)",
             required=False,
         ),
     ]

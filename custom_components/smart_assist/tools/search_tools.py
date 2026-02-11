@@ -16,7 +16,7 @@ class WebSearchTool(BaseTool):
     """Tool for web search using DuckDuckGo."""
 
     name = "web_search"
-    description = "Search the web for information using DuckDuckGo. Use for questions not related to the smart home."
+    description = "Search the web via DuckDuckGo for non-smart-home questions."
     parameters = [
         ToolParameter(
             name="query",
@@ -27,7 +27,7 @@ class WebSearchTool(BaseTool):
         ToolParameter(
             name="max_results",
             type="number",
-            description="Maximum number of results (1-5)",
+            description="Max results (1-5)",
             required=False,
         ),
     ]
@@ -88,12 +88,12 @@ class GetWeatherTool(BaseTool):
     """Tool to get weather information (faster than web search)."""
 
     name = "get_weather"
-    description = "Get current weather from Home Assistant's weather entity."
+    description = "Get current weather from HA weather entity."
     parameters = [
         ToolParameter(
             name="entity_id",
             type="string",
-            description="Weather entity ID (optional, uses first weather entity if not specified)",
+            description="Weather entity ID (default: first available)",
             required=False,
         ),
     ]
@@ -140,24 +140,4 @@ class GetWeatherTool(BaseTool):
             success=True,
             message="\n".join(weather_info),
             data={"state": state.state, "attributes": dict(attrs)},
-        )
-
-
-class GetTimeTool(BaseTool):
-    """Tool to get current time/date."""
-
-    name = "get_time"
-    description = "Get the current time and date."
-    parameters = []
-
-    async def execute(self) -> ToolResult:
-        """Execute the get_time tool."""
-        from homeassistant.util import dt as dt_util
-
-        now = dt_util.now()
-
-        return ToolResult(
-            success=True,
-            message=f"Current time: {now.strftime('%H:%M:%S')}, Date: {now.strftime('%A, %B %d, %Y')}",
-            data={"datetime": now.isoformat()},
         )

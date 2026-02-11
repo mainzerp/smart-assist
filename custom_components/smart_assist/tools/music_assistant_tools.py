@@ -33,80 +33,58 @@ class MusicAssistantTool(BaseTool):
     """
 
     name = "music_assistant"
-    description = """Control music playback via Music Assistant.
-
-Actions:
-- play: Search and play music (tracks, albums, artists, playlists, radio stations)
-- search: Search for music without playing (returns results)
-- queue_add: Add to current queue without interrupting playback
-
-Media types:
-- track: Single song
-- album: Full album
-- artist: All songs from an artist
-- playlist: Saved playlist
-- radio: Internet radio station (e.g., "SWR3", "Jazz Radio", "Radio FFH")
-
-Examples:
-- Play a song: action=play, query="Bohemian Rhapsody", media_type=track
-- Play artist: action=play, query="Queen", media_type=artist
-- Play radio: action=play, query="SWR3", media_type=radio
-- Search only: action=search, query="Queen", media_type=track
-- Add to queue: action=queue_add, query="Another One Bites the Dust"
-- Radio mode (endless similar music): action=play, query="Queen", media_type=artist, radio_mode=true
-
-The radio_mode creates an endless playlist based on the seed track/artist."""
+    description = "Play, search, or queue music via Music Assistant. Supports tracks, albums, artists, playlists, radio stations. radio_mode for endless similar music."
     
     parameters = [
         ToolParameter(
             name="action",
             type="string",
-            description="Action to perform: play, search, queue_add",
+            description="Action",
             required=True,
             enum=["play", "search", "queue_add"],
         ),
         ToolParameter(
             name="query",
             type="string",
-            description="What to search for (song name, artist, album, playlist, or radio station)",
+            description="Search query (song, artist, album, playlist, station)",
             required=True,
         ),
         ToolParameter(
             name="media_type",
             type="string",
-            description="Type of media: track, album, artist, playlist, radio. Use 'radio' for internet radio stations.",
+            description="Media type ('radio' for internet radio)",
             required=False,
             enum=["track", "album", "artist", "playlist", "radio"],
         ),
         ToolParameter(
             name="artist",
             type="string",
-            description="Artist name filter (optional, helps narrow search)",
+            description="Artist name filter",
             required=False,
         ),
         ToolParameter(
             name="album",
             type="string",
-            description="Album name filter (optional, helps narrow search)",
+            description="Album name filter",
             required=False,
         ),
         ToolParameter(
             name="player",
             type="string",
-            description="Target media player entity_id. If not specified, uses default/active player.",
+            description="Target player entity_id (default: active)",
             required=False,
         ),
         ToolParameter(
             name="enqueue",
             type="string",
-            description="Queue behavior: play (immediate), replace (clear queue), next (play next), add (add to queue end)",
+            description="Queue mode",
             required=False,
             enum=["play", "replace", "next", "add"],
         ),
         ToolParameter(
             name="radio_mode",
             type="boolean",
-            description="Enable radio mode for endless similar music based on the seed. Only works with track/artist/album/playlist.",
+            description="Endless similar music mode",
             required=False,
         ),
     ]

@@ -17,24 +17,24 @@ class GetEntitiesTool(BaseTool):
     """Tool to get entities matching filters."""
 
     name = "get_entities"
-    description = "Search for entities by domain, area, or name. Use ONLY when entity is not found in the ENTITY INDEX or when caching is disabled. Always specify at least the domain filter."
+    description = "Search entities by domain/area/name. Use only if not in ENTITY INDEX."
     parameters = [
         ToolParameter(
             name="domain",
             type="string",
-            description="Entity domain (light, switch, climate, cover, media_player, etc.) - REQUIRED",
+            description="Entity domain (light, switch, climate, cover, media_player, etc.)",
             required=True,
         ),
         ToolParameter(
             name="area",
             type="string",
-            description="Area/room name to filter by (optional)",
+            description="Area/room name filter",
             required=False,
         ),
         ToolParameter(
             name="name_filter",
             type="string",
-            description="Filter entities by name - partial match (optional)",
+            description="Name substring filter",
             required=False,
         ),
     ]
@@ -128,12 +128,12 @@ class GetEntityStateTool(BaseTool):
     """Tool to get current state of an entity."""
 
     name = "get_entity_state"
-    description = "Get the current state and attributes of a specific entity."
+    description = "Get current state and attributes of an entity."
     parameters = [
         ToolParameter(
             name="entity_id",
             type="string",
-            description="The entity ID (e.g., light.living_room)",
+            description="Entity ID (e.g., light.living_room)",
             required=True,
         ),
     ]
@@ -187,25 +187,25 @@ class GetEntityHistoryTool(BaseTool):
     """Tool to get historical states of an entity."""
 
     name = "get_entity_history"
-    description = "Get historical states of an entity. Use for questions about past states like 'How was the temperature yesterday?' or 'When was the light last on?'"
+    description = "Get historical states of an entity for past-state questions."
     parameters = [
         ToolParameter(
             name="entity_id",
             type="string",
-            description="The entity ID to query history for",
+            description="Entity ID",
             required=True,
         ),
         ToolParameter(
             name="period",
             type="string",
-            description="Time period to query",
+            description="Time period",
             required=False,
             enum=["1h", "6h", "12h", "24h", "48h", "7d"],
         ),
         ToolParameter(
             name="aggregation",
             type="string",
-            description="How to aggregate results: 'raw' (all changes), 'summary' (min/max/avg or counts), 'last_change' (most recent), 'periods' (on/off time ranges for switches/lights)",
+            description="raw=all changes, summary=stats, last_change=most recent, periods=on/off durations",
             required=False,
             enum=["raw", "summary", "last_change", "periods"],
         ),

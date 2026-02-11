@@ -32,61 +32,44 @@ class TimerTool(BaseTool):
     """
 
     name = "timer"
-    description = """Manage timers and reminders using voice commands.
-
-Actions:
-- start: Start a timer or reminder
-- cancel: Cancel/stop a timer
-- pause: Pause a running timer
-- resume: Resume a paused timer
-- status: Get timer status
-
-Examples:
-- 5 minute timer: action=start, minutes=5
-- Named timer: action=start, minutes=10, name="Pizza"
-- Reminder: action=start, minutes=30, command="Remind me to drink water"
-- Delayed command: action=start, hours=1, command="Turn off the lights"
-- Cancel timer: action=cancel
-- Timer status: action=status
-
-The 'command' parameter can execute any voice command when timer finishes."""
+    description = "Manage timers/reminders. 'command' param runs a voice command when timer ends (reminders/delayed actions)."
     
     parameters = [
         ToolParameter(
             name="action",
             type="string",
-            description="Timer action: start, cancel, pause, resume, status",
+            description="Timer action",
             required=True,
             enum=["start", "cancel", "pause", "resume", "status"],
         ),
         ToolParameter(
             name="hours",
             type="number",
-            description="Number of hours for the timer",
+            description="Hours",
             required=False,
         ),
         ToolParameter(
             name="minutes",
             type="number",
-            description="Number of minutes for the timer",
+            description="Minutes",
             required=False,
         ),
         ToolParameter(
             name="seconds",
             type="number",
-            description="Number of seconds for the timer",
+            description="Seconds",
             required=False,
         ),
         ToolParameter(
             name="name",
             type="string",
-            description="Name for the timer (e.g., 'Pizza', 'Laundry')",
+            description="Timer label (e.g., 'Pizza')",
             required=False,
         ),
         ToolParameter(
             name="command",
             type="string",
-            description="Voice command to execute when timer finishes (e.g., 'Turn off the lights', 'Remind me to check the oven'). This enables reminders and delayed actions.",
+            description="Voice command to run when timer ends",
             required=False,
         ),
     ]

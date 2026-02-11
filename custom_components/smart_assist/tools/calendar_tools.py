@@ -18,25 +18,25 @@ class GetCalendarEventsTool(BaseTool):
     """Tool to query calendar events."""
 
     name = "get_calendar_events"
-    description = "Get upcoming calendar events for a specific time range. Use this to answer questions about appointments, schedules, and upcoming events."
+    description = "Get upcoming calendar events for a time range."
     parameters = [
         ToolParameter(
             name="time_range",
             type="string",
-            description="Time range for events: 'today', 'tomorrow', 'this_week', or 'next_7_days'",
+            description="Time range",
             required=True,
             enum=["today", "tomorrow", "this_week", "next_7_days"],
         ),
         ToolParameter(
             name="calendar_id",
             type="string",
-            description="Calendar entity ID (e.g., calendar.family). If not specified, queries all calendars.",
+            description="Calendar entity ID (default: all)",
             required=False,
         ),
         ToolParameter(
             name="max_events",
             type="number",
-            description="Maximum number of events to return (default: 10)",
+            description="Max events (default: 10)",
             required=False,
             default=10,
         ),
@@ -210,54 +210,54 @@ class CreateCalendarEventTool(BaseTool):
     """Tool to create calendar events."""
 
     name = "create_calendar_event"
-    description = "Create a new event on a calendar. Use this when the user wants to add an appointment, meeting, or reminder to their calendar. The calendar_id can be a name (e.g., 'Laura', 'Family') or entity ID - fuzzy matching will find the best match."
+    description = "Create a calendar event. Calendar can be a name or entity ID (fuzzy matched)."
     parameters = [
         ToolParameter(
             name="calendar_id",
             type="string",
-            description="Calendar name or entity ID (e.g., 'Laura', 'Patrick', 'Family', or 'calendar.laura'). Fuzzy matching is applied to find the best match.",
+            description="Calendar name or entity ID (fuzzy matched)",
             required=True,
         ),
         ToolParameter(
             name="summary",
             type="string",
-            description="Title/summary of the event (e.g., 'Arzttermin', 'Meeting mit Team')",
+            description="Event title/summary",
             required=True,
         ),
         ToolParameter(
             name="start_date_time",
             type="string",
-            description="Start date and time in ISO format (e.g., '2024-01-28T15:00:00'). For all-day events, use start_date instead.",
+            description="Start ISO datetime (e.g., '2024-01-28T15:00:00')",
             required=False,
         ),
         ToolParameter(
             name="end_date_time",
             type="string",
-            description="End date and time in ISO format (e.g., '2024-01-28T16:00:00'). If not specified, defaults to 1 hour after start.",
+            description="End ISO datetime (default: start + 1h)",
             required=False,
         ),
         ToolParameter(
             name="start_date",
             type="string",
-            description="Start date for all-day events (e.g., '2024-01-28'). Use this instead of start_date_time for all-day events.",
+            description="Start date for all-day events (YYYY-MM-DD)",
             required=False,
         ),
         ToolParameter(
             name="end_date",
             type="string",
-            description="End date (exclusive) for all-day events (e.g., '2024-01-29'). If not specified for all-day events, defaults to next day.",
+            description="End date exclusive for all-day (default: next day)",
             required=False,
         ),
         ToolParameter(
             name="description",
             type="string",
-            description="Optional detailed description of the event.",
+            description="Event description",
             required=False,
         ),
         ToolParameter(
             name="location",
             type="string",
-            description="Optional location of the event.",
+            description="Event location",
             required=False,
         ),
     ]

@@ -92,9 +92,7 @@ def create_tool_registry(
     discovery_mode = _get_config(entry, CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE, subentry_data)
     if discovery_mode == "smart_discovery":
         get_entities_tool.description = (
-            "Discover available entities by domain, area, or name. "
-            "ALWAYS use this tool to find entity IDs before controlling them. "
-            "Specify domain (required) and optionally area or name_filter to narrow results."
+            "Discover entities by domain/area/name. ALWAYS call before control."
         )
     
     registry.register(get_entities_tool)

@@ -54,12 +54,12 @@ class TriggerAutomationTool(BaseTool):
     """Tool to manually trigger an automation."""
 
     name = "trigger_automation"
-    description = "Manually trigger a Home Assistant automation."
+    description = "Trigger a Home Assistant automation."
     parameters = [
         ToolParameter(
             name="automation_id",
             type="string",
-            description="The automation entity ID",
+            description="Automation entity ID",
             required=True,
         ),
     ]

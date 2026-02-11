@@ -40,7 +40,7 @@ class SendTool(BaseTool):
         ToolParameter(
             name="content",
             type="string",
-            description="The content to send (text message, URLs, or formatted message with links)",
+            description="Content (text, URLs, or messages)",
             required=True,
         ),
         ToolParameter(
@@ -52,7 +52,7 @@ class SendTool(BaseTool):
         ToolParameter(
             name="title",
             type="string",
-            description="Title for the notification (optional, defaults to 'Smart Assist')",
+            description="Notification title (default: 'Smart Assist')",
             required=False,
         ),
     ]
@@ -122,9 +122,8 @@ class SendTool(BaseTool):
                 parts.append(f"Other services: {', '.join(other_services)}")
             target_info = ". ".join(parts)
             description = (
-                f"Send content (links, text, messages) to a notification target. "
-                f"Available targets - {target_info}. "
-                f"Use to send links, reminders, or messages to the user's device."
+                f"Send content to a notification target. "
+                f"Available: {target_info}."
             )
         else:
             description = (
