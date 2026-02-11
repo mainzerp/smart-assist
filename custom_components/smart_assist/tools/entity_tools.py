@@ -97,25 +97,11 @@ class GetEntitiesTool(BaseTool):
 
         message = f"Found {len(entities)} entities:\n{entity_list}"
 
-        # Add smart control hints when multiple entities found
+        # Suggest batch control for multiple entities
         if len(entities) > 1:
-            group_ids: list[str] = []
-            individual_ids: list[str] = []
-            for e in entities[:20]:
-                st = self._hass.states.get(e.entity_id)
-                if st and isinstance(st.attributes.get("entity_id"), list):
-                    group_ids.append(e.entity_id)
-                else:
-                    individual_ids.append(e.entity_id)
-
-            if group_ids:
-                # Group entity found - recommend using ONLY the group
-                message += f"\n\nIMPORTANT: {', '.join(group_ids)} = GROUP entity that already controls all members. Use control(entity_id=\"{group_ids[0]}\", action=...) - do NOT control individual members separately!"
-            else:
-                # No group entity - suggest batch control
-                all_ids = [e.entity_id for e in entities[:20]]
-                ids_str = str(all_ids)
-                message += f"\nTip: To control all at once: control(entity_ids={ids_str}, action=...)"
+            all_ids = [e.entity_id for e in entities[:20]]
+            ids_str = str(all_ids)
+            message += f"\nTip: To control all at once: control(entity_ids={ids_str}, action=...)"
 
         return ToolResult(
             success=True,

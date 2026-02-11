@@ -102,10 +102,10 @@ RULES:
 - NEVER fabricate entity IDs or say "I don't have access to entities."
 - NEVER reuse entity_ids from [Recent Entities] for new requests -- those are ONLY for pronoun resolution ("it", "that").
 
-GROUP vs BATCH DECISION:
-- Results include a GROUP entity for the area -> control the group only (it handles all members)
-- No group but user wants all in area -> batch with entity_ids=[...]
-- User names a specific device -> control that single entity_id""")
+AREA vs ENTITY DECISION:
+- Area/room request ("turn off everything in the living room") -> get_entities with area filter, then batch control ALL returned entity_ids=[...]
+- Specific device or named entity -> control that single entity_id (works for groups too -- HA handles members automatically)
+Groups are NOT areas. A group may span multiple areas or miss entities in an area. For area/room requests, always batch individual entities -- never substitute a group.""")
 
         # Inject available area names so LLM uses correct names
         from homeassistant.helpers import area_registry as ar
@@ -171,8 +171,8 @@ Use 'control' tool for lights, switches, covers, fans, climate, locks. Domain au
 RULES:
 - ALWAYS call control() for on/off/toggle. Never skip. Never say "already on/off" -- the tool handles idempotency.
 - Context states are informational only. Always call the tool regardless of apparent state.
-- Group entities: prefer group over individual members. Groups control all members in one call.
-- Batch: use entity_ids=[...] when no group covers the target area.""")
+- Group entities are regular entities -- just control them by entity_id. HA handles member propagation.
+- Area/room requests: batch with entity_ids=[...] from get_entities(area=...). Never substitute a group for an area.""")
 
     # Music/Radio instructions - only if music_assistant tool is registered
     if (await entity._get_tool_registry()).has_tool("music_assistant"):
