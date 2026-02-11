@@ -523,6 +523,9 @@ class SmartAssistPanel extends HTMLElement {
         const toolNames = (e.tools_used || []).map(function(t) { return t.name; }).join(', ') || '-';
         const statusCls = e.success ? 'success' : 'error';
         const statusLabel = e.success ? 'OK' : 'Error';
+        var statusBadges = '<span class="cal-status ' + statusCls + '">' + statusLabel + '</span>';
+        if (e.is_nevermind) statusBadges += ' <span class="cal-status pending">Cancel</span>';
+        if (e.is_system_call) statusBadges += ' <span class="cal-status upcoming">System</span>';
 
         rows += '<tr>'
           + '<td style="white-space:nowrap;font-size:12px;">' + time + '</td>'
@@ -534,16 +537,16 @@ class SmartAssistPanel extends HTMLElement {
           + '<td>' + this._fmt(tokens) + '</td>'
           + '<td>' + Math.round(e.response_time_ms || 0) + '</td>'
           + '<td title="' + this._esc(toolNames) + '">'
-          + this._esc(toolNames.substring(0, 30))
-          + (toolNames.length > 30 ? '...' : '') + '</td>'
-          + '<td><span class="cal-status ' + statusCls + '">' + statusLabel + '</span></td>'
+          + this._esc(toolNames.substring(0, 50))
+          + (toolNames.length > 50 ? '...' : '') + '</td>'
+          + '<td>' + statusBadges + '</td>'
           + '</tr>';
       }
 
       html += '<table><thead><tr>'
         + '<th>Time</th><th>Agent</th><th>User</th>'
         + '<th>Input</th><th>Tokens</th><th>Time (ms)</th>'
-        + '<th>Tools</th><th>Status</th>'
+        + '<th style="min-width:180px">Tools</th><th>Status</th>'
         + '</tr></thead><tbody>' + rows + '</tbody></table>';
 
       // Pagination

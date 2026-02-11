@@ -4,9 +4,22 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.4  | 2026-02-11 |
+| Smart Assist | 1.13.5  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.5 (2026-02-11) - History Tab Improvements
+
+**UI:**
+- History tab: Tools column wider (min-width 180px, truncation increased to 50 chars)
+- History tab: "Cancel" badge shown for nevermind/cancel intents
+- History tab: "System" badge shown for system-triggered actions (timer callbacks)
+
+**Internal:**
+- New `is_nevermind` and `is_system_call` fields tracked in request history entries
+- Cancel intent detection via `_is_cancel_intent()` static method (EN + DE phrases)
+
+- Files modified: request_history.py, conversation.py, smart-assist-panel.js
 
 ### v1.13.4 (2026-02-11) - Timer Reminder Quality Fix
 

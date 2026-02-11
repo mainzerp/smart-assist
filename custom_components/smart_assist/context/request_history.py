@@ -66,6 +66,8 @@ class RequestHistoryEntry:
     tools_used: list[ToolCallRecord] = field(default_factory=list)
     success: bool = True
     error: str | None = None
+    is_nevermind: bool = False
+    is_system_call: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
@@ -88,6 +90,8 @@ class RequestHistoryEntry:
             "tools_used": [t.to_dict() for t in self.tools_used],
             "success": self.success,
             "error": self.error,
+            "is_nevermind": self.is_nevermind,
+            "is_system_call": self.is_system_call,
         }
 
 

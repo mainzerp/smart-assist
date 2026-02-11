@@ -531,6 +531,8 @@ class SmartAssistConversationEntity(ConversationEntity):
                 request_start_time=request_start_time,
                 llm_iterations=llm_iterations,
                 tool_call_records=tool_call_records,
+                is_nevermind=self._is_cancel_intent(user_input.text),
+                is_system_call=is_silent_call,
             )
 
         except Exception as err:
@@ -550,6 +552,8 @@ class SmartAssistConversationEntity(ConversationEntity):
                 tool_call_records=[],
                 request_success=False,
                 request_error=str(err),
+                is_nevermind=self._is_cancel_intent(user_input.text),
+                is_system_call=is_silent_call,
             )
 
     async def _call_llm_streaming_with_tools(
@@ -688,6 +692,19 @@ class SmartAssistConversationEntity(ConversationEntity):
             recent_entities_context=recent_entities_context, user_id=user_id,
         )
 
+    @staticmethod
+    def _is_cancel_intent(text: str) -> bool:
+        """Check if user input is a cancel/nevermind/dismiss phrase."""
+        cancel_phrases = {
+            "nevermind", "never mind", "cancel", "abort", "forget it",
+            "stop", "abbrechen", "vergiss es", "lass gut sein",
+            "nichts", "nein danke", "no thanks", "nope",
+            "doesn't matter", "doesn\'t matter", "don't worry",
+            "don\'t worry", "not anymore", "skip", "dismiss",
+        }
+        normalized = text.strip().lower().rstrip(".!?")
+        return normalized in cancel_phrases
+
     async def _try_quick_action(self, text: str) -> str | None:
         """Try to handle simple commands without LLM.
 
@@ -761,6 +778,8 @@ class SmartAssistConversationEntity(ConversationEntity):
         tool_call_records: list | None = None,
         request_success: bool = True,
         request_error: str | None = None,
+        is_nevermind: bool = False,
+        is_system_call: bool = False,
     ) -> ConversationResult:
         """Build a ConversationResult from the chat log."""
         intent_response = intent.IntentResponse(language=user_input.language)
@@ -816,6 +835,8 @@ class SmartAssistConversationEntity(ConversationEntity):
                     tools_used=tool_call_records or [],
                     success=request_success,
                     error=request_error,
+                    is_nevermind=is_nevermind,
+                    is_system_call=is_system_call,
                 )
                 history_store.add_entry(entry)
                 self.hass.async_create_task(history_store.async_save())
