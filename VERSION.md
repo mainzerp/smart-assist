@@ -4,9 +4,24 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.0  | 2026-02-11 |
+| Smart Assist | 1.13.1  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.1 (2026-02-11) - Prompt & Tool Token Optimization
+
+**Performance:**
+- System prompt condensed ~38% (~700-800 tokens saved per request)
+- Tool definitions condensed across 13 tools (~1120 tokens saved per request)
+- Total: ~1800-1920 fewer prompt tokens per request with identical behavior
+
+**Bug Fixes:**
+- Dashboard scroll position preserved during auto-refresh (no more jump-to-top)
+
+**Code Quality:**
+- Removed dead GetTimeTool class from search_tools.py
+
+- Files modified: prompt_builder.py, all tools/*.py, www/smart-assist-panel.js
 
 ### v1.13.0 (2026-02-11) - Prompt Preview Tab & Music Prompt Fix
 
