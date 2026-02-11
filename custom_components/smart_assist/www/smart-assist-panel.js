@@ -27,6 +27,7 @@ class SmartAssistPanel extends HTMLElement {
     this._boundVisibilityHandler = null;
     this._promptData = null;
     this._promptLoading = false;
+    this._scrollContainer = null;
   }
 
   set hass(hass) {
@@ -63,12 +64,16 @@ class SmartAssistPanel extends HTMLElement {
       try { this._unsub(); } catch (_) {}
       this._unsub = null;
     }
+    this._scrollContainer = null;
   }
 
   async _fetchData() {
-    this._loading = true;
+    const isInitialLoad = !this._data;
     this._error = null;
-    this._render();
+    if (isInitialLoad) {
+      this._loading = true;
+      this._render();
+    }
     try {
       const result = await this._hass.callWS({ type: "smart_assist/dashboard_data" });
       this._data = result;
@@ -139,6 +144,27 @@ class SmartAssistPanel extends HTMLElement {
       this._fetchData();
       this._startAutoRefresh();
     }
+  }
+
+  _getScrollContainer() {
+    if (this._scrollContainer) return this._scrollContainer;
+    let el = this.parentElement;
+    while (el && el !== document.documentElement) {
+      const style = getComputedStyle(el);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        this._scrollContainer = el;
+        return el;
+      }
+      if (el.parentElement) {
+        el = el.parentElement;
+      } else if (el.getRootNode() instanceof ShadowRoot) {
+        el = el.getRootNode().host;
+      } else {
+        break;
+      }
+    }
+    this._scrollContainer = document.scrollingElement || document.documentElement;
+    return this._scrollContainer;
   }
 
   async _toggleMemory(userId) {
@@ -223,8 +249,8 @@ class SmartAssistPanel extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    // Preserve scroll position across re-renders (prevents jump-to-top on auto-refresh)
-    const prevScrollY = window.scrollY;
+    const sc = this._getScrollContainer();
+    const prevScrollTop = sc.scrollTop;
     let content = "";
     if (this._loading) {
       content = '<div class="loading">Loading Smart Assist Dashboard...</div>';
@@ -237,8 +263,9 @@ class SmartAssistPanel extends HTMLElement {
     }
     this.shadowRoot.innerHTML = "<style>" + this._getStyles() + "</style>" + content;
     this._attachEvents();
-    // Restore scroll position after DOM update
-    requestAnimationFrame(() => { window.scrollTo(0, prevScrollY); });
+    if (prevScrollTop > 0) {
+      requestAnimationFrame(() => { sc.scrollTop = prevScrollTop; });
+    }
   }
 
   _renderDashboard() {
@@ -544,8 +571,11 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   async _loadHistory() {
+    const isInitialLoad = !this._historyData;
     this._historyLoading = true;
-    this._render();
+    if (isInitialLoad) {
+      this._render();
+    }
     try {
       const agentId = this._selectedAgent || undefined;
       const offset = (this._historyPage || 0) * 50;
@@ -571,8 +601,11 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   async _loadPrompt() {
+    const isInitialLoad = !this._promptData;
     this._promptLoading = true;
-    this._render();
+    if (isInitialLoad) {
+      this._render();
+    }
     try {
       const agentId = this._selectedAgent || undefined;
       const result = await this._hass.callWS({
