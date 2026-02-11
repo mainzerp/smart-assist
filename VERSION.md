@@ -4,9 +4,16 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.2  | 2026-02-11 |
+| Smart Assist | 1.13.3  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.3 (2026-02-11) - Timer Announcement Fix
+
+**Bug Fixes:**
+- Fix: Timer command responses are now announced on the originating satellite via `assist_satellite.announce` (HA Core discards the `ConversationResult` from timer callbacks, so Smart Assist now detects silent calls and proactively announces)
+
+- Files modified: conversation.py
 
 ### v1.13.2 (2026-02-11) - Timer Fix & Dashboard Scroll Fix
 
