@@ -25,6 +25,8 @@ class SmartAssistPanel extends HTMLElement {
     this._autoRefreshInterval = 30;
     this._autoRefreshTimer = null;
     this._boundVisibilityHandler = null;
+    this._promptData = null;
+    this._promptLoading = false;
   }
 
   set hass(hass) {
@@ -279,6 +281,7 @@ class SmartAssistPanel extends HTMLElement {
       + '<button class="tab-btn ' + (this._activeTab === "memory" ? "active" : "") + '" data-tab="memory">Memory</button>'
       + '<button class="tab-btn ' + (this._activeTab === "calendar" ? "active" : "") + '" data-tab="calendar">Calendar</button>'
       + '<button class="tab-btn ' + (this._activeTab === "history" ? "active" : "") + '" data-tab="history">History</button>'
+      + '<button class="tab-btn ' + (this._activeTab === "prompt" ? "active" : "") + '" data-tab="prompt">Prompt</button>'
       + '</div>';
 
     // Tab content
@@ -290,6 +293,8 @@ class SmartAssistPanel extends HTMLElement {
       html += this._renderCalendarTab();
     } else if (this._activeTab === "history") {
       html += this._renderHistoryTab();
+    } else if (this._activeTab === "prompt") {
+      html += this._renderPromptTab();
     }
 
     return html;
@@ -561,6 +566,73 @@ class SmartAssistPanel extends HTMLElement {
     this._render();
   }
 
+  async _loadPrompt() {
+    this._promptLoading = true;
+    this._render();
+    try {
+      const agentId = this._selectedAgent || undefined;
+      const result = await this._hass.callWS({
+        type: "smart_assist/system_prompt",
+        agent_id: agentId,
+      });
+      this._promptData = result;
+    } catch (err) {
+      console.error("Failed to load system prompt:", err);
+      this._promptData = null;
+    }
+    this._promptLoading = false;
+    this._render();
+  }
+
+  _renderPromptTab() {
+    let html = '';
+
+    if (this._promptLoading) {
+      return '<div class="loading">Loading system prompt...</div>';
+    }
+
+    if (!this._promptData) {
+      return '<div class="loading">Select an agent and switch to this tab to load the prompt.</div>';
+    }
+
+    const prompt = this._promptData;
+
+    // Agent name header
+    if (prompt.agent_name) {
+      html += '<div class="overview-grid">'
+        + '<div class="metric-card"><div class="label">Agent</div>'
+        + '<div class="value" style="font-size:20px;">' + this._esc(prompt.agent_name) + '</div></div>'
+        + '<div class="metric-card"><div class="label">System Prompt Length</div>'
+        + '<div class="value">' + this._fmt(prompt.system_prompt ? prompt.system_prompt.length : 0) + '</div>'
+        + '<div class="sub">characters</div></div>'
+        + '<div class="metric-card"><div class="label">User Prompt Length</div>'
+        + '<div class="value">' + this._fmt(prompt.user_prompt ? prompt.user_prompt.length : 0) + '</div>'
+        + '<div class="sub">characters</div></div>'
+        + '</div>';
+    }
+
+    // System prompt display
+    html += '<div class="card"><h3>System Prompt (Technical)</h3>'
+      + '<div class="prompt-preview">' + this._formatPrompt(prompt.system_prompt || '(not yet built)') + '</div>'
+      + '</div>';
+
+    // User system prompt display
+    html += '<div class="card"><h3>User System Prompt (Custom Instructions)</h3>'
+      + '<div class="prompt-preview">' + this._formatPrompt(prompt.user_prompt || '(none configured)') + '</div>'
+      + '</div>';
+
+    return html;
+  }
+
+  _formatPrompt(text) {
+    if (!text) return '';
+    const escaped = this._esc(text);
+    const formatted = escaped
+      .replace(/^## (.+)$/gm, '<div class="prompt-section-header">$1</div>')
+      .replace(/\n/g, '<br>');
+    return formatted;
+  }
+
   _fmtEventTime(timeStr) {
     if (!timeStr) return "";
     try {
@@ -688,6 +760,9 @@ class SmartAssistPanel extends HTMLElement {
         if (btn.dataset.tab === "history") {
           this._loadHistory();
         }
+        if (btn.dataset.tab === "prompt") {
+          this._loadPrompt();
+        }
         this._render();
       });
     });
@@ -695,6 +770,9 @@ class SmartAssistPanel extends HTMLElement {
     root.querySelectorAll(".agent-tab").forEach((btn) => {
       btn.addEventListener("click", () => {
         this._selectedAgent = btn.dataset.agent;
+        if (this._activeTab === "prompt") {
+          this._loadPrompt();
+        }
         this._render();
       });
     });
@@ -961,7 +1039,9 @@ class SmartAssistPanel extends HTMLElement {
       + ".auto-refresh-select{background:var(--sa-card-bg);border:1px solid var(--sa-divider);border-radius:20px;padding:5px 8px;color:var(--sa-text);font-size:12px;cursor:pointer;outline:none;}"
       + ".auto-refresh-select:focus{border-color:var(--sa-primary);}"
       + ".pulse-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--sa-success);margin-right:4px;animation:pulse 1.5s infinite;}"
-      + "@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}";
+      + "@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}"
+      + ".prompt-preview{font-family:'Roboto Mono',monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word;background:var(--primary-background-color,#fafafa);border:1px solid var(--sa-divider);border-radius:8px;padding:16px;max-height:600px;overflow-y:auto;color:var(--sa-text);}"
+      + ".prompt-section-header{font-weight:700;color:var(--sa-primary);font-size:14px;margin:12px 0 4px 0;padding:4px 0;border-bottom:1px solid var(--sa-divider);}";
   }
 }
 

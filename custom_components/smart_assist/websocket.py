@@ -28,6 +28,7 @@ from .const import (
     CONF_MODEL,
     CONF_PROVIDER,
     CONF_TEMPERATURE,
+    CONF_USER_SYSTEM_PROMPT,
     DEFAULT_ASK_FOLLOWUP,
     DEFAULT_CALENDAR_CONTEXT,
     DEFAULT_CLEAN_RESPONSES,
@@ -40,6 +41,7 @@ from .const import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     DEFAULT_TEMPERATURE,
+    DEFAULT_USER_SYSTEM_PROMPT,
     DOMAIN,
 )
 from .context.calendar_reminder import CalendarReminderTracker, ReminderStage
@@ -59,6 +61,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_request_history)
     websocket_api.async_register_command(hass, ws_tool_analytics)
     websocket_api.async_register_command(hass, ws_request_history_clear)
+    websocket_api.async_register_command(hass, ws_system_prompt)
     _LOGGER.debug("Registered Smart Assist WebSocket commands")
 
 
@@ -652,6 +655,88 @@ async def ws_tool_analytics(
     connection.send_result(msg["id"], {
         "tools": tools,
         "summary": summary,
+    })
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/system_prompt",
+        vol.Optional("agent_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_system_prompt(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return the system prompt for a specific agent."""
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        connection.send_result(msg["id"], {
+            "system_prompt": "",
+            "user_prompt": "",
+            "agent_name": "",
+        })
+        return
+
+    entry = entries[0]
+    agent_id = msg.get("agent_id")
+
+    # Find the target agent (default to first conversation subentry)
+    target_subentry_id = agent_id
+    if not target_subentry_id:
+        for sid, sub in entry.subentries.items():
+            if sub.subentry_type == "conversation":
+                target_subentry_id = sid
+                break
+
+    if not target_subentry_id:
+        connection.send_result(msg["id"], {
+            "system_prompt": "",
+            "user_prompt": "",
+            "agent_name": "",
+        })
+        return
+
+    subentry = entry.subentries.get(target_subentry_id)
+    if not subentry or subentry.subentry_type != "conversation":
+        connection.send_result(msg["id"], {
+            "system_prompt": "",
+            "user_prompt": "",
+            "agent_name": "",
+        })
+        return
+
+    # Get the entity to build/retrieve system prompt
+    domain_data = hass.data.get(DOMAIN, {})
+    entry_data = domain_data.get(entry.entry_id, {})
+    agents = entry_data.get("agents", {})
+    agent_info = agents.get(target_subentry_id, {})
+    entity = agent_info.get("entity")
+
+    system_prompt = ""
+    user_prompt = ""
+
+    if entity:
+        # Import and call build_system_prompt (will use cache if available)
+        from .prompt_builder import build_system_prompt
+        try:
+            system_prompt = await build_system_prompt(entity)
+        except Exception as err:
+            _LOGGER.warning("Failed to build system prompt for preview: %s", err)
+            system_prompt = f"[Error building prompt: {err}]"
+
+        # Get user system prompt from config
+        user_prompt = entity._get_config(
+            CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT
+        )
+
+    connection.send_result(msg["id"], {
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt or "",
+        "agent_name": subentry.title,
     })
 
 
