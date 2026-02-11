@@ -50,7 +50,7 @@ try:
     from homeassistant.config_entries import ConfigEntry, ConfigSubentry
     from homeassistant.const import MATCH_ALL
     from homeassistant.core import HomeAssistant
-    from homeassistant.helpers import intent, device_registry as dr
+    from homeassistant.helpers import intent, device_registry as dr, entity_registry as er
     from homeassistant.helpers.dispatcher import async_dispatcher_send
     from homeassistant.util import dt as dt_util
     from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -480,6 +480,34 @@ class SmartAssistConversationEntity(ConversationEntity):
 
             _LOGGER.debug("Streaming response complete. continue=%s", continue_conversation)
 
+            # Detect programmatic/timer calls where no voice pipeline is listening.
+            # In these cases, proactively announce the response on the originating satellite.
+            is_silent_call = (
+                user_input.conversation_id is None
+                and not satellite_id
+                and device_id is not None
+                and not getattr(chat_log, 'delta_listener', None)
+            )
+            if is_silent_call and final_response.strip():
+                sat_entity_id = await self._find_satellite_entity_id(device_id)
+                if sat_entity_id:
+                    _LOGGER.info(
+                        "[TIMER-ANNOUNCE] Announcing on %s (device=%s)",
+                        sat_entity_id, device_id,
+                    )
+                    try:
+                        await self.hass.services.async_call(
+                            "assist_satellite",
+                            "announce",
+                            {"entity_id": sat_entity_id, "message": final_response},
+                            blocking=False,
+                        )
+                    except Exception as announce_err:
+                        _LOGGER.warning(
+                            "[TIMER-ANNOUNCE] Failed to announce on %s: %s",
+                            sat_entity_id, announce_err,
+                        )
+
             return self._build_result(
                 user_input, chat_log, final_response, continue_conversation,
                 user_id=user_id,
@@ -683,6 +711,25 @@ class SmartAssistConversationEntity(ConversationEntity):
                     action_text = "on" if action == "turn_on" else "off"
                     return f"Turned {action_text} {entity.friendly_name}."
 
+        return None
+
+    async def _find_satellite_entity_id(self, device_id: str) -> str | None:
+        """Find the assist_satellite entity ID for a device.
+
+        Used to announce timer command responses on the originating satellite
+        when the response would otherwise be silently discarded by HA Core.
+        """
+        try:
+            entity_registry = er.async_get(self.hass)
+            for entry in entity_registry.entities.values():
+                if (
+                    entry.device_id == device_id
+                    and entry.domain == "assist_satellite"
+                    and not entry.disabled
+                ):
+                    return entry.entity_id
+        except Exception as err:
+            _LOGGER.debug("[TIMER-ANNOUNCE] Error finding satellite: %s", err)
         return None
 
     def _build_result(
