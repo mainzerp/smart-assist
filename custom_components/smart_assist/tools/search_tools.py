@@ -152,9 +152,9 @@ class GetTimeTool(BaseTool):
 
     async def execute(self) -> ToolResult:
         """Execute the get_time tool."""
-        from datetime import datetime
+        from homeassistant.util import dt as dt_util
 
-        now = datetime.now()
+        now = dt_util.now()
 
         return ToolResult(
             success=True,

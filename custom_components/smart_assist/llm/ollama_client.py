@@ -350,14 +350,12 @@ class OllamaClient(BaseLLMClient):
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
-        stream: bool = False,
     ) -> ChatResponse:
         """Send a chat completion request.
         
         Args:
             messages: Conversation messages
             tools: Optional tool definitions for function calling
-            stream: Whether to stream the response (not yet implemented)
             
         Returns:
             ChatResponse with content and optional tool calls

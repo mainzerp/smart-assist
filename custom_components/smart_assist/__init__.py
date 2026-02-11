@@ -352,16 +352,16 @@ def _start_cache_refresh_timer(
     interval_seconds = interval_minutes * 60
     subentry_id = subentry.subentry_id
     
-    # Initialize cache warming tracking data
+    # Initialize cache warming tracking data (preserve existing data from initial warming)
     hass.data[DOMAIN][entry.entry_id].setdefault("cache_warming", {})
-    hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id] = {
+    hass.data[DOMAIN][entry.entry_id]["cache_warming"].setdefault(subentry_id, {
         "status": "active",
         "last_warmup": None,
         "next_warmup": None,
         "warmup_count": 0,
         "warmup_failures": 0,
         "interval_minutes": interval_minutes,
-    }
+    })
     
     def _update_next_warmup() -> None:
         """Update the next warmup timestamp."""

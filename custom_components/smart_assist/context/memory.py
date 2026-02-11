@@ -16,6 +16,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from ..const import (
     MEMORY_MAX_CONTENT_LENGTH,
@@ -201,7 +202,7 @@ class MemoryManager:
         if len(target_list) >= max_limit:
             self._evict_memories(target_list, max_limit - 1)
 
-        now = datetime.now().isoformat()
+        now = dt_util.now().isoformat()
         memory_id = self._generate_id()
         entry = {
             "id": memory_id,
@@ -237,7 +238,7 @@ class MemoryManager:
             return f"Memory not found: {memory_id}"
 
         memory["content"] = content
-        memory["updated_at"] = datetime.now().isoformat()
+        memory["updated_at"] = dt_util.now().isoformat()
         self._dirty = True
         return f"Updated memory {memory_id}"
 
@@ -342,13 +343,6 @@ class MemoryManager:
         all_memories.sort(key=sort_key, reverse=True)
         selected = all_memories[:MEMORY_MAX_INJECTION]
 
-        # Bump access counts for injected memories
-        now = datetime.now().isoformat()
-        for mem in selected:
-            mem["access_count"] = mem.get("access_count", 0) + 1
-            mem["last_accessed"] = now
-        self._dirty = True
-
         # Group by category for readability
         groups: dict[str, list[str]] = {}
         category_order = ["instruction", "preference", "named_entity", "pattern", "fact"]
@@ -396,13 +390,6 @@ class MemoryManager:
             reverse=True,
         )
         selected = memories[:MEMORY_MAX_AGENT_INJECTION]
-
-        # Bump access counts for tracking (used by auto-expire)
-        now = datetime.now().isoformat()
-        for mem in selected:
-            mem["access_count"] = mem.get("access_count", 0) + 1
-            mem["last_accessed"] = now
-        self._dirty = True
 
         # Group by category
         groups: dict[str, list[str]] = {}

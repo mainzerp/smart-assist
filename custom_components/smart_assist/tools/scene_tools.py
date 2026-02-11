@@ -1,11 +1,9 @@
-"""Scene and script tools for Smart Assist."""
+"""Scene and automation tools for Smart Assist."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from homeassistant.core import HomeAssistant
 from homeassistant.const import ATTR_ENTITY_ID
 
 from .base import BaseTool, ToolParameter, ToolResult
@@ -49,59 +47,6 @@ class RunSceneTool(BaseTool):
             return ToolResult(
                 success=False,
                 message=f"Failed to activate scene: {err}",
-            )
-
-
-class RunScriptTool(BaseTool):
-    """Tool to execute a script."""
-
-    name = "run_script"
-    description = "Execute a Home Assistant script with optional variables."
-    parameters = [
-        ToolParameter(
-            name="script_id",
-            type="string",
-            description="The script entity ID (e.g., script.goodnight)",
-            required=True,
-        ),
-        ToolParameter(
-            name="variables",
-            type="object",
-            description="Optional variables to pass to the script",
-            required=False,
-        ),
-    ]
-
-    async def execute(
-        self,
-        script_id: str,
-        variables: dict[str, Any] | None = None,
-    ) -> ToolResult:
-        """Execute the run_script tool."""
-        # Ensure it's a script entity
-        if not script_id.startswith("script."):
-            script_id = f"script.{script_id}"
-
-        service_data: dict[str, Any] = {ATTR_ENTITY_ID: script_id}
-        if variables:
-            service_data["variables"] = variables
-
-        try:
-            await self._hass.services.async_call(
-                "script",
-                "turn_on",
-                service_data,
-                blocking=True,
-            )
-
-            return ToolResult(
-                success=True,
-                message=f"Executed script {script_id}.",
-            )
-        except Exception as err:
-            return ToolResult(
-                success=False,
-                message=f"Failed to execute script: {err}",
             )
 
 

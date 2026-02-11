@@ -4,9 +4,35 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.12.5  | 2026-02-10 |
+| Smart Assist | 1.12.6  | 2026-02-10 |
 
 ## Version History
+
+### v1.12.6 (2026-02-10) - Code Review v2 Fixes (Phase 5-8)
+
+**Bug Fixes:**
+- Fix: Memory access_count no longer inflated on every request (removed injection-time bump from get_injection_text/get_agent_injection_text)
+- Fix: Remaining datetime.now() in memory.py injection methods replaced with dt_util.now()
+- Fix: GetTimeTool in search_tools.py now uses dt_util.now() instead of datetime.now()
+- Fix: ai_task.py get_entity_index() tuple unpacking corrected
+- Fix: Empty-response retry nudge message removed from working_messages after successful iteration (prevents token waste)
+- Fix: Cache warming data no longer overwritten on timer start (uses setdefault)
+
+**Performance:**
+- Perf: GetEntitiesTool now uses shared EntityManager from conversation entity (avoids redundant entity iteration per tool call)
+- Perf: Entity index hash now includes friendly_name and area_name (renames invalidate cache correctly)
+
+**Code Quality:**
+- Refactor: OpenRouter chat_stream/chat_stream_full deduplicated into shared _stream_request() method (~190 lines removed)
+- Refactor: Groq chat_stream/chat_stream_full deduplicated into shared _stream_request() method (~170 lines removed)
+- Refactor: conversation.py split into 3 files: conversation.py (722 lines), prompt_builder.py (558 lines), streaming.py (353 lines)
+- Removed: RunScriptTool dead code from scene_tools.py
+- Removed: Unused CONF_ENABLE_PROMPT_CACHING constant from const.py
+- Removed: Unused asyncio import from ai_task.py
+- Added: execute_tools_parallel utility function in utils.py (used by ai_task.py)
+- Added: Ollama as AI Task provider option in config_subentry_flows.py
+
+- Files modified: conversation.py, prompt_builder.py (new), streaming.py (new), context/memory.py, context/entity_manager.py, tools/entity_tools.py, tools/__init__.py, tools/scene_tools.py, tools/search_tools.py, llm/openrouter_client.py, llm/groq_client.py, llm/ollama_client.py, ai_task.py, utils.py, const.py, config_subentry_flows.py, __init__.py
 
 ### v1.12.5 (2026-02-10) - Code Review Fixes (Phase 1-3)
 

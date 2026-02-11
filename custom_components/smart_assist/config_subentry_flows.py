@@ -596,11 +596,12 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             if not errors:
                 return await self.async_step_model()
         
-        # Check which API keys are already configured
+        # Check which API keys/providers are already configured
         has_openrouter_key = bool(self._get_api_key())
         has_groq_key = bool(self._get_groq_api_key())
+        has_ollama = self._is_ollama_configured()
         
-        # Build provider options based on configured API keys
+        # Build provider options based on configured providers
         llm_provider_options = []
         if has_groq_key:
             llm_provider_options.append(
@@ -609,6 +610,10 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         if has_openrouter_key:
             llm_provider_options.append(
                 {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        if has_ollama:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OLLAMA, "label": LLM_PROVIDERS[LLM_PROVIDER_OLLAMA]}
             )
         
         # If only one provider is configured, skip selection and go directly to model
@@ -620,8 +625,13 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         if not llm_provider_options:
             return self.async_abort(reason="no_api_keys_configured")
         
-        # Default to Groq if available, otherwise OpenRouter
-        default_provider = LLM_PROVIDER_GROQ if has_groq_key else LLM_PROVIDER_OPENROUTER
+        # Default to Groq if available, then Ollama, then OpenRouter
+        if has_groq_key:
+            default_provider = LLM_PROVIDER_GROQ
+        elif has_ollama:
+            default_provider = LLM_PROVIDER_OLLAMA
+        else:
+            default_provider = LLM_PROVIDER_OPENROUTER
         
         schema_dict: dict[Any, Any] = {
             vol.Required(CONF_LLM_PROVIDER, default=default_provider): SelectSelector(

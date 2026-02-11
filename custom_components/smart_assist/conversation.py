@@ -7,7 +7,7 @@ import logging
 import re
 import time
 from collections.abc import AsyncGenerator
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Literal, TYPE_CHECKING
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,15 +62,10 @@ try:
     from .const import (
         CONF_API_KEY,
         CONF_ASK_FOLLOWUP,
-        CONF_CALENDAR_CONTEXT,
         CONF_CLEAN_RESPONSES,
-        CONF_CONFIRM_CRITICAL,
-        CONF_ENABLE_CANCEL_HANDLER,
         CONF_ENABLE_MEMORY,
-        CONF_ENABLE_AGENT_MEMORY,
         CONF_ENABLE_PRESENCE_HEURISTIC,
         CONF_ENABLE_QUICK_ACTIONS,
-        CONF_ENTITY_DISCOVERY_MODE,
         CONF_EXPOSED_ONLY,
         CONF_GROQ_API_KEY,
         CONF_LANGUAGE,
@@ -86,37 +81,27 @@ try:
         CONF_PROVIDER,
         CONF_TEMPERATURE,
         CONF_USER_MAPPINGS,
-        CONF_USER_SYSTEM_PROMPT,
         DEFAULT_ASK_FOLLOWUP,
-        DEFAULT_CALENDAR_CONTEXT,
         DEFAULT_CLEAN_RESPONSES,
-        DEFAULT_ENABLE_CANCEL_HANDLER,
         DEFAULT_ENABLE_MEMORY,
-        DEFAULT_ENABLE_AGENT_MEMORY,
         DEFAULT_ENABLE_PRESENCE_HEURISTIC,
-        DEFAULT_ENTITY_DISCOVERY_MODE,
         DEFAULT_LLM_PROVIDER,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
         DEFAULT_MODEL,
         DEFAULT_PROVIDER,
         DEFAULT_TEMPERATURE,
-        DEFAULT_USER_SYSTEM_PROMPT,
         DOMAIN,
         LLM_PROVIDER_GROQ,
         LLM_PROVIDER_OLLAMA,
-        LOCALE_TO_LANGUAGE,
-        MAX_CONSECUTIVE_FOLLOWUPS,
         MAX_TOOL_ITERATIONS,
         OLLAMA_DEFAULT_KEEP_ALIVE,
         OLLAMA_DEFAULT_MODEL,
         OLLAMA_DEFAULT_NUM_CTX,
         OLLAMA_DEFAULT_TIMEOUT,
         OLLAMA_DEFAULT_URL,
-        TTS_STREAM_MIN_CHARS,
         REQUEST_HISTORY_INPUT_MAX_LENGTH,
         REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
-        REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
@@ -125,9 +110,20 @@ try:
     from .context.request_history import RequestHistoryStore, RequestHistoryEntry, ToolCallRecord
     from .context.user_resolver import UserResolver
     from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
-    from .llm.models import MessageRole, ToolCall
+    from .llm.models import ToolCall
     from .tools import create_tool_registry, ToolRegistry
     from .utils import clean_for_tts, get_config_value
+    from .prompt_builder import (
+        build_system_prompt as _build_system_prompt_impl,
+        get_calendar_context as _get_calendar_context_impl,
+        build_messages_for_llm_async as _build_messages_for_llm_async_impl,
+        build_messages_for_llm as _build_messages_for_llm_impl,
+    )
+    from .streaming import (
+        call_llm_streaming_with_tools as _call_llm_streaming_with_tools_impl,
+        create_delta_stream as _create_delta_stream_impl,
+        wrap_response_as_delta_stream as _wrap_response_as_delta_stream_impl,
+    )
 except ImportError as e:
     _LOGGER.error("Smart Assist: Failed to import local modules: %s", e, exc_info=True)
     raise
@@ -297,7 +293,8 @@ class SmartAssistConversationEntity(ConversationEntity):
         async with self._tool_registry_lock:
             if self._tool_registry is None:
                 self._tool_registry = create_tool_registry(
-                    self.hass, self._entry, subentry_data=self._subentry.data
+                    self.hass, self._entry, subentry_data=self._subentry.data,
+                    entity_manager=self._entity_manager,
                 )
         return self._tool_registry
 
@@ -517,291 +514,11 @@ class SmartAssistConversationEntity(ConversationEntity):
         conversation_id: str | None = None,
         max_iterations: int = MAX_TOOL_ITERATIONS,
     ) -> tuple[str, bool, int, list[ToolCallRecord]]:
-        """Call LLM with streaming and handle tool calls in-loop.
-        
-        Implements streaming with tool execution. Content deltas are sent
-        to the ChatLog's delta_listener for real-time TTS streaming.
-        Tool calls are executed between LLM iterations.
-        
-        Args:
-            messages: Initial message list for LLM
-            tools: Tool schemas for LLM
-            cached_prefix_length: Number of messages to cache
-            chat_log: Home Assistant ChatLog for streaming
-            conversation_id: Optional conversation ID for entity tracking
-            max_iterations: Maximum tool call iterations
-        
-        Returns:
-            Tuple of (final_response_text, await_response_called, llm_iterations, tool_call_records)
-            - final_response_text: The final response after all tool calls
-            - await_response_called: True if await_response tool was called
-            - llm_iterations: Number of LLM call rounds
-            - tool_call_records: List of ToolCallRecord for history tracking
-        """
-        iteration = 0
-        working_messages = messages.copy()
-        final_content = ""
-        await_response_called = False
-        all_tool_call_records: list[ToolCallRecord] = []
-        
-        while iteration < max_iterations:
-            iteration += 1
-            # Log message structure for cache debugging
-            msg_summary = [f"{i}:{m.role.value}:{len(m.content)}c" for i, m in enumerate(working_messages)]
-            _LOGGER.debug("[USER-REQUEST] LLM iteration %d, messages: %s", iteration, msg_summary)
-            
-            # Create delta stream and consume it through ChatLog
-            iteration_content = ""
-            tool_calls: list[ToolCall] = []
-            
-            # Only use streaming in the first iteration
-            # Subsequent iterations after tool calls use non-streaming to avoid
-            # issues with ChatLog/TTS pipeline that expects a single stream
-            use_streaming = (iteration == 1)
-            
-            if use_streaming:
-                # Use streaming for the first iteration
-                try:
-                    async for content_or_result in chat_log.async_add_delta_content_stream(
-                        self.entity_id or "",
-                        self._create_delta_stream(
-                            messages=working_messages,
-                            tools=tools,
-                            cached_prefix_length=cached_prefix_length,
-                        ),
-                    ):
-                        # async_add_delta_content_stream yields AssistantContent or ToolResultContent
-                        content_type = type(content_or_result).__name__
-                        if content_type == "AssistantContent":
-                            if content_or_result.content:
-                                iteration_content = content_or_result.content
-                            if content_or_result.tool_calls:
-                                # Convert HA ToolInput back to our ToolCall format for tool execution
-                                for tc in content_or_result.tool_calls:
-                                    tool_calls.append(ToolCall(
-                                        id=tc.id,
-                                        name=tc.tool_name,
-                                        arguments=tc.tool_args,
-                                    ))
-                except Exception as stream_err:
-                    _LOGGER.warning(
-                        "[USER-REQUEST] Stream error in iteration %d: %s. Falling back to non-streaming.",
-                        iteration, stream_err
-                    )
-                    use_streaming = False  # Fall through to non-streaming below
-            
-            if not use_streaming:
-                # Non-streaming for iterations after tool calls
-                # This avoids issues with ChatLog expecting a single stream
-                response = await self._llm_client.chat(
-                    messages=working_messages,
-                    tools=tools,
-                )
-                if response.content:
-                    iteration_content = response.content
-                if response.tool_calls:
-                    for tc in response.tool_calls:
-                        tool_calls.append(tc)
-                
-                if response.tool_calls:
-                    # Report tool calls to HA's ChatLog so they appear in pipeline traces
-                    try:
-                        async for content_or_result in chat_log.async_add_delta_content_stream(
-                            self.entity_id or "",
-                            self._wrap_response_as_delta_stream(
-                                content=iteration_content,
-                                tool_calls=response.tool_calls,
-                            ),
-                        ):
-                            pass  # Tool calls already collected above
-                    except Exception as stream_err:
-                        _LOGGER.debug(
-                            "[USER-REQUEST] Failed to report tool calls to chat_log: %s",
-                            stream_err,
-                        )
-                elif iteration_content:
-                    # Final iteration (content, no tool calls) - trigger TTS streaming
-                    try:
-                        if chat_log.delta_listener:
-                            # Send role first
-                            chat_log.delta_listener(chat_log, {"role": "assistant"})
-                            # Pad content to exceed STREAM_RESPONSE_CHARS threshold (60)
-                            # This triggers tts_start_streaming for Companion App
-                            content_for_delta = iteration_content
-                            if len(content_for_delta) < TTS_STREAM_MIN_CHARS:
-                                content_for_delta = content_for_delta + " " * (TTS_STREAM_MIN_CHARS - len(content_for_delta))
-                            chat_log.delta_listener(chat_log, {"content": content_for_delta})
-                    except Exception as delta_err:
-                        # delta_listener may throw if ChatLog is in invalid state
-                        # The content was likely already sent, so just log and continue
-                        _LOGGER.debug(
-                            "[USER-REQUEST] delta_listener error (content may still be delivered): %s",
-                            delta_err
-                        )
-            
-            # Update final content with this iteration's result
-            if iteration_content:
-                final_content = iteration_content
-            
-            # If no tool calls, we're done
-            if not tool_calls:
-                # Retry once if response is empty/useless on first iteration
-                # This handles cases where the LLM doesn't know what to do (e.g., smart_discovery with no entity context)
-                if iteration == 1 and not final_content.strip():
-                    _LOGGER.warning(
-                        "[USER-REQUEST] Empty response with no tool calls on first iteration. "
-                        "Retrying with nudge."
-                    )
-                    # Add a system nudge to push the LLM toward tool usage
-                    working_messages.append(
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=(
-                                "You returned an empty response. The user is asking you to do something. "
-                                "Use the get_entities tool to discover entities, then use control to act on them. "
-                                "Call a tool now."
-                            ),
-                        )
-                    )
-                    continue  # Re-enter the while loop for another LLM call
-
-                _LOGGER.debug("[USER-REQUEST] Complete (iteration %d, no tool calls)", iteration)
-                return final_content, await_response_called, iteration, all_tool_call_records
-            
-            # Check if await_response is in the tool calls (signal, not executed with others)
-            await_response_calls = [tc for tc in tool_calls if tc.name == "await_response"]
-            other_tool_calls = [tc for tc in tool_calls if tc.name != "await_response"]
-            
-            if await_response_calls:
-                await_response_called = True
-                _LOGGER.debug("[USER-REQUEST] await_response tool called - conversation will continue")
-                
-                # Check consecutive followup limit to prevent infinite loops
-                # (e.g., satellite triggered by TV audio causing repeated clarification requests)
-                if conversation_id:
-                    followup_count = self._conversation_manager.increment_followup(conversation_id)
-                    if followup_count >= MAX_CONSECUTIVE_FOLLOWUPS:
-                        _LOGGER.warning(
-                            "[USER-REQUEST] Max consecutive followups (%d) reached - aborting to prevent loop",
-                            MAX_CONSECUTIVE_FOLLOWUPS
-                        )
-                        # Return a polite abort message instead of continuing
-                        return "I did not understand. Please try again.", False, iteration, all_tool_call_records
-                
-                # Extract message from await_response tool call
-                if await_response_calls[0].arguments:
-                    await_message = await_response_calls[0].arguments.get("message", "")
-                    if await_message:
-                        # Use the message from the tool as the response
-                        final_content = await_message
-                        _LOGGER.debug("[USER-REQUEST] Using message from await_response: %s", await_message[:50])
-                
-                # If only await_response was called, we're done
-                if not other_tool_calls:
-                    if not final_content.strip():
-                        _LOGGER.warning("[USER-REQUEST] await_response called without message - check tool definition")
-                    return final_content, await_response_called, iteration, all_tool_call_records
-            
-            # Execute other tool calls (not await_response) and add results to messages for next iteration
-            if other_tool_calls:
-                # Deduplicate tool calls by ID (LLM sometimes sends duplicates)
-                seen_ids: set[str] = set()
-                unique_tool_calls: list[ToolCall] = []
-                for tc in other_tool_calls:
-                    if tc.id not in seen_ids:
-                        seen_ids.add(tc.id)
-                        unique_tool_calls.append(tc)
-                    else:
-                        _LOGGER.debug("[USER-REQUEST] Skipping duplicate tool call: %s (id=%s)", tc.name, tc.id)
-                
-                if len(unique_tool_calls) < len(other_tool_calls):
-                    _LOGGER.debug("[USER-REQUEST] Deduplicated %d -> %d tool calls", len(other_tool_calls), len(unique_tool_calls))
-                    other_tool_calls = unique_tool_calls
-                
-                _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(other_tool_calls))
-            
-                # Add assistant message with tool calls to working messages
-                working_messages.append(
-                    ChatMessage(
-                        role=MessageRole.ASSISTANT,
-                        content=iteration_content,
-                        tool_calls=other_tool_calls,
-                    )
-                )
-                
-                # Execute all tools in parallel
-                async def execute_tool(tool_call: ToolCall) -> tuple[ToolCall, Any]:
-                    """Execute a single tool and return result with metadata."""
-                    _LOGGER.debug("Executing tool: %s", tool_call.name)
-                    result = await (await self._get_tool_registry()).execute(
-                        tool_call.name, tool_call.arguments
-                    )
-                    return (tool_call, result)
-                
-                tool_results = await asyncio.gather(
-                    *[execute_tool(tc) for tc in other_tool_calls],
-                    return_exceptions=True
-                )
-                
-                # Add tool results to working messages
-                for i, item in enumerate(tool_results):
-                    if isinstance(item, Exception):
-                        _LOGGER.error("Tool execution failed: %s", item)
-                        failed_tc = other_tool_calls[i]
-                        all_tool_call_records.append(ToolCallRecord(
-                            name=failed_tc.name,
-                            success=False,
-                            execution_time_ms=0.0,
-                            arguments_summary=RequestHistoryStore.truncate(
-                                str(failed_tc.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
-                            ),
-                        ))
-                        working_messages.append(
-                            ChatMessage(
-                                role=MessageRole.TOOL,
-                                content=f"Error: {item}",
-                                tool_call_id=failed_tc.id,
-                                name=failed_tc.name,
-                            )
-                        )
-                        continue
-                    tool_call, result = item
-                    all_tool_call_records.append(ToolCallRecord(
-                        name=tool_call.name,
-                        success=result.success,
-                        execution_time_ms=result.data.get("execution_time_ms", 0.0),
-                        arguments_summary=RequestHistoryStore.truncate(
-                            str(tool_call.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
-                        ),
-                    ))
-                    working_messages.append(
-                        ChatMessage(
-                            role=MessageRole.TOOL,
-                            content=result.to_string(),
-                            tool_call_id=tool_call.id,
-                            name=tool_call.name,
-                        )
-                    )
-                    
-                    # Track entities from successful control operations for pronoun resolution
-                    if conversation_id and result.success:
-                        self._track_entity_from_tool_call(
-                            conversation_id, tool_call.name, tool_call.arguments
-                        )
-                
-                # Reset consecutive followup counter after successful tool execution
-                # This breaks the followup loop when user provides meaningful input
-                if conversation_id:
-                    self._conversation_manager.reset_followups(conversation_id)
-                    _LOGGER.debug("[USER-REQUEST] Reset followup counter after tool execution")
-            else:
-                # Only await_response was called, no other tools to execute
-                # This shouldn't happen normally since we return above, but handle it
-                pass
-        
-        # Max iterations reached
-        _LOGGER.warning("Max tool iterations (%d) reached", max_iterations)
-        return final_content, await_response_called, iteration, all_tool_call_records
+        """Call LLM with streaming and tool execution loop."""
+        return await _call_llm_streaming_with_tools_impl(
+            self, messages, tools, cached_prefix_length, chat_log,
+            conversation_id=conversation_id, max_iterations=max_iterations,
+        )
 
     async def _create_delta_stream(
         self,
@@ -809,69 +526,18 @@ class SmartAssistConversationEntity(ConversationEntity):
         tools: list[dict[str, Any]],
         cached_prefix_length: int,
     ) -> AsyncGenerator[AssistantContentDeltaDict, None]:
-        """Create a delta stream from LLM response for HA's ChatLog.
-        
-        Yields AssistantContentDeltaDict objects that conform to HA's
-        streaming protocol. Each yield with "role" starts a new message.
-        Content and tool_calls are accumulated until the next role.
-        """
-        from homeassistant.helpers import llm as ha_llm
-        
-        # Start with role indicator for new assistant message
-        yield {"role": "assistant"}
-        
-        async for delta in self._llm_client.chat_stream_full(
-            messages=messages,
-            tools=tools,
-            cached_prefix_length=cached_prefix_length,
-        ):
-            # Handle content chunks
-            if "content" in delta and delta["content"]:
-                yield {"content": delta["content"]}
-            
-            # Yield tool calls when complete
-            if "tool_calls" in delta and delta["tool_calls"]:
-                tool_inputs = []
-                for tc in delta["tool_calls"]:
-                    tool_inputs.append(
-                        ha_llm.ToolInput(
-                            id=tc.id,
-                            tool_name=tc.name,
-                            tool_args=tc.arguments,
-                            external=True,  # Mark as external - we handle execution
-                        )
-                    )
-                yield {"tool_calls": tool_inputs}
+        """Create a delta stream from LLM response for HA's ChatLog."""
+        async for delta in _create_delta_stream_impl(self, messages, tools, cached_prefix_length):
+            yield delta
 
     async def _wrap_response_as_delta_stream(
         self,
         content: str,
         tool_calls: list[ToolCall],
     ) -> AsyncGenerator[AssistantContentDeltaDict, None]:
-        """Wrap a non-streaming LLM response as a delta stream for ChatLog.
-
-        This allows non-streaming iterations to report tool calls to HA's
-        pipeline trace, just like the streaming path does.
-        """
-        from homeassistant.helpers import llm as ha_llm
-
-        yield {"role": "assistant"}
-
-        if content:
-            yield {"content": content}
-
-        if tool_calls:
-            tool_inputs = []
-            for tc in tool_calls:
-                tool_inputs.append(
-                    ha_llm.ToolInput(
-                        id=tc.id,
-                        tool_name=tc.name,
-                        tool_args=tc.arguments,
-                        external=True,
-                    )
-                )
-            yield {"tool_calls": tool_inputs}
+        """Wrap a non-streaming LLM response as a delta stream for ChatLog."""
+        async for delta in _wrap_response_as_delta_stream_impl(self, content, tool_calls):
+            yield delta
 
     def _track_entity_from_tool_call(
         self,
@@ -934,364 +600,12 @@ class SmartAssistConversationEntity(ConversationEntity):
             )
 
     async def _build_system_prompt(self) -> str:
-        """Build or return cached system prompt based on configuration.
-        
-        System prompt is always in English (best LLM performance).
-        Only the response language instruction is configurable.
-        
-        The prompt is cached after first build since config rarely changes.
-        If config is updated, the entity is reloaded anyway.
-        """
-        # Return cached prompt if available
-        if self._cached_system_prompt is not None:
-            return self._cached_system_prompt
-        
-        language = self._get_config(CONF_LANGUAGE, "")
-        
-        # Determine language instruction for response
-        if not language or language == "auto":
-            # Auto-detect: use Home Assistant's configured language
-            ha_language = self.hass.config.language  # e.g., "de-DE", "en-US"
-            locale_prefix = ha_language.split("-")[0].lower()  # "de", "en", etc.
-            
-            if locale_prefix in LOCALE_TO_LANGUAGE:
-                english_name, native_name = LOCALE_TO_LANGUAGE[locale_prefix]
-                language_instruction = f"Always respond in {english_name} ({native_name})."
-            else:
-                # Fallback: use the locale as-is
-                language_instruction = f"Always respond in the language with code '{ha_language}'."
-        else:
-            # User-specified language - use directly
-            language_instruction = f"Always respond in {language}."
-        
-        confirm_critical = self._get_config(CONF_CONFIRM_CRITICAL, True)
-        exposed_only = self._get_config(CONF_EXPOSED_ONLY, True)
-        ask_followup = self._get_config(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
-        
-        parts = []
-        
-        # Base prompt - minimal, role defined in user prompt
-        # Language instruction is emphasized and placed prominently
-        parts.append(f"""You are a smart home assistant.
-
-## LANGUAGE REQUIREMENT [CRITICAL]
-{language_instruction} This applies to ALL responses including follow-up questions, confirmations, and error messages. Never mix languages.""")
-        
-        # Entity discovery strategy (placed early for maximum LLM attention)
-        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
-        if discovery_mode == "smart_discovery":
-            parts.append("""
-## MANDATORY WORKFLOW -- Entity Discovery [HIGHEST PRIORITY]
-You have NO entity information. You do NOT know any entity IDs.
-For ANY request involving devices, lights, switches, sensors, or any home entity:
-
-STEP 1: Call get_entities(domain=...) to discover entities
-  - Infer domain from intent: "light"/"lamp" -> domain="light"; "turn off kitchen" -> try "light", then "switch"
-  - Use area parameter for room context: use the EXACT area name from the AVAILABLE AREAS list below
-  - Use name_filter for specific devices: "desk lamp" -> domain="light", name_filter="desk"
-STEP 2: Use the entity_id(s) from the results to call control() or get_entity_state()
-
-You MUST call get_entities BEFORE any control action. You do NOT know any entity IDs without it.
-ONLY if get_entities returns ZERO results, try a related domain (light->switch, fan->switch, cover->switch). Do NOT search additional domains if you already found matching entities.
-
-EXAMPLE - Room command with group entity (PREFERRED):
-  User: "turn off kitchen"
-  -> get_entities(domain="light", area="<matching area from AVAILABLE AREAS>")
-  -> Result includes light.kitchen [GROUP, 5 members] + individual members
-  -> control(entity_id="light.kitchen", action="turn_off")  // Group controls all members!
-  -> Response: (confirm in configured language)
-
-EXAMPLE - Room command without group entity (use batch):
-  User: "turn off bedroom"
-  -> get_entities(domain="light", area="<matching area from AVAILABLE AREAS>")
-  -> Result: light.bedroom_ceiling, light.bedroom_lamp (no GROUP entity)
-  -> control(entity_ids=["light.bedroom_ceiling", "light.bedroom_lamp"], action="turn_off")
-
-EXAMPLE - Specific device:
-  User: "turn on desk lamp"
-  -> get_entities(domain="light", name_filter="desk")
-  -> Result: light.desk_lamp
-  -> control(entity_id="light.desk_lamp", action="turn_on")
-
-DECISION LOGIC:
-1. If a GROUP entity matches the user's room/area intent -> control just the group (it handles members internally)
-2. If no group entity but user wants all entities in area -> use entity_ids to batch-control all
-3. If user names a specific device -> use entity_id for that one entity
-
-NEVER respond without calling tools when the user asks about devices.
-NEVER fabricate entity IDs. NEVER say "I don't have access to entities."
-- NEVER use entity_ids from [Recent Entities] for new requests - those are ONLY for resolving pronouns ("it", "that", "the same one")""")
-
-            # Inject available area names so LLM uses correct names
-            from homeassistant.helpers import area_registry as ar
-            area_reg = ar.async_get(self.hass)
-            area_names = sorted(area.name for area in area_reg.async_list_areas())
-            if area_names:
-                parts.append(f"""
-## AVAILABLE AREAS
-Use these EXACT area names for get_entities(area=...): {', '.join(area_names)}
-Match the user's spoken room/area to the closest name from this list.""")
-
-        # Response format guidelines
-        parts.append("""
-## Response Format
-- Keep responses brief (1-2 sentences for actions, 2-3 for information)
-- Confirm actions naturally and concisely - vary your wording, be creative but short (e.g. "Done!", "Light's on.", "All set.", "Living room light is on now.")
-- ALWAYS use tools to check states - never guess or assume values
-- Use plain text only - no markdown, no bullet points, no formatting
-- Responses are spoken aloud (TTS) - avoid URLs, special characters, abbreviations""")
-        
-        # Response rules with conversation continuation marker
-        if ask_followup:
-            parts.append("""
-## Follow-up Behavior
-- Offer follow-up when useful (ambiguous request, multiple options)
-- Do NOT offer follow-up for every simple action
-- For simple completed actions, just confirm briefly without asking follow-up
-
-## MANDATORY: Questions Require await_response Tool
-If you need to ask the user something, you MUST use the await_response tool.
-Without it, the user CANNOT respond to your question.
-
-Example (note: always use the configured response language, not English):
-await_response(message="[your question in user's language]", reason="follow_up")
-
-If your response ends with a question mark (?), you MUST call await_response.""")
-        else:
-            parts.append("""
-## Response Rules
-- Do NOT ask follow-up questions
-- Keep responses action-focused
-- If uncertain about entity, ask for clarification""")
-        
-        # Entity lookup strategy (smart_discovery handled above, near top of prompt)
-        if discovery_mode != "smart_discovery":
-            parts.append("""
-## Entity Lookup
-1. Check ENTITY INDEX first to find entity_ids
-2. Only use get_entities tool if not found in index""")
-        
-        # Pronoun resolution hint
-        parts.append("""
-## Pronoun Resolution
-When user says "it", "that", "the same one", check [Recent Entities] in context to identify the referenced entity.""")
-        
-        # Calendar reminders instruction (if enabled) - compact version
-        calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
-        if calendar_enabled:
-            parts.append("""
-## Calendar Reminders [MANDATORY]
-When CURRENT CONTEXT contains '## Calendar Reminders [ACTION REQUIRED]':
-- FIRST answer the user's actual question/request completely
-- THEN append the reminder at the END of your response as a natural, separate sentence
-- Use a casual transition phrase in the response language (e.g. "By the way", "Oh, just so you know", "Also") - vary the phrasing each time, do not repeat the same transition
-- Format: "[your complete answer]. [transition phrase], [reminder text]."
-- NEVER start your response with the reminder or weave it into unrelated answers""")
-        
-        # Control instructions - compact
-        # In smart_discovery mode, add reminder that get_entities comes first
-        control_preamble = ""
-        if discovery_mode == "smart_discovery":
-            control_preamble = "\nREMINDER: You must call get_entities() first to discover entity IDs before using control.\n"
-
-        parts.append(f"""
-## Entity Control [CRITICAL]{control_preamble}
-Use 'control' tool for lights, switches, covers, fans, climate, locks, etc.
-Domain auto-detected from entity_id.
-
-MANDATORY RULES:
-- ALWAYS call the 'control' tool for ANY on/off/toggle request. NEVER skip the tool call.
-- Do NOT say "already on" or "already off" based on context states - the tool handles idempotency.
-- Group entities (marked GROUP in states): state 'on' means ANY member is on, NOT all. Always call the tool.
-- Context states are informational ONLY. The tool decides whether action is needed.
-- If user says "turn on X" → call control(entity_id, action=turn_on). Always. No exceptions.
-
-GROUP ENTITIES: If search results include a GROUP entity for the target area, prefer controlling the group.
-A group entity controls all its members in one call. Do NOT control individual members separately.
-
-BATCH CONTROL (when no group exists):
-- Use entity_ids (array) to control multiple entities: control(entity_ids=[...], action="turn_off")
-- Use entity_ids when: user wants all entities in a room AND no group entity covers them
-- Use entity_id (singular) when: user names a specific device OR a group entity covers the room""")
-
-        # Music/Radio instructions - only if music_assistant tool is registered
-        if (await self._get_tool_registry()).has_tool("music_assistant"):
-            parts.append("""
-## Music/Radio Playback [IMPORTANT]
-For ALL music, radio, or media playback requests, use the 'music_assistant' tool:
-- action='play', query='[song/artist/radio station]', media_type='track/album/artist/playlist/radio'
-- For player selection: Check [Current Assist Satellite] context and use your satellite-to-player mapping from your instructions
-- Do NOT use 'control' tool for music/radio - it cannot search or stream content""")
-        
-        # Send/notification instructions - only if send tool is registered
-        if (await self._get_tool_registry()).has_tool("send"):
-            parts.append("""
-## Sending Content
-You can send content (links, text, messages) to devices using the 'send' tool.
-- Offer when you have useful links or information to share
-- User specifies target device (e.g., "Patrics Handy", "my phone", "Telegram")
-- IMPORTANT: After sending, respond briefly: "Sent to [device]." or "I've sent it to your [device]."
-- Do NOT repeat the content in your spoken response - the user will see it on the device""")
-        
-        # Critical actions confirmation
-        if confirm_critical:
-            parts.append("""
-## Critical Actions
-Ask for confirmation before: locking doors, arming alarms, disabling security.""")
-        
-        # Memory instructions (if enabled)
-        if self._memory_enabled:
-            parts.append("""
-## User Memory [IMPORTANT]
-Known user memories are injected as [USER MEMORY] in context. Use them to personalize responses.
-- SAVE new preferences, names, patterns, and instructions via the 'memory' tool
-- DO NOT re-save information already in [USER MEMORY]
-- When user says "I am [Name]" or "This is [Name]", use memory(action='switch_user', content='[name]')
-- Keep memory content concise (max 100 chars)
-- Use appropriate categories: preference, named_entity, pattern, instruction, fact""")
-        
-        # Agent Memory auto-learning instructions (if enabled)
-        agent_memory_enabled = self._memory_enabled and self._get_config(
-            CONF_ENABLE_AGENT_MEMORY, DEFAULT_ENABLE_AGENT_MEMORY
-        )
-        if agent_memory_enabled:
-            parts.append("""
-## Agent Memory [AUTO-LEARNING]
-Your own observations are injected as [AGENT MEMORY]. Use them to work more efficiently.
-- Save ONLY surprising or non-obvious discoveries via memory(action='save', scope='agent')
-- Use category 'observation' for system-level insights (e.g. "Covers use position 0-100, not open/close")
-- Use category 'pattern' for recurring user habits (e.g. "Patric asks for weather every morning")
-- Do NOT save entity mappings or entity IDs - always use get_entities to discover entities
-- Do NOT re-save information already in [AGENT MEMORY]
-- Max 100 chars per memory entry""")
-        
-        # Exposed only notice
-        if exposed_only:
-            parts.append("""
-## Notice
-Only exposed entities are available.""")
-
-        # Cancel/abort handling instruction (if enabled globally)
-        cancel_enabled = self._get_global_config(
-            CONF_ENABLE_CANCEL_HANDLER, DEFAULT_ENABLE_CANCEL_HANDLER
-        )
-        if cancel_enabled:
-            parts.append("""
-## Cancel/Abort Handling [IMPORTANT]
-If the user says something that clearly means they want to cancel, abort, or dismiss
-the current interaction (e.g. "cancel", "never mind", "abbrechen", "vergiss es",
-"lass mal", "schon gut", "forget it"), respond with a VERY brief acknowledgment
-(1-3 words) and do NOT ask follow-up questions.
-CRITICAL: Do NOT interpret these phrases as requests to cancel specific devices,
-timers, or automations. They mean "I don't need anything anymore."
-Do NOT ask "What should I cancel?" -- just confirm briefly.""")
-
-        # Error handling - compact
-        parts.append("""
-## Errors
-If action fails or entity not found, explain briefly and suggest alternatives.""")
-        
-        # Cache the built prompt for subsequent calls
-        self._cached_system_prompt = "\n".join(parts)
-        _LOGGER.debug("System prompt cached (length: %d chars)", len(self._cached_system_prompt))
-        
-        return self._cached_system_prompt
+        """Build or return cached system prompt based on configuration."""
+        return await _build_system_prompt_impl(self)
 
     async def _get_calendar_context(self, dry_run: bool = False) -> str:
-        """Get upcoming calendar events for context injection.
-        
-        Returns reminders for events in appropriate reminder windows.
-        Only fetches if calendar_context is enabled in config.
-        
-        Args:
-            dry_run: If True, don't mark reminders as completed (for cache warming).
-        
-        Returns:
-            Formatted string with calendar reminders, or empty string if none.
-        """
-        calendar_enabled = self._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
-        _LOGGER.debug("Calendar context enabled: %s", calendar_enabled)
-        if not calendar_enabled:
-            return ""
-        
-        try:
-            now = dt_util.now()
-            # Get events for next 28 hours to cover day-before reminders
-            end = now + timedelta(hours=28)
-            
-            # Get all calendar entities
-            calendars = [
-                state.entity_id
-                for state in self.hass.states.async_all()
-                if state.entity_id.startswith("calendar.")
-            ]
-            
-            _LOGGER.debug("Found %d calendar entities: %s", len(calendars), calendars)
-            
-            if not calendars:
-                return ""
-            
-            # Fetch events from all calendars
-            all_events: list[dict] = []
-            for cal_id in calendars:
-                try:
-                    result = await self.hass.services.async_call(
-                        "calendar",
-                        "get_events",
-                        {
-                            "entity_id": cal_id,
-                            "start_date_time": now.isoformat(),
-                            "end_date_time": end.isoformat(),
-                        },
-                        blocking=True,
-                        return_response=True,
-                    )
-                    
-                    _LOGGER.debug("Calendar %s result: %s", cal_id, result)
-                    
-                    if result and cal_id in result:
-                        # Extract owner from calendar entity
-                        state = self.hass.states.get(cal_id)
-                        if state and state.attributes.get("friendly_name"):
-                            owner = state.attributes["friendly_name"]
-                        else:
-                            name = cal_id.split(".", 1)[-1]
-                            owner = name.replace("_", " ").title()
-                        
-                        for event in result[cal_id].get("events", []):
-                            all_events.append({
-                                "summary": event.get("summary", "Termin"),
-                                "start": event.get("start"),
-                                "owner": owner,
-                            })
-                except Exception as err:
-                    _LOGGER.debug("Failed to fetch calendar events from %s: %s", cal_id, err)
-            
-            _LOGGER.debug("Found %d events total: %s", len(all_events), all_events)
-            
-            if not all_events:
-                return ""
-            
-            # Get reminders that should be shown
-            if dry_run:
-                reminders = self._calendar_reminder_tracker.peek_reminders(all_events, now)
-            else:
-                reminders = self._calendar_reminder_tracker.get_reminders(all_events, now)
-                # Persist state after marking reminders
-                await self._calendar_reminder_tracker.async_save()
-            
-            _LOGGER.debug("Reminders to show: %s", reminders)
-            
-            if not reminders:
-                return ""
-            
-            # Format with emphasis markers for LLM attention
-            reminder_text = "\n".join(f"- {r}" for r in reminders)
-            return f"\n## Calendar Reminders [ACTION REQUIRED]\n{reminder_text}"
-            
-        except Exception as err:
-            _LOGGER.warning("Failed to get calendar context: %s", err)
-            return ""
+        """Get upcoming calendar events for context injection."""
+        return await _get_calendar_context_impl(self, dry_run=dry_run)
 
     async def _build_messages_for_llm_async(
         self,
@@ -1303,37 +617,11 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         user_id: str = "default",
         dry_run: bool = False,
     ) -> tuple[list[ChatMessage], int]:
-        """Build the message list for LLM request (async version with calendar context).
-        
-        Args:
-            user_text: The current user message
-            chat_log: Optional ChatLog containing conversation history
-            satellite_id: Optional satellite entity_id that initiated the request
-            device_id: Optional device_id that initiated the request
-            conversation_id: Optional conversation ID for recent entity context
-            user_id: Resolved user identifier for memory personalization
-            dry_run: If True, don't mark calendar reminders as completed
-            
-        Returns:
-            Tuple of (messages, cached_prefix_length)
-        """
-        # Get calendar context asynchronously
-        calendar_context = await self._get_calendar_context(dry_run=dry_run)
-        _LOGGER.debug("Calendar context from _get_calendar_context: len=%d", len(calendar_context) if calendar_context else 0)
-        
-        # Get recent entities context for pronoun resolution
-        recent_entities_context = ""
-        if conversation_id:
-            recent_entities_context = self._conversation_manager.get_recent_entities_context(
-                conversation_id
-            )
-            if recent_entities_context:
-                _LOGGER.debug("Recent entities context: %s", recent_entities_context)
-        
-        # Build base messages (now async due to tool registry access)
-        return await self._build_messages_for_llm(
-            user_text, chat_log, calendar_context, satellite_id, device_id,
-            recent_entities_context, user_id=user_id,
+        """Build the message list for LLM request (async version with calendar context)."""
+        return await _build_messages_for_llm_async_impl(
+            self, user_text, chat_log, satellite_id=satellite_id,
+            device_id=device_id, conversation_id=conversation_id,
+            user_id=user_id, dry_run=dry_run,
         )
 
     async def _build_messages_for_llm(
@@ -1346,220 +634,12 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
         recent_entities_context: str = "",
         user_id: str = "default",
     ) -> tuple[list[ChatMessage], int]:
-        """Build the message list for LLM request.
-        
-        Message order optimized for prompt caching (static prefix first):
-        1. System prompt (static/cached)
-        2. User system prompt (static/cached)  
-        3. Entity index (static/cached - changes only when entities change)
-        4. User memory injection (semi-static - changes when memories change)
-        5. Conversation history (dynamic)
-        6. Current context + user message (dynamic - time, states, calendar, recent entities)
-        
-        Args:
-            user_text: The current user message
-            chat_log: Optional ChatLog containing conversation history
-            calendar_context: Optional calendar reminder context
-            satellite_id: Optional satellite entity_id
-            device_id: Optional device_id
-            recent_entities_context: Optional recent entities for pronoun resolution
-            user_id: Resolved user identifier for memory personalization
-            
-        Returns:
-            Tuple of (messages, cached_prefix_length) where cached_prefix_length
-            is the number of static messages that should be cached.
-        """
-        messages: list[ChatMessage] = []
-        cached_prefix_length = 0  # Track how many messages are static/cacheable
-
-        # 1. Technical system prompt (cached)
-        system_prompt = await self._build_system_prompt()
-        messages.append(
-            ChatMessage(role=MessageRole.SYSTEM, content=system_prompt)
+        """Build the message list for LLM request."""
+        return await _build_messages_for_llm_impl(
+            self, user_text, chat_log, calendar_context=calendar_context,
+            satellite_id=satellite_id, device_id=device_id,
+            recent_entities_context=recent_entities_context, user_id=user_id,
         )
-        cached_prefix_length += 1
-
-        # 2. User system prompt (cached - optional)
-        user_prompt = self._get_config(
-            CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT
-        )
-        if user_prompt:
-            messages.append(
-                ChatMessage(role=MessageRole.SYSTEM, content=user_prompt)
-            )
-            cached_prefix_length += 1
-
-        # 3. Entity index (cached - skip in smart_discovery mode)
-        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
-        
-        if discovery_mode == "smart_discovery":
-            # Smart Discovery: NO entity index injected -- LLM discovers via tool
-            _LOGGER.debug("Smart Discovery mode: skipping entity index injection")
-        else:
-            entity_index, index_hash = self._entity_manager.get_entity_index()
-
-            # Only update cache if hash changed
-            if index_hash != self._cached_index_hash:
-                self._cached_entity_index = entity_index
-                self._cached_index_hash = index_hash
-                _LOGGER.debug("Entity index updated (hash: %s)", index_hash)
-
-            messages.append(
-                ChatMessage(
-                    role=MessageRole.SYSTEM,
-                    content=f"[ENTITY INDEX]\nUse this index first to find entity IDs. Only use get_entities tool if entity not found here.\n{self._cached_entity_index}",
-                )
-            )
-            cached_prefix_length += 1
-
-        # 4. User memory injection (semi-static - changes when memories change)
-        if self._memory_enabled and self._memory_manager:
-            memory_text = self._memory_manager.get_injection_text(user_id)
-            if memory_text:
-                messages.append(
-                    ChatMessage(role=MessageRole.SYSTEM, content=memory_text)
-                )
-                cached_prefix_length += 1
-                _LOGGER.debug("Injected memory block for user '%s'", user_id)
-
-        # 4b. Agent memory injection (LLM's own observations and learnings)
-        agent_memory_enabled = self._memory_enabled and self._get_config(
-            CONF_ENABLE_AGENT_MEMORY, DEFAULT_ENABLE_AGENT_MEMORY
-        )
-        if agent_memory_enabled and self._memory_manager:
-            agent_text = self._memory_manager.get_agent_injection_text()
-            if agent_text:
-                messages.append(
-                    ChatMessage(role=MessageRole.SYSTEM, content=agent_text)
-                )
-                cached_prefix_length += 1
-                _LOGGER.debug("Injected agent memory block")
-
-        # 5. Conversation history from ChatLog (if available)
-        # Placed BEFORE dynamic context to maximize cache prefix length
-        # IMPORTANT: Also include tool calls and results for context continuity
-        if chat_log is not None:
-            try:
-                max_history = int(self._get_config(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY))
-                
-                # Safely get content from chat_log
-                content = getattr(chat_log, 'content', None)
-                if content is None:
-                    _LOGGER.debug("ChatLog has no content attribute")
-                else:
-                    try:
-                        history_entries = list(content)
-                    except (TypeError, AttributeError) as e:
-                        _LOGGER.debug("Could not iterate chat_log.content: %s", e)
-                        history_entries = []
-                    
-                    # Limit history to max_history entries (most recent)
-                    if len(history_entries) > max_history:
-                        history_entries = history_entries[-max_history:]
-                    
-                    # Debug: log history entry types
-                    entry_types = [type(e).__name__ for e in history_entries]
-                    _LOGGER.debug("ChatLog history types: %s", entry_types)
-                    
-                    for entry in history_entries:
-                        entry_type = type(entry).__name__
-                        
-                        if entry_type == "UserContent":
-                            if hasattr(entry, 'content') and entry.content:
-                                messages.append(ChatMessage(role=MessageRole.USER, content=entry.content))
-                        
-                        elif entry_type == "AssistantContent":
-                            # Process assistant content with potential tool calls
-                            assistant_content = getattr(entry, 'content', '') or ''
-                            tool_calls_list: list[ToolCall] = []
-                            
-                            # Extract tool calls from history for context
-                            if hasattr(entry, 'tool_calls') and entry.tool_calls:
-                                for tc in entry.tool_calls:
-                                    tool_calls_list.append(ToolCall(
-                                        id=getattr(tc, 'id', f"tc_{len(tool_calls_list)}"),
-                                        name=getattr(tc, 'tool_name', 'unknown'),
-                                        arguments=getattr(tc, 'tool_args', {}),
-                                    ))
-                            
-                            if assistant_content or tool_calls_list:
-                                messages.append(ChatMessage(
-                                    role=MessageRole.ASSISTANT,
-                                    content=assistant_content,
-                                    tool_calls=tool_calls_list if tool_calls_list else None,
-                                ))
-                        
-                        elif entry_type == "ToolResultContent":
-                            # Include tool results so LLM knows what tools returned
-                            tool_result = getattr(entry, 'tool_result', None)
-                            tool_name = getattr(entry, 'tool_name', 'unknown')
-                            tool_call_id = getattr(entry, 'id', 'unknown')
-                            
-                            # Format tool result as string
-                            result_content = ""
-                            if tool_result is not None:
-                                if isinstance(tool_result, str):
-                                    result_content = tool_result
-                                elif isinstance(tool_result, dict):
-                                    import json
-                                    result_content = json.dumps(tool_result, ensure_ascii=False)
-                                else:
-                                    result_content = str(tool_result)
-                            
-                            if result_content:
-                                messages.append(ChatMessage(
-                                    role=MessageRole.TOOL,
-                                    content=result_content,
-                                    tool_call_id=tool_call_id,
-                                    name=tool_name,
-                                ))
-                                
-            except Exception as err:
-                _LOGGER.warning("Failed to process chat history: %s", err)
-                # Continue without history - don't fail the request
-
-        # 6. Current context (dynamic - NOT cached) + user message
-        # Combined into single user message to keep dynamic content at the end
-        now = dt_util.now()
-        time_context = f"Current time: {now.strftime('%H:%M')}, Date: {now.strftime('%A, %B %d, %Y')}"
-        
-        # Build context prefix for user message
-        context_parts = [f"[Context: {time_context}]"]
-
-        # In smart_discovery mode, add reminder in user context
-        discovery_mode = self._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
-        if discovery_mode == "smart_discovery":
-            context_parts.append("[Entity Discovery Mode: Use get_entities tool to find entities before controlling them]")
-
-        if calendar_context:
-            _LOGGER.debug("Injecting calendar context (len=%d): %s", len(calendar_context), calendar_context.replace('\n', ' ')[:80])
-            context_parts.append(calendar_context)
-        
-        # Add current assist satellite info if available
-        # This allows the LLM to know which device initiated the request
-        if satellite_id:
-            context_parts.append(f"[Current Assist Satellite: {satellite_id}]")
-        
-        # Add recent entities for pronoun resolution (e.g., "it", "that", "the same one")
-        if recent_entities_context:
-            context_parts.append(recent_entities_context)
-        
-        # Add current user identity for personalization
-        if self._memory_enabled and user_id != "default":
-            display_name = user_id.capitalize()
-            if self._memory_manager:
-                stored_name = self._memory_manager.get_user_display_name(user_id)
-                if stored_name:
-                    display_name = stored_name
-            context_parts.append(f"[Current User: {display_name}]")
-        
-        # Combine context with user message
-        context_prefix = " ".join(context_parts)
-        user_message_with_context = f"{context_prefix}\n\nUser: {user_text}"
-        
-        messages.append(ChatMessage(role=MessageRole.USER, content=user_message_with_context))
-
-        return messages, cached_prefix_length
 
     async def _try_quick_action(self, text: str) -> str | None:
         """Try to handle simple commands without LLM.

@@ -202,15 +202,22 @@ class OpenRouterClient(BaseLLMClient):
             self._metrics.failed_requests += 1
             raise OpenRouterError(f"Unexpected error: {err}") from err
 
-    async def chat_stream(
+    async def _stream_request(
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
         cached_prefix_length: int = 0,
-    ) -> AsyncGenerator[str, None]:
-        """Send a streaming chat request to the API.
-        
-        Includes retry logic for empty responses.
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Shared streaming implementation that yields full delta events.
+
+        Handles payload building, SSE parsing, usage tracking, tool call
+        accumulation, retry logic for empty responses, and stream timeouts.
+
+        Yields:
+            dict with keys:
+            - {"content": str} for content chunks
+            - {"tool_calls": list[ToolCall]} when tool calls are complete
+            - {"finish_reason": str} when stream is done
         """
         session = await self._get_session()
 
@@ -220,17 +227,16 @@ class OpenRouterClient(BaseLLMClient):
             "temperature": self._temperature,
             "max_tokens": self._max_tokens,
             "stream": True,
-            "stream_options": {"include_usage": True},  # Request usage info in streaming
+            "stream_options": {"include_usage": True},
         }
 
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
-        # Add provider routing if a specific provider is selected
         if self._provider and self._provider != "auto":
             payload["provider"] = {
-                "only": [self._provider],  # Strictly use only this provider
+                "only": [self._provider],
             }
 
         # Debug: Log message structure for cache analysis
@@ -252,20 +258,21 @@ class OpenRouterClient(BaseLLMClient):
                 msg_summary.append(f"{i}:{role}:{content_len}chars")
                 if i < 3:
                     prefix_content.append(f"{role}:{content_text}")
-            
+
             prefix_hash = hashlib.sha256("|||".join(prefix_content).encode()).hexdigest()[:8]
             tools_hash = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
-            
+
             _LOGGER.debug("Sending streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
             _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
-        
+
         self._metrics.total_requests += 1
         start_time = time.monotonic()
         last_error: Exception | None = None
 
-        # Retry loop for empty responses
         for attempt in range(LLM_MAX_RETRIES):
+            pending_tool_calls: dict[int, dict[str, Any]] = {}
             received_content = False
+            received_tool_calls = False
             stream_completed = False
 
             try:
@@ -278,49 +285,85 @@ class OpenRouterClient(BaseLLMClient):
 
                     async for line in response.content:
                         line = line.decode("utf-8").strip()
-                        if line.startswith("data: "):
-                            data_str = line[6:]
-                            if data_str == "[DONE]":
-                                stream_completed = True
-                                # Update metrics on completion
-                                elapsed_ms = (time.monotonic() - start_time) * 1000
-                                self._metrics.successful_requests += 1
-                                self._metrics.total_response_time_ms += elapsed_ms
-                                _LOGGER.debug("Stream completed. Metrics: tokens=%d+%d, cache_hits=%d",
-                                             self._metrics.total_prompt_tokens,
-                                             self._metrics.total_completion_tokens,
-                                             self._metrics.cache_hits)
-                                break
-                            try:
-                                data = json.loads(data_str)
-                                # Extract usage info from streaming response
-                                if usage := data.get("usage"):
-                                    _LOGGER.debug("Got usage in stream: %s", usage)
-                                    self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
-                                    self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
-                                    # Per-request tracking
-                                    self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
-                                    self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
-                                    # Track cache hits and cached tokens
-                                    cached = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
-                                    self._metrics._last_cached_tokens = cached or 0
-                                    if cached > 0:
-                                        self._metrics.cache_hits += 1
-                                        self._metrics.cached_tokens += cached
-                                    elif self._enable_caching:
-                                        self._metrics.cache_misses += 1
-                                delta = data.get("choices", [{}])[0].get("delta", {})
-                                if content := delta.get("content"):
-                                    received_content = True
-                                    yield content
-                            except json.JSONDecodeError:
-                                continue
+                        if not line.startswith("data: "):
+                            continue
+
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
+                            stream_completed = True
+                            # Emit any pending tool calls
+                            if pending_tool_calls:
+                                received_tool_calls = True
+                                completed_tools = self._build_tool_calls(pending_tool_calls)
+                                yield {"tool_calls": completed_tools}
+                            # Update metrics
+                            elapsed_ms = (time.monotonic() - start_time) * 1000
+                            self._metrics.successful_requests += 1
+                            self._metrics.total_response_time_ms += elapsed_ms
+                            yield {"finish_reason": "stop"}
+                            break
+
+                        try:
+                            data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+
+                        # Extract usage info
+                        if usage := data.get("usage"):
+                            _LOGGER.debug("Got usage in stream: %s", usage)
+                            self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
+                            self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
+                            self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
+                            self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
+                            cached = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+                            self._metrics._last_cached_tokens = cached or 0
+                            if cached > 0:
+                                self._metrics.cache_hits += 1
+                                self._metrics.cached_tokens += cached
+                            elif self._enable_caching:
+                                self._metrics.cache_misses += 1
+
+                        choice = data.get("choices", [{}])[0]
+                        delta = choice.get("delta", {})
+
+                        # Yield content chunks
+                        if content := delta.get("content"):
+                            received_content = True
+                            yield {"content": content}
+
+                        # Accumulate tool calls
+                        if tool_call_deltas := delta.get("tool_calls"):
+                            for tc in tool_call_deltas:
+                                idx = tc.get("index", 0)
+                                if idx not in pending_tool_calls:
+                                    pending_tool_calls[idx] = {
+                                        "id": tc.get("id", ""),
+                                        "name": "",
+                                        "arguments": "",
+                                    }
+                                if tc.get("id"):
+                                    pending_tool_calls[idx]["id"] = tc["id"]
+                                if func := tc.get("function"):
+                                    if name := func.get("name"):
+                                        pending_tool_calls[idx]["name"] = name
+                                    if args := func.get("arguments"):
+                                        pending_tool_calls[idx]["arguments"] += args
+
+                        # Check for finish reason
+                        if finish_reason := choice.get("finish_reason"):
+                            stream_completed = True
+                            if finish_reason == "tool_calls" and pending_tool_calls:
+                                received_tool_calls = True
+                                completed_tools = self._build_tool_calls(pending_tool_calls)
+                                yield {"tool_calls": completed_tools}
+                                pending_tool_calls.clear()
+                            yield {"finish_reason": finish_reason}
 
                 # Check for empty response
-                if stream_completed and not received_content:
+                if stream_completed and not received_content and not received_tool_calls:
                     self._metrics.empty_responses += 1
-                    last_error = OpenRouterError("Empty response: stream completed without content")
-                    
+                    last_error = OpenRouterError("Empty response: stream completed without content or tool calls")
+
                     if attempt < LLM_MAX_RETRIES - 1:
                         delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                         _LOGGER.warning(
@@ -333,14 +376,13 @@ class OpenRouterClient(BaseLLMClient):
                     else:
                         self._metrics.failed_requests += 1
                         raise last_error
-                
-                # Success
+
                 return
 
             except asyncio.TimeoutError:
                 self._metrics.stream_timeouts += 1
                 last_error = OpenRouterError("Stream timeout")
-                
+
                 if attempt < LLM_MAX_RETRIES - 1:
                     delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
@@ -360,10 +402,43 @@ class OpenRouterClient(BaseLLMClient):
                 _LOGGER.error("Streaming error: %s", err)
                 self._metrics.failed_requests += 1
                 raise OpenRouterError(f"Streaming error: {err}") from err
-        
-        # All retries exhausted
+
         self._metrics.failed_requests += 1
         raise last_error or OpenRouterError("Unknown error after stream retries")
+
+    @staticmethod
+    def _build_tool_calls(pending: dict[int, dict[str, Any]]) -> list[ToolCall]:
+        """Build ToolCall list from accumulated pending tool call fragments."""
+        completed: list[ToolCall] = []
+        for idx in sorted(pending.keys()):
+            tc = pending[idx]
+            args = tc.get("arguments", "{}")
+            try:
+                args = json.loads(args) if isinstance(args, str) else args
+            except json.JSONDecodeError:
+                args = {}
+            completed.append(
+                ToolCall(
+                    id=tc.get("id", f"tool_{idx}"),
+                    name=tc.get("name", ""),
+                    arguments=args,
+                )
+            )
+        return completed
+
+    async def chat_stream(
+        self,
+        messages: list[ChatMessage],
+        tools: list[dict[str, Any]] | None = None,
+        cached_prefix_length: int = 0,
+    ) -> AsyncGenerator[str, None]:
+        """Send a streaming chat request, yielding content strings only.
+
+        Delegates to _stream_request() and filters to content-only chunks.
+        """
+        async for chunk in self._stream_request(messages, tools, cached_prefix_length):
+            if "content" in chunk:
+                yield chunk["content"]
 
     async def chat_stream_full(
         self,
@@ -372,241 +447,18 @@ class OpenRouterClient(BaseLLMClient):
         cached_prefix_length: int = 0,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Send a streaming chat request and yield full delta events.
-        
-        This is the advanced streaming method that yields both content and tool calls.
+
+        Yields content chunks, tool calls, and finish reasons.
         Used for HA's ConversationEntity streaming interface.
-        
-        Includes retry logic for empty responses and stream timeouts.
-        
+
         Yields:
             dict with keys:
             - {"content": str} for content chunks
             - {"tool_calls": list} when tool calls are complete
             - {"finish_reason": str} when stream is done
         """
-        session = await self._get_session()
-
-        payload: dict[str, Any] = {
-            "model": self._model,
-            "messages": self._build_messages(messages, cached_prefix_length),
-            "temperature": self._temperature,
-            "max_tokens": self._max_tokens,
-            "stream": True,
-            "stream_options": {"include_usage": True},  # Request usage info in streaming
-        }
-
-        if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = "auto"
-
-        if self._provider and self._provider != "auto":
-            payload["provider"] = {
-                "only": [self._provider],  # Strictly use only this provider
-            }
-
-        # Debug: Log message structure for cache analysis
-        if _LOGGER.isEnabledFor(logging.DEBUG):
-            msg_summary = []
-            prefix_content = []
-            for i, msg in enumerate(payload["messages"]):
-                role = msg.get("role", "?")
-                content = msg.get("content", "")
-                if isinstance(content, str):
-                    content_len = len(content)
-                    content_text = content
-                elif isinstance(content, list):
-                    content_len = sum(len(c.get("text", "")) for c in content if isinstance(c, dict))
-                    content_text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
-                else:
-                    content_len = 0
-                    content_text = ""
-                msg_summary.append(f"{i}:{role}:{content_len}chars")
-                if i < 3:
-                    prefix_content.append(f"{role}:{content_text}")
-            
-            prefix_hash = hashlib.sha256("|||".join(prefix_content).encode()).hexdigest()[:8]
-            tools_hash = hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest()[:8] if tools else "no_tools"
-            
-            _LOGGER.debug("Sending full streaming request to OpenRouter: %s (provider: %s)", self._model, self._provider)
-            _LOGGER.debug("Message structure: %s (prefix_hash: %s, tools_hash: %s)", ", ".join(msg_summary), prefix_hash, tools_hash)
-
-        self._metrics.total_requests += 1
-        start_time = time.monotonic()
-        last_error: Exception | None = None
-
-        # Retry loop for empty responses and stream failures
-        for attempt in range(LLM_MAX_RETRIES):
-            # Track tool calls being built
-            pending_tool_calls: dict[int, dict[str, Any]] = {}
-            received_content = False
-            received_tool_calls = False
-            stream_completed = False
-
-            try:
-                async with await self._execute_with_retry(session, payload) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        _LOGGER.error("OpenRouter API error: %s", error_text)
-                        self._metrics.failed_requests += 1
-                        raise OpenRouterError(f"API error: {response.status} - {error_text}")
-
-                    async for line in response.content:
-                        line = line.decode("utf-8").strip()
-                        if not line.startswith("data: "):
-                            continue
-                        
-                        data_str = line[6:]
-                        if data_str == "[DONE]":
-                            stream_completed = True
-                            # Emit any completed tool calls
-                            if pending_tool_calls:
-                                received_tool_calls = True
-                                completed_tools = []
-                                for idx in sorted(pending_tool_calls.keys()):
-                                    tc = pending_tool_calls[idx]
-                                    # Parse arguments
-                                    args = tc.get("arguments", "{}")
-                                    try:
-                                        args = json.loads(args) if isinstance(args, str) else args
-                                    except json.JSONDecodeError:
-                                        args = {}
-                                    completed_tools.append(
-                                        ToolCall(
-                                            id=tc.get("id", f"tool_{idx}"),
-                                            name=tc.get("name", ""),
-                                            arguments=args,
-                                        )
-                                    )
-                                yield {"tool_calls": completed_tools}
-                            # Update metrics on stream completion
-                            elapsed_ms = (time.monotonic() - start_time) * 1000
-                            self._metrics.successful_requests += 1
-                            self._metrics.total_response_time_ms += elapsed_ms
-                            yield {"finish_reason": "stop"}
-                            break
-                        
-                        try:
-                            data = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            continue
-                        
-                        # Extract usage info from streaming response (sent with last chunk)
-                        if usage := data.get("usage"):
-                            _LOGGER.debug("Got usage in full stream: %s", usage)
-                            self._metrics.total_prompt_tokens += usage.get("prompt_tokens", 0)
-                            self._metrics.total_completion_tokens += usage.get("completion_tokens", 0)
-                            # Per-request tracking
-                            self._metrics._last_prompt_tokens = usage.get("prompt_tokens", 0)
-                            self._metrics._last_completion_tokens = usage.get("completion_tokens", 0)
-                            # Track cache hits and cached tokens
-                            cached = usage.get("cache_read_input_tokens", 0) or usage.get("prompt_tokens_details", {}).get("cached_tokens", 0)
-                            self._metrics._last_cached_tokens = cached or 0
-                            if cached > 0:
-                                self._metrics.cache_hits += 1
-                                self._metrics.cached_tokens += cached
-                            elif self._enable_caching:
-                                self._metrics.cache_misses += 1
-                        
-                        choice = data.get("choices", [{}])[0]
-                        delta = choice.get("delta", {})
-                        
-                        # Yield content chunks
-                        if content := delta.get("content"):
-                            received_content = True
-                            yield {"content": content}
-                        
-                        # Accumulate tool calls
-                        if tool_calls := delta.get("tool_calls"):
-                            for tc in tool_calls:
-                                idx = tc.get("index", 0)
-                                if idx not in pending_tool_calls:
-                                    pending_tool_calls[idx] = {
-                                        "id": tc.get("id", ""),
-                                        "name": "",
-                                        "arguments": "",
-                                    }
-                                
-                                # Update tool call info
-                                if tc.get("id"):
-                                    pending_tool_calls[idx]["id"] = tc["id"]
-                                if func := tc.get("function"):
-                                    if name := func.get("name"):
-                                        pending_tool_calls[idx]["name"] = name
-                                    if args := func.get("arguments"):
-                                        pending_tool_calls[idx]["arguments"] += args
-                        
-                        # Check for finish reason (tool_calls means we're done building)
-                        if finish_reason := choice.get("finish_reason"):
-                            stream_completed = True
-                            if finish_reason == "tool_calls" and pending_tool_calls:
-                                received_tool_calls = True
-                                completed_tools = []
-                                for idx in sorted(pending_tool_calls.keys()):
-                                    tc = pending_tool_calls[idx]
-                                    args = tc.get("arguments", "{}")
-                                    try:
-                                        args = json.loads(args) if isinstance(args, str) else args
-                                    except json.JSONDecodeError:
-                                        args = {}
-                                    completed_tools.append(
-                                        ToolCall(
-                                            id=tc.get("id", f"tool_{idx}"),
-                                            name=tc.get("name", ""),
-                                            arguments=args,
-                                        )
-                                    )
-                                yield {"tool_calls": completed_tools}
-                                pending_tool_calls.clear()
-                            yield {"finish_reason": finish_reason}
-
-                # Check if we got an empty response (stream completed but no content/tools)
-                if stream_completed and not received_content and not received_tool_calls:
-                    self._metrics.empty_responses += 1
-                    last_error = OpenRouterError("Empty response: stream completed without content or tool calls")
-                    
-                    if attempt < LLM_MAX_RETRIES - 1:
-                        delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                        _LOGGER.warning(
-                            "Empty stream response (attempt %d/%d). Retrying in %.1fs",
-                            attempt + 1, LLM_MAX_RETRIES, delay
-                        )
-                        self._metrics.total_retries += 1
-                        await asyncio.sleep(delay)
-                        continue
-                    else:
-                        self._metrics.failed_requests += 1
-                        raise last_error
-                
-                # Stream completed successfully with content
-                return
-
-            except asyncio.TimeoutError:
-                self._metrics.stream_timeouts += 1
-                last_error = OpenRouterError("Stream timeout: no data received within timeout period")
-                
-                if attempt < LLM_MAX_RETRIES - 1:
-                    delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
-                    _LOGGER.warning(
-                        "Stream timeout (attempt %d/%d). Retrying in %.1fs",
-                        attempt + 1, LLM_MAX_RETRIES, delay
-                    )
-                    self._metrics.total_retries += 1
-                    await asyncio.sleep(delay)
-                    continue
-                else:
-                    self._metrics.failed_requests += 1
-                    raise last_error
-
-            except OpenRouterError:
-                raise
-            except Exception as err:
-                _LOGGER.error("Full streaming error: %s", err)
-                self._metrics.failed_requests += 1
-                raise OpenRouterError(f"Full streaming error: {err}") from err
-        
-        # All retries exhausted
-        self._metrics.failed_requests += 1
-        raise last_error or OpenRouterError("Unknown error after stream retries")
+        async for chunk in self._stream_request(messages, tools, cached_prefix_length):
+            yield chunk
 
     def _parse_response(self, data: dict[str, Any]) -> ChatResponse:
         """Parse API response into ChatResponse."""

@@ -218,9 +218,16 @@ class EntityManager:
         return self._entity_index_text, current_hash
 
     def _compute_index_hash(self, entities: list[EntityInfo]) -> str:
-        """Compute hash of entity index for cache invalidation."""
-        entity_ids = sorted(e.entity_id for e in entities)
-        return hashlib.sha256("|".join(entity_ids).encode()).hexdigest()[:16]
+        """Compute hash of entity index for cache invalidation.
+        
+        Includes entity_id, friendly_name, and area_name so that
+        renames and area reassignments also invalidate the cache.
+        """
+        data = sorted(
+            f"{e.entity_id}:{e.friendly_name}:{e.area_name or ''}"
+            for e in entities
+        )
+        return hashlib.sha256("|".join(data).encode()).hexdigest()[:16]
 
     def _format_entity_index(self, entities: list[EntityInfo]) -> str:
         """Format entity index for LLM context."""

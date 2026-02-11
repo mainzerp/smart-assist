@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any, TYPE_CHECKING
 
@@ -44,7 +43,7 @@ from .context.entity_manager import EntityManager
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
-from .utils import get_config_value
+from .utils import get_config_value, execute_tools_parallel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -215,8 +214,8 @@ class SmartAssistAITask(AITaskEntity):
             DEFAULT_TASK_SYSTEM_PROMPT
         )
         
-        # Get entity index for context
-        entity_index = self._entity_manager.get_entity_index()
+        # Get entity index for context (returns tuple: text, hash)
+        entity_index, _ = self._entity_manager.get_entity_index()
         
         # Determine language instruction for response
         language = self._get_config(CONF_LANGUAGE, "")
@@ -288,33 +287,11 @@ Focus on completing the task efficiently and providing structured, useful output
                 )
             )
             
-            # Execute tools in parallel
-            async def execute_tool(tool_call):
-                _LOGGER.debug("Executing tool: %s", tool_call.name)
-                result = await self._tool_registry.execute(
-                    tool_call.name, tool_call.arguments
-                )
-                return (tool_call, result)
-            
-            tool_results = await asyncio.gather(
-                *[execute_tool(tc) for tc in response.tool_calls],
-                return_exceptions=True
+            # Execute tools in parallel and add results
+            tool_messages = await execute_tools_parallel(
+                response.tool_calls, self._tool_registry
             )
-            
-            # Add tool results to messages
-            for item in tool_results:
-                if isinstance(item, Exception):
-                    _LOGGER.error("Tool execution failed: %s", item)
-                    continue
-                tool_call, result = item
-                messages.append(
-                    ChatMessage(
-                        role=MessageRole.TOOL,
-                        content=result.to_string(),
-                        tool_call_id=tool_call.id,
-                        name=tool_call.name,
-                    )
-                )
+            messages.extend(tool_messages)
         
         _LOGGER.warning("AI Task max iterations reached")
         return response.content or ""

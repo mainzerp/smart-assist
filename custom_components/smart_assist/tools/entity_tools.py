@@ -39,6 +39,11 @@ class GetEntitiesTool(BaseTool):
         ),
     ]
 
+    def __init__(self, hass: HomeAssistant, entity_manager: Any | None = None) -> None:
+        """Initialize the tool with optional shared EntityManager."""
+        super().__init__(hass)
+        self._entity_manager = entity_manager
+
     async def execute(
         self,
         domain: str,
@@ -46,10 +51,12 @@ class GetEntitiesTool(BaseTool):
         name_filter: str | None = None,
     ) -> ToolResult:
         """Execute the get_entities tool."""
-        from ..context.entity_manager import EntityManager
-
-        manager = EntityManager(self._hass)
-        entities = manager.get_all_entities()
+        if self._entity_manager:
+            entities = self._entity_manager.get_all_entities()
+        else:
+            from ..context.entity_manager import EntityManager
+            manager = EntityManager(self._hass)
+            entities = manager.get_all_entities()
 
         # Apply domain filter (required)
         entities = [e for e in entities if e.domain == domain]

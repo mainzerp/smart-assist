@@ -43,6 +43,7 @@ def create_tool_registry(
     entry: ConfigEntry,
     available_domains: set[str] | None = None,
     subentry_data: dict[str, Any] | None = None,
+    entity_manager: Any | None = None,
 ) -> ToolRegistry:
     """Create a tool registry with dynamically loaded tools.
     
@@ -85,7 +86,7 @@ def create_tool_registry(
     )
     
     # Core tools (always available)
-    get_entities_tool = GetEntitiesTool(hass)
+    get_entities_tool = GetEntitiesTool(hass, entity_manager=entity_manager)
     
     # Adjust description based on entity discovery mode
     discovery_mode = _get_config(entry, CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE, subentry_data)

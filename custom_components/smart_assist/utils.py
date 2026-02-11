@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any, Final, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+    from .llm.models import ChatMessage, ToolCall
+    from .tools.base import ToolRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -279,3 +282,58 @@ def remove_urls_for_tts(text: str) -> str:
     result = result.strip()
     
     return result
+
+
+async def execute_tools_parallel(
+    tool_calls: list[ToolCall],
+    tool_registry: ToolRegistry,
+) -> list[ChatMessage]:
+    """Execute tool calls in parallel and return ChatMessages with results.
+
+    Handles both successful results and exceptions, always producing a
+    tool-role ChatMessage for every tool_call so the LLM receives a
+    response for each tool_call_id.
+
+    Args:
+        tool_calls: List of ToolCall objects from the LLM response.
+        tool_registry: Tool registry to execute tools against.
+
+    Returns:
+        List of ChatMessage(role=TOOL) -- one per tool_call.
+    """
+    from .llm.models import ChatMessage, MessageRole
+
+    async def _exec(tc: ToolCall) -> tuple[ToolCall, Any]:
+        result = await tool_registry.execute(tc.name, tc.arguments)
+        return (tc, result)
+
+    raw_results = await asyncio.gather(
+        *[_exec(tc) for tc in tool_calls],
+        return_exceptions=True,
+    )
+
+    messages: list[ChatMessage] = []
+    for idx, item in enumerate(raw_results):
+        if isinstance(item, Exception):
+            _LOGGER.error("Tool execution failed: %s", item)
+            tc = tool_calls[idx]
+            messages.append(
+                ChatMessage(
+                    role=MessageRole.TOOL,
+                    content=f"Error: {item}",
+                    tool_call_id=tc.id,
+                    name=tc.name,
+                )
+            )
+        else:
+            tc, result = item
+            messages.append(
+                ChatMessage(
+                    role=MessageRole.TOOL,
+                    content=result.to_string(),
+                    tool_call_id=tc.id,
+                    name=tc.name,
+                )
+            )
+
+    return messages
