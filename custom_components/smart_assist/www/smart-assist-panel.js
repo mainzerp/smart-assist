@@ -28,10 +28,14 @@ class SmartAssistPanel extends HTMLElement {
     this._promptData = null;
     this._promptLoading = false;
     this._scrollContainer = null;
+    this._fetchInProgress = false;
+    this._historyFetchInProgress = false;
+    this._promptFetchInProgress = false;
   }
 
   set hass(hass) {
     const first = !this._hass;
+    const connectionChanged = this._hass && hass && this._hass.connection !== hass.connection;
     this._hass = hass;
     if (first) {
       this._fetchData();
@@ -41,6 +45,9 @@ class SmartAssistPanel extends HTMLElement {
       const storedInterval = localStorage.getItem("smart_assist_auto_refresh_interval");
       if (storedInterval) this._autoRefreshInterval = parseInt(storedInterval, 10) || 30;
       if (this._autoRefreshEnabled) this._startAutoRefresh();
+    } else if (connectionChanged) {
+      this._resubscribe();
+      this._fetchData();
     }
   }
 
@@ -49,9 +56,14 @@ class SmartAssistPanel extends HTMLElement {
   set route(val) { this._route = val; }
 
   connectedCallback() {
-    this._render();
     this._boundVisibilityHandler = () => this._handleVisibilityChange();
     document.addEventListener("visibilitychange", this._boundVisibilityHandler);
+    if (this._hass) {
+      this._fetchData();
+      this._resubscribe();
+      if (this._autoRefreshEnabled) this._startAutoRefresh();
+    }
+    this._render();
   }
 
   disconnectedCallback() {
@@ -68,6 +80,8 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   async _fetchData() {
+    if (this._fetchInProgress) return;
+    this._fetchInProgress = true;
     const isInitialLoad = !this._data;
     this._error = null;
     if (isInitialLoad) {
@@ -77,6 +91,7 @@ class SmartAssistPanel extends HTMLElement {
     try {
       const result = await this._hass.callWS({ type: "smart_assist/dashboard_data" });
       this._data = result;
+      this._error = null;
       if (!this._selectedAgent && result.agents) {
         const ids = Object.keys(result.agents);
         if (ids.length > 0) this._selectedAgent = ids[0];
@@ -85,6 +100,7 @@ class SmartAssistPanel extends HTMLElement {
       this._error = err.message || "Failed to load dashboard data";
     }
     this._loading = false;
+    this._fetchInProgress = false;
     this._render();
     // Also refresh history data if on history tab
     if (this._activeTab === "history") {
@@ -93,14 +109,36 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   async _subscribe() {
+    if (this._unsub) {
+      try { this._unsub(); } catch (_) {}
+      this._unsub = null;
+    }
     try {
       this._unsub = await this._hass.connection.subscribeMessage(
-        (data) => { this._data = Object.assign(this._data || {}, data); this._render(); },
+        (data) => {
+          try {
+            this._data = Object.assign(this._data || {}, data);
+            this._render();
+          } catch (err) {
+            console.error("Smart Assist: Render error in subscription callback:", err);
+          }
+        },
         { type: "smart_assist/subscribe" }
       );
     } catch (err) {
       console.warn("Smart Assist: Could not subscribe to updates:", err);
+      setTimeout(() => {
+        if (this._hass && this.isConnected) this._subscribe();
+      }, 10000);
     }
+  }
+
+  async _resubscribe() {
+    if (this._unsub) {
+      try { this._unsub(); } catch (_) {}
+      this._unsub = null;
+    }
+    await this._subscribe();
   }
 
   _startAutoRefresh() {
@@ -140,9 +178,11 @@ class SmartAssistPanel extends HTMLElement {
   _handleVisibilityChange() {
     if (document.hidden) {
       this._stopAutoRefresh();
-    } else if (this._autoRefreshEnabled) {
+    } else {
       this._fetchData();
-      this._startAutoRefresh();
+      if (this._autoRefreshEnabled) {
+        this._startAutoRefresh();
+      }
     }
   }
 
@@ -574,6 +614,8 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   async _loadHistory() {
+    if (this._historyFetchInProgress) return;
+    this._historyFetchInProgress = true;
     const isInitialLoad = !this._historyData;
     this._historyLoading = true;
     if (isInitialLoad) {
@@ -600,10 +642,13 @@ class SmartAssistPanel extends HTMLElement {
       console.error("Failed to load history:", err);
     }
     this._historyLoading = false;
+    this._historyFetchInProgress = false;
     this._render();
   }
 
   async _loadPrompt() {
+    if (this._promptFetchInProgress) return;
+    this._promptFetchInProgress = true;
     const isInitialLoad = !this._promptData;
     this._promptLoading = true;
     if (isInitialLoad) {
@@ -621,6 +666,7 @@ class SmartAssistPanel extends HTMLElement {
       this._promptData = null;
     }
     this._promptLoading = false;
+    this._promptFetchInProgress = false;
     this._render();
   }
 

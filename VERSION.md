@@ -4,11 +4,29 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.5  | 2026-02-11 |
+| Smart Assist | 1.13.6  | 2026-02-11 |
 
 ## Version History
 
-### v1.13.5 (2026-02-11) - History Tab Improvements
+### v1.13.6 (2026-02-11) - Dashboard Stability & Cancel Detection
+
+**Bug Fixes:**
+- Fix: Dashboard no longer goes blank after extended use (WS reconnection, connection change detection, subscription retry, concurrent fetch guards)
+- Cancel intent detection now LLM-based via [CANCEL] prefix instead of exact-match phrase list
+
+**UI:**
+- History tab: "Cancel" and "System" badges in Status column
+- History tab: Tools column wider with 50-char truncation
+- Dashboard always refreshes data when tab becomes visible (even with auto-refresh disabled)
+
+**Internal:**
+- `is_nevermind` and `is_system_call` fields tracked in request history
+- `_resubscribe()` method for clean subscription teardown and re-creation
+- Concurrent fetch guards for `_fetchData()`, `_loadHistory()`, `_loadPrompt()`
+
+- Files modified: conversation.py, prompt_builder.py, request_history.py, smart-assist-panel.js
+
+### v1.13.5 (2026-02-11) - History Tab Improvements *[superseded by v1.13.6]*
 
 **UI:**
 - History tab: Tools column wider (min-width 180px, truncation increased to 50 chars)
