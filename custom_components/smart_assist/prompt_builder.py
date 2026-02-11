@@ -234,7 +234,8 @@ Only exposed entities are available.""")
         parts.append("""
 ## Cancel/Abort
 "cancel"/"never mind"/"abbrechen"/"vergiss es" etc. = user wants to end interaction.
-- Respond with 1-3 word acknowledgment. No follow-up questions.
+- Prefix your response with [CANCEL] then a brief 1-3 word acknowledgment. No follow-up questions.
+- Example: "[CANCEL] Alles klar." or "[CANCEL] OK."
 - These are NOT requests to cancel devices/timers. Never ask "What should I cancel?" -- just confirm.""")
 
     # Error handling - compact

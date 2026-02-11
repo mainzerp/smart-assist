@@ -491,6 +491,11 @@ class SmartAssistConversationEntity(ConversationEntity):
                 _LOGGER.debug("[USER-REQUEST] Auto-detected question in response, enabling continue_conversation")
                 continue_conversation = True
 
+            # Detect [CANCEL] prefix from LLM (context-based cancel detection)
+            is_nevermind, final_content = self._detect_cancel_prefix(final_content)
+            if is_nevermind:
+                _LOGGER.debug("[USER-REQUEST] LLM flagged response as cancel/nevermind")
+
             # Clean response for TTS if enabled
             final_response = final_content
             if self._get_config(CONF_CLEAN_RESPONSES, DEFAULT_CLEAN_RESPONSES):
@@ -531,7 +536,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                 request_start_time=request_start_time,
                 llm_iterations=llm_iterations,
                 tool_call_records=tool_call_records,
-                is_nevermind=self._is_cancel_intent(user_input.text),
+                is_nevermind=is_nevermind,
                 is_system_call=is_silent_call,
             )
 
@@ -552,7 +557,6 @@ class SmartAssistConversationEntity(ConversationEntity):
                 tool_call_records=[],
                 request_success=False,
                 request_error=str(err),
-                is_nevermind=self._is_cancel_intent(user_input.text),
                 is_system_call=is_silent_call,
             )
 
@@ -693,17 +697,19 @@ class SmartAssistConversationEntity(ConversationEntity):
         )
 
     @staticmethod
-    def _is_cancel_intent(text: str) -> bool:
-        """Check if user input is a cancel/nevermind/dismiss phrase."""
-        cancel_phrases = {
-            "nevermind", "never mind", "cancel", "abort", "forget it",
-            "stop", "abbrechen", "vergiss es", "lass gut sein",
-            "nichts", "nein danke", "no thanks", "nope",
-            "doesn't matter", "doesn\'t matter", "don't worry",
-            "don\'t worry", "not anymore", "skip", "dismiss",
-        }
-        normalized = text.strip().lower().rstrip(".!?")
-        return normalized in cancel_phrases
+    def _detect_cancel_prefix(text: str) -> tuple[bool, str]:
+        """Detect and strip [CANCEL] prefix from LLM response.
+
+        The system prompt instructs the LLM to prefix cancel acknowledgments
+        with [CANCEL]. This is context-based detection by the LLM itself.
+
+        Returns (is_cancel, cleaned_text).
+        """
+        stripped = text.strip()
+        if stripped.upper().startswith("[CANCEL]"):
+            cleaned = stripped[len("[CANCEL]"):].strip()
+            return True, cleaned
+        return False, stripped
 
     async def _try_quick_action(self, text: str) -> str | None:
         """Try to handle simple commands without LLM.
