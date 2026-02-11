@@ -223,6 +223,8 @@ class SmartAssistPanel extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
+    // Preserve scroll position across re-renders (prevents jump-to-top on auto-refresh)
+    const prevScrollY = window.scrollY;
     let content = "";
     if (this._loading) {
       content = '<div class="loading">Loading Smart Assist Dashboard...</div>';
@@ -235,6 +237,8 @@ class SmartAssistPanel extends HTMLElement {
     }
     this.shadowRoot.innerHTML = "<style>" + this._getStyles() + "</style>" + content;
     this._attachEvents();
+    // Restore scroll position after DOM update
+    requestAnimationFrame(() => { window.scrollTo(0, prevScrollY); });
   }
 
   _renderDashboard() {
