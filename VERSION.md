@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.3  | 2026-02-11 |
+| Smart Assist | 1.13.4  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.4 (2026-02-11) - Timer Reminder Quality Fix
+
+**Bug Fixes:**
+- Fix: Timer reminders now deliver a friendly, reformulated announcement instead of echoing the original request verbatim
+- Timer tool `command` description updated to instruct LLM to use direct statements for reminders
+- Timer callbacks detected early in conversation pipeline and wrapped with context for proper LLM handling
+
+- Files modified: conversation.py, timer_tools.py
 
 ### v1.13.3 (2026-02-11) - Timer Announcement Fix
 

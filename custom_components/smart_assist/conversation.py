@@ -391,7 +391,31 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Pass satellite_id so LLM knows which device initiated the request
         satellite_id = getattr(user_input, 'satellite_id', None)
         device_id = getattr(user_input, 'device_id', None)
-        
+
+        # Detect programmatic/timer callbacks (no voice pipeline listening).
+        # Computed once here and reused later for announcement logic.
+        is_silent_call = (
+            user_input.conversation_id is None
+            and not satellite_id
+            and device_id is not None
+            and not getattr(chat_log, 'delta_listener', None)
+        )
+
+        # For timer callbacks, wrap the message with context so the LLM
+        # knows to deliver a friendly reminder instead of processing it
+        # as a regular user request.
+        effective_text = user_input.text
+        if is_silent_call:
+            effective_text = (
+                "[TIMER CALLBACK] The following text is a timer/reminder that just expired. "
+                "Deliver it as a friendly, natural reminder to the user. "
+                "Do NOT treat it as a new user request. Just announce the reminder warmly.\n\n"
+                f"{user_input.text}"
+            )
+            _LOGGER.debug(
+                "[TIMER-CALLBACK] Detected timer callback, wrapping message with context"
+            )
+
         # Resolve user for memory personalization
         context_user_id = None
         input_context = getattr(user_input, 'context', None)
@@ -410,7 +434,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         )
         
         messages, cached_prefix_length = await self._build_messages_for_llm_async(
-            user_input.text,
+            effective_text,
             chat_log,
             satellite_id=satellite_id,
             device_id=device_id,
@@ -480,14 +504,7 @@ class SmartAssistConversationEntity(ConversationEntity):
 
             _LOGGER.debug("Streaming response complete. continue=%s", continue_conversation)
 
-            # Detect programmatic/timer calls where no voice pipeline is listening.
-            # In these cases, proactively announce the response on the originating satellite.
-            is_silent_call = (
-                user_input.conversation_id is None
-                and not satellite_id
-                and device_id is not None
-                and not getattr(chat_log, 'delta_listener', None)
-            )
+            # For silent/timer calls, proactively announce the response on the originating satellite.
             if is_silent_call and final_response.strip():
                 sat_entity_id = await self._find_satellite_entity_id(device_id)
                 if sat_entity_id:
