@@ -60,3 +60,32 @@ class AwaitResponseTool(BaseTool):
             message=message,  # This becomes the spoken response
             data={"reason": reason, "await_response": True, "spoken_message": message}
         )
+
+
+class NevermindTool(BaseTool):
+    """Signal that user wants to cancel/abort the interaction."""
+
+    name = "nevermind"
+    description = "Call when user wants to cancel or dismiss the interaction."
+    parameters = [
+        ToolParameter(
+            name="message",
+            type="string",
+            description="Brief acknowledgment (1-3 words)",
+            required=True,
+        ),
+    ]
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the tool."""
+        super().__init__(hass)
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        """Execute the nevermind signal."""
+        message = kwargs.get("message", "OK.")
+        _LOGGER.debug("nevermind tool called: message='%s'", message)
+        return ToolResult(
+            success=True,
+            message=message,
+            data={"nevermind": True, "spoken_message": message},
+        )

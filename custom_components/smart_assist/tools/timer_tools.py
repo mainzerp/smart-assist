@@ -69,7 +69,7 @@ class TimerTool(BaseTool):
         ToolParameter(
             name="command",
             type="string",
-            description="Voice command to run when timer ends. For reminders, phrase as a direct statement about what to remember (e.g., 'The pizza is ready', 'You wanted to play computer today') - NOT as a request ('Remind me that...').",
+            description="Voice command when timer ends. For reminders: use direct statements, not requests.",
             required=False,
         ),
     ]

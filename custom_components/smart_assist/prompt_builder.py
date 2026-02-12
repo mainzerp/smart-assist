@@ -79,33 +79,23 @@ async def build_system_prompt(entity: SmartAssistConversationEntity) -> str:
     # Language instruction is emphasized and placed prominently
     parts.append(f"""You are a smart home assistant.
 
-## LANGUAGE [CRITICAL]
+Language:
 {language_instruction} This applies to ALL responses -- confirmations, errors, questions. Never mix languages.""")
 
     # Entity discovery strategy (placed early for maximum LLM attention)
     discovery_mode = entity._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
     if discovery_mode == "smart_discovery":
         parts.append("""
-## MANDATORY WORKFLOW -- Entity Discovery [HIGHEST PRIORITY]
-You have NO entity information. You do NOT know any entity IDs.
+Entity Discovery Workflow:
+You have no entity information preloaded. For any device request:
+1. Call get_entities(domain=...) to discover entities. Infer domain from intent. Use area and name_filter params.
+2. Use returned entity_id(s) to call control() or get_entity_state().
 
-For ANY device request:
-1. Call get_entities(domain=...) to discover entities
-   - Infer domain from intent: "light"/"lamp" -> "light"; "turn off kitchen" -> try "light", then "switch"
-   - Use area parameter with EXACT name from AVAILABLE AREAS list
-   - Use name_filter for specific devices: "desk lamp" -> domain="light", name_filter="desk"
-2. Use returned entity_id(s) to call control() or get_entity_state()
-
-RULES:
-- MUST call get_entities BEFORE any control. No exceptions.
-- ONLY try a related domain (light->switch) if ZERO results returned.
-- NEVER fabricate entity IDs or say "I don't have access to entities."
-- NEVER reuse entity_ids from [Recent Entities] for new requests -- those are ONLY for pronoun resolution ("it", "that").
-
-AREA vs ENTITY DECISION:
-- Area/room request ("turn off everything in the living room") -> get_entities with area filter, then batch control ALL returned entity_ids=[...]
-- Specific device or named entity -> control that single entity_id (works for groups too -- HA handles members automatically)
-Groups are NOT areas. A group may span multiple areas or miss entities in an area. For area/room requests, always batch individual entities -- never substitute a group.""")
+Rules:
+- Always call get_entities before control. Never fabricate entity IDs.
+- Only try a related domain (light->switch) if zero results.
+- Recent Entities are only for pronoun resolution ("it", "that"), not for new requests.
+- Area requests: get_entities with area filter, then batch control all results. Never substitute a group for an area.""")
 
         # Inject available area names so LLM uses correct names
         from homeassistant.helpers import area_registry as ar
@@ -113,29 +103,30 @@ Groups are NOT areas. A group may span multiple areas or miss entities in an are
         area_names = sorted(area.name for area in area_reg.async_list_areas())
         if area_names:
             parts.append(f"""
-## AVAILABLE AREAS
+Available Areas:
 Use these EXACT area names for get_entities(area=...): {', '.join(area_names)}
 Match the user's spoken room/area to the closest name from this list.""")
 
     # Response format guidelines
     parts.append("""
-## Response Format
-- Brief: 1-2 sentences for actions, 2-3 for info
+Response Format:
+- After executing a tool, confirm in 5-15 words max. No elaboration.
 - Vary confirmations naturally (e.g. "Done!", "Light's on.", "All set.")
-- Always use tools to check states -- never guess
-- Plain text only, no markdown -- responses are spoken via TTS""")
+- For info questions, 2-3 sentences max.
+- Always use tools to check states, never guess.
+- Plain text only, no formatting. Responses are spoken via TTS.""")
 
     # Response rules with conversation continuation marker
     if ask_followup:
         parts.append("""
-## Follow-up Behavior
+Follow-up Behavior:
 - Only offer follow-up for ambiguous requests or multiple options -- not for simple actions
 - If your response contains a question, you MUST call await_response tool
   Usage: await_response(message="[question in user's language]", reason="follow_up")
   Without it, the user CANNOT respond.""")
     else:
         parts.append("""
-## Response Rules
+Response Rules:
 - Do NOT ask follow-up questions
 - Keep responses action-focused
 - If uncertain about entity, ask for clarification""")
@@ -143,71 +134,56 @@ Match the user's spoken room/area to the closest name from this list.""")
     # Entity lookup strategy (smart_discovery handled above, near top of prompt)
     if discovery_mode != "smart_discovery":
         parts.append("""
-## Entity Lookup
+Entity Lookup:
 1. Check ENTITY INDEX first to find entity_ids
 2. Only use get_entities tool if not found in index""")
 
     # Pronoun resolution hint
     parts.append("""
-## Pronouns
+Pronouns:
 "it"/"that"/"the same one" -> check [Recent Entities] in context.""")
 
     # Calendar reminders instruction (if enabled) - compact version
     calendar_enabled = entity._get_config(CONF_CALENDAR_CONTEXT, DEFAULT_CALENDAR_CONTEXT)
     if calendar_enabled:
         parts.append("""
-## Calendar Reminders [MANDATORY]
-When context contains '## Calendar Reminders [ACTION REQUIRED]':
-1. Answer the user's request completely FIRST
-2. Append reminder at the END as a separate sentence with a casual transition ("By the way...", "Also..." -- vary each time)
-- Never start with or weave reminders into unrelated answers""")
+Calendar Reminders:
+When context contains calendar reminders, answer the user's request first, then append the reminder at the end with a casual transition ("By the way...", "Also...").""")
 
     # Control instructions - compact
     # In smart_discovery mode, add reminder that get_entities comes first
     parts.append("""
-## Entity Control [CRITICAL]
-Use 'control' tool for lights, switches, covers, fans, climate, locks. Domain auto-detected.
-
-RULES:
-- ALWAYS call control() for on/off/toggle. Never skip. Never say "already on/off" -- the tool handles idempotency.
-- Context states are informational only. Always call the tool regardless of apparent state.
-- Group entities are regular entities -- just control them by entity_id. HA handles member propagation.
-- Area/room requests: batch with entity_ids=[...] from get_entities(area=...). Never substitute a group for an area.""")
+Entity Control:
+Use control tool for lights, switches, covers, fans, climate, locks. Domain auto-detected.
+- Always call control() for on/off/toggle regardless of apparent state. Tool handles idempotency.
+- Groups: control by entity_id. Area requests: batch with entity_ids from get_entities(area=...).""")
 
     # Music/Radio instructions - only if music_assistant tool is registered
     if (await entity._get_tool_registry()).has_tool("music_assistant"):
         parts.append("""
-## Music/Radio [IMPORTANT]
-Use 'music_assistant' tool to play/search media (NOT 'control'):
-- action='play', query='...', media_type='track/album/artist/playlist/radio'
-- action='search' to find without playing; 'queue_add' to add to queue
-- Player: check [Current Assist Satellite] + your satellite-to-player mapping
-
-Transport controls (stop/pause/resume/next/volume) use 'control' tool:
-- e.g. control(entity_id="media_player.xxx", action="media_pause")
-- volume: action="volume_set", value=0.5""")
+Music and Radio:
+Use music_assistant tool to play/search media (not control tool). Check Current Assist Satellite for the player.
+Transport controls (stop/pause/volume) use control tool on the media_player entity.""")
 
     # Send/notification instructions - only if send tool is registered
     if (await entity._get_tool_registry()).has_tool("send"):
         parts.append("""
-## Sending Content
+Sending Content:
 Use 'send' tool for links/text/messages to devices. Offer when you have useful content.
 - After sending, confirm briefly ("Sent to [device].") -- do NOT repeat content in voice response.""")
 
     # Critical actions confirmation
     if confirm_critical:
         parts.append("""
-## Critical Actions
+Critical Actions:
 Ask for confirmation before: locking doors, arming alarms, disabling security.""")
 
     # Memory instructions (if enabled)
     if entity._memory_enabled:
         parts.append("""
-## User Memory
-[USER MEMORY] in context = known memories. Use to personalize.
-- Save new preferences/names/patterns via memory tool (max 100 chars, categories: preference, named_entity, pattern, instruction, fact)
-- Don't re-save existing memories
-- "I am [Name]" -> memory(action='switch_user', content='[name]')""")
+User Memory:
+USER MEMORY in context contains known memories. Use to personalize responses.
+Save new preferences via memory tool (max 100 chars). "I am [Name]" -> memory(action='switch_user', content='[name]').""")
 
     # Agent Memory auto-learning instructions (if enabled)
     agent_memory_enabled = entity._memory_enabled and entity._get_config(
@@ -215,32 +191,24 @@ Ask for confirmation before: locking doors, arming alarms, disabling security.""
     )
     if agent_memory_enabled:
         parts.append("""
-## Agent Memory
-[AGENT MEMORY] = your own observations. Save ONLY surprising/non-obvious discoveries:
-- memory(action='save', scope='agent') with category 'observation' or 'pattern'
-- Max 100 chars. Don't re-save existing memories. Never save entity IDs.""")
+Agent Memory:
+AGENT MEMORY contains your observations. Save only surprising discoveries via memory(action='save', scope='agent'). Max 100 chars.""")
 
     # Exposed only notice
     if exposed_only:
         parts.append("""
-## Notice
+Notice:
 Only exposed entities are available.""")
 
     # Cancel/abort handling instruction (if enabled globally)
     cancel_enabled = entity._get_global_config(
         CONF_ENABLE_CANCEL_HANDLER, DEFAULT_ENABLE_CANCEL_HANDLER
     )
-    if cancel_enabled:
-        parts.append("""
-## Cancel/Abort
-"cancel"/"never mind"/"abbrechen"/"vergiss es" etc. = user wants to end interaction.
-- Prefix your response with [CANCEL] then a brief 1-3 word acknowledgment. No follow-up questions.
-- Example: "[CANCEL] Alles klar." or "[CANCEL] OK."
-- These are NOT requests to cancel devices/timers. Never ask "What should I cancel?" -- just confirm.""")
+    # Cancel/abort handled by nevermind tool -- no prompt section needed
 
     # Error handling - compact
     parts.append("""
-## Errors
+Errors:
 If action fails or entity not found, explain briefly and suggest alternatives.""")
 
     # Cache the built prompt for subsequent calls
@@ -340,7 +308,7 @@ async def get_calendar_context(entity: SmartAssistConversationEntity, dry_run: b
 
         # Format with emphasis markers for LLM attention
         reminder_text = "\n".join(f"- {r}" for r in reminders)
-        return f"\n## Calendar Reminders [ACTION REQUIRED]\n{reminder_text}"
+        return f"\nCalendar Reminders (action required):\n{reminder_text}"
 
     except Exception as err:
         _LOGGER.warning("Failed to get calendar context: %s", err)

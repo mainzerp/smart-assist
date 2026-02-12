@@ -32,13 +32,7 @@ class UnifiedControlTool(BaseTool):
     """
 
     name = "control"
-    description = """Control any entity (single/batch). Domain auto-detected.
-- light: brightness, color_temp, rgb_color
-- climate: temperature, hvac_mode, preset
-- media_player: play/pause/stop/next/previous, volume, source
-- cover: open/close/stop, position
-- script: turn_on to run
-entity_ids array for batch."""
+    description = "Control any entity. Domain auto-detected. Use entity_ids array for batch."
     
     parameters = [
         ToolParameter(

@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.7  | 2026-02-11 |
+| Smart Assist | 1.13.8  | 2026-02-11 |
 
 ## Version History
+
+### v1.13.8 (2026-02-11) - Prompt Simplification & Hallucination Fix
+
+**Bug Fixes:**
+- Fix: Severe LLM hallucinations (garbled/repetitive output after tool calls) caused by prompt complexity and destabilizing patterns
+- Removed [CANCEL] prefix mechanism from system prompt -- replaced with nevermind tool for cleaner cancel detection
+- Replaced all markdown headings in system prompt with plain-text labels to avoid format conflicts
+- Removed all emphasis markers (CRITICAL, MANDATORY, IMPORTANT, bold) from system prompt
+- Condensed 6 instruction sections (Entity Discovery, Entity Control, Calendar, Music, User Memory, Agent Memory) -- ~380 token reduction
+- Added "5-15 words max" response constraint after tool execution
+- Shortened tool descriptions (unified_control, timer command) to reduce token overhead
+
+**Internal:**
+- New NevermindTool in conversation_tools.py for cancel/abort signaling via tool call
+- streaming.py handles nevermind tool calls (similar to await_response pattern)
+- conversation.py: `_detect_cancel_prefix()` replaced with `_detect_nevermind_from_tool_calls()`
+
+- Files modified: prompt_builder.py, conversation.py, streaming.py, conversation_tools.py, tools/__init__.py, timer_tools.py, unified_control.py
 
 ### v1.13.7 (2026-02-11) - Group vs Area Prompt Fix
 

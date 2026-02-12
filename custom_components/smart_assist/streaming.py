@@ -226,6 +226,22 @@ async def call_llm_streaming_with_tools(
                     _LOGGER.warning("[USER-REQUEST] await_response called without message - check tool definition")
                 return final_content, await_response_called, iteration, all_tool_call_records
 
+        # Check if nevermind tool was called (cancel/abort signal)
+        nevermind_calls = [tc for tc in tool_calls if tc.name == "nevermind"]
+        if nevermind_calls:
+            other_tool_calls = [tc for tc in other_tool_calls if tc.name != "nevermind"]
+            _LOGGER.debug("[USER-REQUEST] nevermind tool called - marking as cancel")
+
+            # Extract message from nevermind tool call
+            if nevermind_calls[0].arguments:
+                nevermind_message = nevermind_calls[0].arguments.get("message", "OK.")
+                if nevermind_message:
+                    final_content = nevermind_message
+
+            # If only nevermind was called (no other tools), we're done
+            if not other_tool_calls:
+                return final_content, False, iteration, all_tool_call_records
+
         # Execute other tool calls (not await_response) and add results to messages for next iteration
         if other_tool_calls:
             # Deduplicate tool calls by ID (LLM sometimes sends duplicates)

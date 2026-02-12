@@ -491,10 +491,10 @@ class SmartAssistConversationEntity(ConversationEntity):
                 _LOGGER.debug("[USER-REQUEST] Auto-detected question in response, enabling continue_conversation")
                 continue_conversation = True
 
-            # Detect [CANCEL] prefix from LLM (context-based cancel detection)
-            is_nevermind, final_content = self._detect_cancel_prefix(final_content)
+            # Detect cancel/nevermind via tool call (LLM calls nevermind tool)
+            is_nevermind = self._detect_nevermind_from_tool_calls(tool_call_records)
             if is_nevermind:
-                _LOGGER.debug("[USER-REQUEST] LLM flagged response as cancel/nevermind")
+                _LOGGER.debug("[USER-REQUEST] nevermind tool detected cancel/nevermind")
 
             # Clean response for TTS if enabled
             final_response = final_content
@@ -697,19 +697,18 @@ class SmartAssistConversationEntity(ConversationEntity):
         )
 
     @staticmethod
-    def _detect_cancel_prefix(text: str) -> tuple[bool, str]:
-        """Detect and strip [CANCEL] prefix from LLM response.
+    def _detect_nevermind_from_tool_calls(tool_call_records: list) -> bool:
+        """Check if the nevermind tool was called during this interaction.
 
-        The system prompt instructs the LLM to prefix cancel acknowledgments
-        with [CANCEL]. This is context-based detection by the LLM itself.
-
-        Returns (is_cancel, cleaned_text).
+        Returns True if the LLM called the nevermind tool, indicating
+        the user wanted to cancel/abort.
         """
-        stripped = text.strip()
-        if stripped.upper().startswith("[CANCEL]"):
-            cleaned = stripped[len("[CANCEL]"):].strip()
-            return True, cleaned
-        return False, stripped
+        if not tool_call_records:
+            return False
+        return any(
+            getattr(r, "tool_name", None) == "nevermind" or getattr(r, "name", None) == "nevermind"
+            for r in tool_call_records
+        )
 
     async def _try_quick_action(self, text: str) -> str | None:
         """Try to handle simple commands without LLM.

@@ -63,7 +63,7 @@ def create_tool_registry(
     from .scene_tools import RunSceneTool, TriggerAutomationTool
     from .search_tools import GetWeatherTool, WebSearchTool
     from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
-    from .conversation_tools import AwaitResponseTool
+    from .conversation_tools import AwaitResponseTool, NevermindTool
     from .timer_tools import TimerTool
     from .music_assistant_tools import MusicAssistantTool
     from .notification_tools import SendTool
@@ -105,6 +105,13 @@ def create_tool_registry(
     registered_tools.append("control_entity")
     registry.register(AwaitResponseTool(hass))  # Signal to keep conversation open
     registered_tools.append("await_response")
+
+    # Nevermind tool (cancel/abort signal - replaces [CANCEL] prefix approach)
+    from ..const import CONF_ENABLE_CANCEL_HANDLER, DEFAULT_ENABLE_CANCEL_HANDLER
+    cancel_enabled = _get_config(entry, CONF_ENABLE_CANCEL_HANDLER, DEFAULT_ENABLE_CANCEL_HANDLER, subentry_data)
+    if cancel_enabled:
+        registry.register(NevermindTool(hass))
+        registered_tools.append("nevermind")
     
     # Timer tool (native Assist intents - always available)
     # Uses HassStartTimer, HassCancelTimer etc. intents
@@ -201,7 +208,7 @@ from .unified_control import UnifiedControlTool
 from .scene_tools import RunSceneTool, TriggerAutomationTool
 from .search_tools import WebSearchTool, GetWeatherTool
 from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
-from .conversation_tools import AwaitResponseTool
+from .conversation_tools import AwaitResponseTool, NevermindTool
 from .timer_tools import TimerTool
 from .music_assistant_tools import MusicAssistantTool
 from .notification_tools import SendTool
@@ -219,6 +226,7 @@ __all__ = [
     "GetEntityHistoryTool",
     "UnifiedControlTool",
     "AwaitResponseTool",
+    "NevermindTool",
     # Timer
     "TimerTool",
     # Music
