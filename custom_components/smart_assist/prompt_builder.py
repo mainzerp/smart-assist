@@ -369,8 +369,8 @@ Only exposed entities are available.""")
     # Response format guidelines (kept near end to prioritize policy-first routing)
     parts.append("""
 Response Format:
-- After executing a tool, confirm in 5-15 words max. No elaboration.
-- Vary confirmations naturally (e.g. "Done!", "Light's on.", "All set.")
+- After executing a tool, confirm briefly (typically one short sentence, around 5-20 words).
+- Keep confirmations natural and conversational; avoid clipped abbreviations.
 - For info questions, 2-3 sentences max.
 - Always use tools to check states, never guess.
 - Plain text only, no formatting. Responses are spoken via TTS.""")

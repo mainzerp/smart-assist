@@ -4,9 +4,19 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.13 | 2026-02-13 |
+| Smart Assist | 1.13.14 | 2026-02-13 |
 
 ## Version History
+
+### v1.13.14 (2026-02-13) - Natural Confirmation Wording Tuning
+
+**Prompt Quality:**
+- Response-style rule loosened to give the LLM slightly more natural confirmation flexibility after tool execution
+- Confirmation guidance now prefers short conversational sentences and discourages clipped abbreviations
+
+**Files modified:**
+
+- custom_components/smart_assist/prompt_builder.py, VERSION.md
 
 ### v1.13.13 (2026-02-13) - Dashboard Data-Flow & Refactor Improvements
 

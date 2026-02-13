@@ -12,6 +12,10 @@ from .base import BaseTool, ToolParameter, ToolResult
 
 _LOGGER = logging.getLogger(__name__)
 
+_RELATED_DOMAIN_FALLBACKS: dict[str, str] = {
+    "light": "switch",
+}
+
 
 class GetEntitiesTool(BaseTool):
     """Tool to get entities matching filters."""
@@ -19,7 +23,8 @@ class GetEntitiesTool(BaseTool):
     name = "get_entities"
     description = (
         "Discover candidate entities by domain with optional area and name filtering. "
-        "Use when entity IDs are unknown or unresolved from index/context."
+        "Use when entity IDs are unknown or unresolved from index/context. "
+        "If no light matches are found, the tool automatically retries with switch."
     )
     parameters = [
         ToolParameter(
@@ -55,27 +60,31 @@ class GetEntitiesTool(BaseTool):
     ) -> ToolResult:
         """Execute the get_entities tool."""
         if self._entity_manager:
-            entities = self._entity_manager.get_all_entities()
+            all_entities = self._entity_manager.get_all_entities()
         else:
             from ..context.entity_manager import EntityManager
             manager = EntityManager(self._hass)
-            entities = manager.get_all_entities()
+            all_entities = manager.get_all_entities()
 
-        # Apply domain filter (required)
-        entities = [e for e in entities if e.domain == domain]
-        
-        # Apply optional filters
-        if area:
-            area_lower = area.lower()
-            # Try exact match first, fall back to substring
-            exact = [e for e in entities if e.area_name and e.area_name.lower() == area_lower]
-            if exact:
-                entities = exact
-            else:
-                entities = [e for e in entities if e.area_name and area_lower in e.area_name.lower()]
-        if name_filter:
-            filter_lower = name_filter.lower()
-            entities = [e for e in entities if filter_lower in e.friendly_name.lower()]
+        requested_domain = domain
+        entities = self._filter_entities(
+            all_entities,
+            domain=domain,
+            area=area,
+            name_filter=name_filter,
+        )
+
+        used_domain = requested_domain
+        fallback_domain = _RELATED_DOMAIN_FALLBACKS.get(requested_domain)
+        if not entities and fallback_domain:
+            entities = self._filter_entities(
+                all_entities,
+                domain=fallback_domain,
+                area=area,
+                name_filter=name_filter,
+            )
+            if entities:
+                used_domain = fallback_domain
 
         if not entities:
             return ToolResult(
@@ -100,6 +109,12 @@ class GetEntitiesTool(BaseTool):
 
         message = f"Found {len(entities)} entities:\n{entity_list}"
 
+        if used_domain != requested_domain:
+            message += (
+                f"\nNote: No matches in domain '{requested_domain}', "
+                f"used related domain '{used_domain}'."
+            )
+
         # Suggest batch control for multiple entities
         if len(entities) > 1:
             all_ids = [e.entity_id for e in entities[:20]]
@@ -111,6 +126,41 @@ class GetEntitiesTool(BaseTool):
             message=message,
             data={"entities": [e.entity_id for e in entities]},
         )
+
+    def _filter_entities(
+        self,
+        entities: list[Any],
+        domain: str,
+        area: str | None,
+        name_filter: str | None,
+    ) -> list[Any]:
+        """Apply domain and optional area/name filters to entity list."""
+        filtered = [entity for entity in entities if entity.domain == domain]
+
+        if area:
+            area_lower = area.lower()
+            exact = [
+                entity
+                for entity in filtered
+                if entity.area_name and entity.area_name.lower() == area_lower
+            ]
+            if exact:
+                filtered = exact
+            else:
+                filtered = [
+                    entity
+                    for entity in filtered
+                    if entity.area_name and area_lower in entity.area_name.lower()
+                ]
+
+        if name_filter:
+            filter_lower = name_filter.lower()
+            filtered = [
+                entity for entity in filtered
+                if filter_lower in entity.friendly_name.lower()
+            ]
+
+        return filtered
 
 
 class GetEntityStateTool(BaseTool):
