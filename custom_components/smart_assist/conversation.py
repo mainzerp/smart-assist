@@ -612,7 +612,11 @@ class SmartAssistConversationEntity(ConversationEntity):
 
         except Exception as err:
             _LOGGER.error("Error processing conversation: %s", err)
-            error_msg = f"Sorry, I encountered an error: {err}"
+            language_hint = (getattr(user_input, "language", "") or "").lower()
+            if "de" in language_hint:
+                error_msg = "Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut."
+            else:
+                error_msg = "Sorry, something went wrong. Please try again."
             chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(
                     agent_id=self.entity_id or "",

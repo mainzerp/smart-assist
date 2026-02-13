@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.14 | 2026-02-13 |
+| Smart Assist | 1.13.15 | 2026-02-13 |
 
 ## Version History
+
+### v1.13.15 (2026-02-13) - Tool Validation & Error UX Fix
+
+**Bug Fixes:**
+- Fixed provider-side tool validation failures when LLM sends `null` for optional tool parameters (e.g. `get_entities.name_filter = null`)
+- Optional tool parameters now emit nullable JSON schema (`anyOf: [type, null]`) instead of hard-failing strict validation
+- Conversation error responses no longer expose raw backend/API payloads to users or TTS output
+
+**UX:**
+- Error fallback is now short, user-friendly, and localized (German/English)
+
+**Files modified:**
+
+- custom_components/smart_assist/tools/base.py, custom_components/smart_assist/conversation.py, VERSION.md
 
 ### v1.13.14 (2026-02-13) - Natural Confirmation Wording Tuning
 

@@ -65,14 +65,7 @@ class BaseTool(ABC):
         required: list[str] = []
 
         for param in self.parameters:
-            prop: dict[str, Any] = {
-                "type": param.type,
-                "description": param.description,
-            }
-            if param.enum:
-                prop["enum"] = param.enum
-            if param.items:
-                prop["items"] = param.items
+            prop = self._build_parameter_schema(param)
             properties[param.name] = prop
 
             if param.required:
@@ -89,6 +82,29 @@ class BaseTool(ABC):
                     "required": required,
                 },
             },
+        }
+
+    def _build_parameter_schema(self, param: ToolParameter) -> dict[str, Any]:
+        """Build JSON schema for a single tool parameter."""
+        value_schema: dict[str, Any] = {
+            "type": param.type,
+        }
+        if param.enum:
+            value_schema["enum"] = param.enum
+        if param.items:
+            value_schema["items"] = param.items
+
+        if param.required:
+            schema = dict(value_schema)
+            schema["description"] = param.description
+            return schema
+
+        return {
+            "description": param.description,
+            "anyOf": [
+                value_schema,
+                {"type": "null"},
+            ],
         }
 
 
