@@ -33,7 +33,7 @@ class MusicAssistantTool(BaseTool):
     """
 
     name = "music_assistant"
-    description = "Play, search, or queue music via Music Assistant. Supports tracks, albums, artists, playlists, radio stations. radio_mode for endless similar music."
+    description = "Play, search, or queue music via Music Assistant. Supports tracks, albums, artists, playlists, radio stations. radio_mode for endless similar music. Also supports transport controls (pause/resume/stop) and listing players."
     
     parameters = [
         ToolParameter(
@@ -41,13 +41,13 @@ class MusicAssistantTool(BaseTool):
             type="string",
             description="Action",
             required=True,
-            enum=["play", "search", "queue_add"],
+            enum=["play", "search", "queue_add", "get_players", "pause", "resume", "stop"],
         ),
         ToolParameter(
             name="query",
             type="string",
             description="Search query (song, artist, album, playlist, station)",
-            required=True,
+            required=False,
         ),
         ToolParameter(
             name="media_type",
@@ -89,10 +89,15 @@ class MusicAssistantTool(BaseTool):
         ),
     ]
 
+    def __init__(self, hass: HomeAssistant, satellite_player_mappings: dict[str, str] | None = None) -> None:
+        """Initialize the Music Assistant tool."""
+        super().__init__(hass)
+        self._satellite_player_mappings = satellite_player_mappings or {}
+
     async def execute(
         self,
         action: str,
-        query: str,
+        query: str | None = None,
         media_type: str | None = None,
         artist: str | None = None,
         album: str | None = None,
@@ -103,20 +108,30 @@ class MusicAssistantTool(BaseTool):
         """Execute music assistant action."""
         
         try:
-            if action == "play":
+            if action == "get_players":
+                return await self._get_players()
+            elif action in ("pause", "resume", "stop"):
+                return await self._transport_control(action, player)
+            elif action == "play":
+                if not query:
+                    return ToolResult(success=False, message="Missing query for play action.")
                 return await self._play_media(
                     query, media_type, artist, album, player, enqueue, radio_mode
                 )
             elif action == "search":
+                if not query:
+                    return ToolResult(success=False, message="Missing query for search action.")
                 return await self._search_media(query, media_type, artist, album)
             elif action == "queue_add":
+                if not query:
+                    return ToolResult(success=False, message="Missing query for queue_add action.")
                 return await self._play_media(
                     query, media_type, artist, album, player, "add", radio_mode
                 )
             else:
                 return ToolResult(
                     success=False,
-                    message=f"Unknown action: {action}. Use: play, search, queue_add",
+                    message=f"Unknown action: {action}. Use: play, search, queue_add, get_players, pause, resume, stop",
                 )
         except ServiceNotFound:
             return ToolResult(
@@ -132,9 +147,14 @@ class MusicAssistantTool(BaseTool):
 
     async def _get_ma_player(self, player: str | None) -> str | None:
         """Get Music Assistant player entity_id.
-        
-        If player is specified, validates it exists.
-        If not specified, tries to find a Music Assistant media player.
+
+        Resolution order:
+        1. Explicit player param (LLM passed it)
+        2. Satellite -> player mapping from user prompt config
+        3. Auto-match: satellite name substring in MA player entity_id
+        4. First MA player found
+        5. Any playing media player
+        6. First available media player
         """
         if player:
             # Validate the player exists
@@ -142,26 +162,123 @@ class MusicAssistantTool(BaseTool):
             if state is None:
                 return None
             return player
-        
-        # Try to find a Music Assistant media player
-        # MA players typically have attributes from the integration
-        for state in self._hass.states.async_all("media_player"):
-            # Check if it's a Music Assistant player
-            attrs = state.attributes
-            if attrs.get("mass_player_id") or "music_assistant" in state.entity_id:
-                return state.entity_id
-        
-        # Fall back to any playing media player
+
+        # Get all MA players once for reuse
+        ma_players = [
+            state for state in self._hass.states.async_all("media_player")
+            if state.attributes.get("mass_player_id") or "music_assistant" in state.entity_id
+        ]
+
+        # Layer 2: Explicit satellite -> player mapping from user prompt
+        if self._satellite_id and self._satellite_player_mappings:
+            sat_key = self._satellite_id.lower()
+            mapped = self._satellite_player_mappings.get(sat_key)
+            if mapped:
+                state = self._hass.states.get(mapped)
+                if state is not None:
+                    _LOGGER.debug("Resolved player via explicit mapping: %s -> %s", self._satellite_id, mapped)
+                    return mapped
+
+        # Layer 3: Auto-match satellite name to MA player
+        if self._satellite_id:
+            sat_name = self._satellite_id.lower().replace("assist_satellite.", "")
+            for state in ma_players:
+                player_id = state.entity_id.lower()
+                sat_parts = sat_name.replace("satellite_", "").replace("_assist_satellit", "").split("_")
+                for part in sat_parts:
+                    if len(part) >= 3 and part in player_id:
+                        _LOGGER.debug(
+                            "Auto-matched satellite to player: %s -> %s (via '%s')",
+                            self._satellite_id, state.entity_id, part,
+                        )
+                        return state.entity_id
+
+        # Layer 4: First available MA player
+        if ma_players:
+            return ma_players[0].entity_id
+
+        # Layer 5: Any playing media player
         for state in self._hass.states.async_all("media_player"):
             if state.state == "playing":
                 return state.entity_id
-        
-        # Fall back to first available media player
+
+        # Layer 6: First available media player
         media_players = self._hass.states.async_all("media_player")
         if media_players:
             return media_players[0].entity_id
-        
+
         return None
+
+    async def _get_players(self) -> ToolResult:
+        """Get all available Music Assistant players and their current state."""
+        players = []
+        for state in self._hass.states.async_all("media_player"):
+            attrs = state.attributes
+            if attrs.get("mass_player_id") or "music_assistant" in state.entity_id:
+                player_info = {
+                    "entity_id": state.entity_id,
+                    "name": attrs.get("friendly_name", state.entity_id),
+                    "state": state.state,
+                }
+                if state.state in ("playing", "paused"):
+                    if attrs.get("media_title"):
+                        player_info["media_title"] = attrs["media_title"]
+                    if attrs.get("media_artist"):
+                        player_info["media_artist"] = attrs["media_artist"]
+                players.append(player_info)
+
+        if not players:
+            return ToolResult(
+                success=True,
+                message="No Music Assistant players found.",
+                data={"players": []},
+            )
+
+        lines = []
+        for p in players:
+            status = p["state"]
+            if p.get("media_title"):
+                status += f" - {p.get('media_artist', 'Unknown')}: {p['media_title']}"
+            lines.append(f"{p['entity_id']} ({p['name']}): {status}")
+
+        return ToolResult(
+            success=True,
+            message="Available MA players:\n" + "\n".join(lines),
+            data={"players": players},
+        )
+
+    async def _transport_control(self, action: str, player: str | None) -> ToolResult:
+        """Execute transport control (pause/resume/stop) on a player."""
+        target_player = await self._get_ma_player(player)
+        if not target_player:
+            return ToolResult(
+                success=False,
+                message="No media player found. Please specify a player entity_id.",
+            )
+
+        service_map = {
+            "pause": "media_pause",
+            "resume": "media_play",
+            "stop": "media_stop",
+        }
+
+        service = service_map.get(action)
+        if not service:
+            return ToolResult(success=False, message=f"Unknown transport action: {action}")
+
+        await self._hass.services.async_call(
+            "media_player", service,
+            {"entity_id": target_player},
+            blocking=True,
+        )
+
+        player_name = target_player.split(".")[-1].replace("_", " ").title()
+        action_past = {"pause": "Paused", "resume": "Resumed", "stop": "Stopped"}
+        return ToolResult(
+            success=True,
+            message=f"{action_past.get(action, action)} playback on {player_name}.",
+            data={"player": target_player, "action": action},
+        )
 
     async def _play_media(
         self,
@@ -182,7 +299,44 @@ class MusicAssistantTool(BaseTool):
                 success=False,
                 message="No media player found. Please specify a player entity_id.",
             )
-        
+
+        # Validate the resolved player is a Music Assistant managed player
+        target_state = self._hass.states.get(target_player)
+        is_ma_player = (
+            target_state is not None
+            and (
+                target_state.attributes.get("mass_player_id")
+                or "music_assistant" in target_player
+            )
+        )
+        if not is_ma_player:
+            # Gather available MA players to suggest alternatives
+            ma_players = [
+                s for s in self._hass.states.async_all("media_player")
+                if s.attributes.get("mass_player_id") or "music_assistant" in s.entity_id
+            ]
+            if ma_players:
+                names = [
+                    f"  - {s.entity_id} ({s.attributes.get('friendly_name', s.entity_id)})"
+                    for s in ma_players
+                ]
+                return ToolResult(
+                    success=False,
+                    message=(
+                        f"'{target_player}' is not a Music Assistant player. "
+                        f"music_assistant.play_media only works with MA-managed players. "
+                        f"Available MA players:\n" + "\n".join(names)
+                    ),
+                )
+            else:
+                return ToolResult(
+                    success=False,
+                    message=(
+                        f"'{target_player}' is not a Music Assistant player and no MA players "
+                        f"were found. Ensure Music Assistant is configured with at least one player."
+                    ),
+                )
+
         # Build service data
         service_data: dict[str, Any] = {
             "entity_id": target_player,

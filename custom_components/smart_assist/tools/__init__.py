@@ -188,7 +188,11 @@ def create_tool_registry(
             _LOGGER.debug("Music Assistant detected via MA player attributes: %s", ma_players[:3])
     
     if music_assistant_available:
-        registry.register(MusicAssistantTool(hass))
+        from ..prompt_builder import parse_satellite_player_mappings
+        from ..const import CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT
+        user_prompt = _get_config(entry, CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT, subentry_data)
+        sat_mappings = parse_satellite_player_mappings(user_prompt)
+        registry.register(MusicAssistantTool(hass, satellite_player_mappings=sat_mappings))
         registered_tools.append("music_assistant")
     else:
         _LOGGER.debug("Music Assistant not detected, music_assistant tool not registered")

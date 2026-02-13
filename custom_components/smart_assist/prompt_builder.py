@@ -82,6 +82,47 @@ def parse_calendar_mappings(user_system_prompt: str | None) -> dict[str, str] | 
     return mappings if mappings else None
 
 
+def parse_satellite_player_mappings(user_system_prompt: str | None) -> dict[str, str] | None:
+    """Parse satellite-to-media-player mappings from the user system prompt.
+
+    Looks for a block starting with 'Satellite to Media Player Mappings:' followed by
+    lines like '- assist_satellite.satellite_kitchen -> media_player.kitchen_speaker'.
+
+    Args:
+        user_system_prompt: The user system prompt text.
+
+    Returns:
+        Dict mapping satellite entity_id -> media_player entity_id.
+        Returns None if no mappings block is found.
+    """
+    if not user_system_prompt:
+        return None
+
+    mappings: dict[str, str] = {}
+    in_block = False
+
+    for line in user_system_prompt.splitlines():
+        stripped = line.strip()
+
+        # Detect start of Satellite to Media Player Mappings block
+        if stripped.lower().startswith("satellite to media player mappings:"):
+            in_block = True
+            continue
+
+        if in_block:
+            if not stripped or (not stripped.startswith("-") and ":" in stripped and "->" not in stripped):
+                break
+
+            if stripped.startswith("-") and "->" in stripped:
+                parts = stripped.lstrip("- ").split("->", 1)
+                if len(parts) == 2:
+                    satellite_key = parts[0].strip().lower()
+                    player_key = parts[1].strip()
+                    mappings[satellite_key] = player_key
+
+    return mappings if mappings else None
+
+
 def filter_calendars_for_user(
     all_calendar_ids: list[str],
     hass: HomeAssistant,
@@ -268,8 +309,14 @@ Use control tool for lights, switches, covers, fans, climate, locks. Domain auto
     if (await entity._get_tool_registry()).has_tool("music_assistant"):
         parts.append("""
 Music and Radio:
-Use music_assistant tool to play/search media (not control tool). Check Current Assist Satellite for the player.
-Transport controls (stop/pause/volume) use control tool on the media_player entity.""")
+Use music_assistant tool to play/search media (not control tool).
+- Player: Use the [Current Media Player] from context if it is a Music Assistant player. If none or unsure, omit the player param (auto-resolved).
+- get_players: Use action='get_players' to list available Music Assistant players when the user asks what speakers/players are available, or when a play attempt fails due to invalid player.
+- Search first: If unsure whether the exact track/album/artist exists, use action='search' first, then play from results.
+- If search returns no results, tell the user the media was not found. Do NOT try to play it anyway.
+- radio_mode: For vague requests ("play some jazz", "relaxing music"), use play with radio_mode=true.
+- Radio stations: Use media_type='radio' for internet radio (e.g., "SWR3", "BBC Radio").
+Transport controls (stop/pause/volume) use music_assistant tool with action='pause'/'resume'/'stop', or control tool on the media_player entity from [Current Media Player].""")
 
     # Send/notification instructions - only if send tool is registered
     if (await entity._get_tool_registry()).has_tool("send"):
@@ -680,6 +727,15 @@ async def build_messages_for_llm(
     # This allows the LLM to know which device initiated the request
     if satellite_id:
         context_parts.append(f"[Current Assist Satellite: {satellite_id}]")
+
+        # Resolve satellite -> media_player mapping
+        user_prompt = entity._get_config(CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT)
+        sat_mappings = parse_satellite_player_mappings(user_prompt)
+        if sat_mappings:
+            sat_key = satellite_id.lower()
+            mapped_player = sat_mappings.get(sat_key)
+            if mapped_player:
+                context_parts.append(f"[Current Media Player: {mapped_player}]")
 
     # Add recent entities for pronoun resolution (e.g., "it", "that", "the same one")
     if recent_entities_context:

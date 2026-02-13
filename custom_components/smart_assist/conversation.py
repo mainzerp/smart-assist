@@ -445,6 +445,8 @@ class SmartAssistConversationEntity(ConversationEntity):
         
         # Set device_id on tools so timer intents know which device to use
         (await self._get_tool_registry()).set_device_id(device_id)
+        # Set satellite_id on tools for satellite-aware player resolution
+        (await self._get_tool_registry()).set_satellite_id(satellite_id)
         # Set conversation_agent_id so timer commands route back to this agent
         (await self._get_tool_registry()).set_conversation_agent_id(self.entity_id)
         

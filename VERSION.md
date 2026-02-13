@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.9  | 2026-02-13 |
+| Smart Assist | 1.13.10 | 2026-02-13 |
 
 ## Version History
+
+### v1.13.10 (2026-02-13) - Music Playback Fix
+
+**Improvements:**
+- Music Assistant tool now supports `get_players`, `pause`, `resume`, `stop` actions for direct transport control
+- Multi-layer satellite-aware player resolution: explicit mapping > auto-match > MA scan > fallback
+- Structured satellite-to-media-player mappings parsed from User System Prompt (similar to Calendar Mappings)
+- `[Current Media Player]` injected into LLM context when satellite mapping resolves a player
+- Prompt now instructs LLM to search before playing when unsure, and to use `[Current Media Player]` from context
+- `query` parameter made optional (not needed for get_players/pause/resume/stop)
+
+- Files modified: prompt_builder.py, tools/music_assistant_tools.py, tools/base.py, tools/__init__.py, conversation.py
 
 ### v1.13.9 (2026-02-13) - Calendar User Filtering
 
