@@ -48,6 +48,7 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 - **Read Events**: Query upcoming events from all calendars
 - **Create Events**: Create timed or all-day events
 - **Proactive Reminders**: Staged context injection (24h, 4h, 1h before events)
+- **Per-User Filtering**: Calendar reminders filtered by user identity via `Calendar Mappings:` in the User System Prompt
 
 ### Send Content to Devices
 

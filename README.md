@@ -56,6 +56,25 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Read Events**: Query upcoming events from all calendars
 - **Create Events**: Create timed or all-day events with fuzzy calendar matching
 - **Proactive Reminders**: Staged context injection (24h, 4h, 1h before events)
+- **Per-User Filtering**: Calendar reminders filtered by recognized user identity via configurable mappings
+
+#### Calendar Mappings (Optional)
+
+By default, all users see reminders from all calendars. To filter reminders per user, add a `Calendar Mappings:` block to your **User System Prompt**:
+
+```text
+Calendar Mappings:
+- calendar.anna_privat -> Anna
+- calendar.patric_arbeit -> Patric
+- calendar.patric_privat -> Patric
+- calendar.familie -> shared
+- calendar.feiertage -> shared
+```
+
+**Behavior:**
+- **User recognized** (e.g., Anna): Sees only her own calendars + calendars marked `shared`
+- **User not recognized**: Sees all calendars (fallback)
+- **Calendars not listed** in the mapping: Treated as `shared` (visible to everyone)
 
 ### Send Content to Devices
 
