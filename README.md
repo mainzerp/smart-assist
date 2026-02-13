@@ -222,6 +222,9 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | Max History | Conversation history length | 10 |
 | Web Search | Enable DuckDuckGo search | true |
 | Calendar Context | Inject proactive calendar reminders | false |
+| Request History Content | Store request/response/tool argument content in history (disable = metadata only) | true |
+| History Retention (days) | Auto-prune request history entries older than this limit | 30 |
+| History Redact Patterns | Comma/newline-separated regex or text patterns replaced with [REDACTED] before persistence | (empty) |
 | Entity Discovery Mode | Entity lookup strategy: "Full Index" (all in prompt) or "Smart Discovery" (on-demand via tools) | Full Index |
 
 ### Caching Settings

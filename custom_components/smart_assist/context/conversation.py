@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from homeassistant.util import dt as dt_util
+
 from ..const import SESSION_EXPIRY_MINUTES, SESSION_MAX_MESSAGES, SESSION_RECENT_ENTITIES_MAX
 from ..llm.models import ChatMessage, MessageRole
 
@@ -21,7 +23,7 @@ class RecentEntity:
     entity_id: str
     friendly_name: str
     action: str  # "controlled", "queried", "mentioned"
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=dt_util.now)
 
 
 @dataclass
@@ -33,13 +35,13 @@ class ConversationSession:
     recent_entities: deque[RecentEntity] = field(default_factory=lambda: deque(maxlen=SESSION_RECENT_ENTITIES_MAX))
     consecutive_followups: int = 0  # Counter for consecutive follow-up questions
     active_user_id: str | None = None  # Set by switch_user action for multi-user support
-    created_at: datetime = field(default_factory=datetime.now)
-    last_active: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=dt_util.now)
+    last_active: datetime = field(default_factory=dt_util.now)
 
     def add_message(self, message: ChatMessage) -> None:
         """Add a message to the conversation."""
         self.messages.append(message)
-        self.last_active = datetime.now()
+        self.last_active = dt_util.now()
 
     def get_messages(self, max_messages: int | None = None) -> list[ChatMessage]:
         """Get conversation messages."""
@@ -71,7 +73,7 @@ class ConversationSession:
                 action=action,
             )
         )
-        self.last_active = datetime.now()
+        self.last_active = dt_util.now()
 
     def get_recent_entities_context(self) -> str:
         """Get formatted context string for LLM pronoun resolution.
@@ -92,7 +94,7 @@ class ConversationSession:
         self.recent_entities.clear()
         self.consecutive_followups = 0
         self.active_user_id = None
-        self.last_active = datetime.now()
+        self.last_active = dt_util.now()
 
     def increment_followup(self) -> int:
         """Increment and return consecutive followup count.
@@ -101,7 +103,7 @@ class ConversationSession:
         Returns the new count for limit checking.
         """
         self.consecutive_followups += 1
-        self.last_active = datetime.now()
+        self.last_active = dt_util.now()
         return self.consecutive_followups
 
     def reset_followups(self) -> None:
@@ -110,12 +112,12 @@ class ConversationSession:
         Called when a real tool (not await_response) is executed.
         """
         self.consecutive_followups = 0
-        self.last_active = datetime.now()
+        self.last_active = dt_util.now()
 
     @property
     def is_expired(self) -> bool:
         """Check if session has expired based on inactivity timeout."""
-        return datetime.now() - self.last_active > timedelta(minutes=SESSION_EXPIRY_MINUTES)
+        return dt_util.now() - self.last_active > timedelta(minutes=SESSION_EXPIRY_MINUTES)
 
 
 class ConversationManager:

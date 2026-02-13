@@ -11,6 +11,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -193,6 +194,10 @@ class RequestHistoryStore:
         except Exception as err:
             _LOGGER.error("Failed to save request history: %s", err)
 
+    async def async_force_save(self) -> None:
+        """Public wrapper to persist request history immediately."""
+        await self._force_save()
+
     async def async_shutdown(self) -> None:
         """Save pending changes on shutdown."""
         if self._dirty:
@@ -325,6 +330,38 @@ class RequestHistoryStore:
             removed = len(self._entries)
             self._entries = []
         if removed > 0:
+            self._dirty = True
+        return removed
+
+    def prune_older_than_days(self, retention_days: int) -> int:
+        """Remove entries older than retention_days and return removed count."""
+        if retention_days < 1:
+            return 0
+
+        cutoff = datetime.now() - timedelta(days=retention_days)
+        before = len(self._entries)
+        kept: list[dict[str, Any]] = []
+
+        for entry in self._entries:
+            ts = entry.get("timestamp")
+            if not ts:
+                kept.append(entry)
+                continue
+
+            try:
+                entry_dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                if entry_dt.tzinfo is not None:
+                    entry_dt = entry_dt.replace(tzinfo=None)
+            except ValueError:
+                kept.append(entry)
+                continue
+
+            if entry_dt >= cutoff:
+                kept.append(entry)
+
+        removed = before - len(kept)
+        if removed > 0:
+            self._entries = kept
             self._dirty = True
         return removed
 

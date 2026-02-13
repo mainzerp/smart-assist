@@ -41,6 +41,7 @@ from .const import (
     CONF_CONFIRM_CRITICAL,
     CONF_ENABLE_CACHE_WARMING,
     CONF_ENABLE_MEMORY,
+    CONF_ENABLE_REQUEST_HISTORY_CONTENT,
     CONF_ENABLE_AGENT_MEMORY,
     CONF_ENABLE_PRESENCE_HEURISTIC,
     CONF_ENABLE_WEB_SEARCH,
@@ -48,6 +49,8 @@ from .const import (
     CONF_EXPOSED_ONLY,
     CONF_GROQ_API_KEY,
     CONF_LANGUAGE,
+    CONF_HISTORY_REDACT_PATTERNS,
+    CONF_HISTORY_RETENTION_DAYS,
     CONF_LLM_PROVIDER,
     CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
@@ -70,10 +73,13 @@ from .const import (
     DEFAULT_CONFIRM_CRITICAL,
     DEFAULT_ENABLE_CACHE_WARMING,
     DEFAULT_ENABLE_MEMORY,
+    DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
     DEFAULT_ENABLE_AGENT_MEMORY,
     DEFAULT_ENABLE_PRESENCE_HEURISTIC,
     DEFAULT_ENTITY_DISCOVERY_MODE,
     DEFAULT_EXPOSED_ONLY,
+    DEFAULT_HISTORY_REDACT_PATTERNS,
+    DEFAULT_HISTORY_RETENTION_DAYS,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
@@ -318,6 +324,22 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_ENABLE_MEMORY, default=DEFAULT_ENABLE_MEMORY): BooleanSelector(),
             vol.Required(CONF_ENABLE_AGENT_MEMORY, default=DEFAULT_ENABLE_AGENT_MEMORY): BooleanSelector(),
             vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC, default=DEFAULT_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
+            vol.Required(
+                CONF_ENABLE_REQUEST_HISTORY_CONTENT,
+                default=DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
+            ): BooleanSelector(),
+            vol.Required(
+                CONF_HISTORY_RETENTION_DAYS,
+                default=DEFAULT_HISTORY_RETENTION_DAYS,
+            ): NumberSelector(
+                NumberSelectorConfig(min=1, max=365, step=1, mode=NumberSelectorMode.BOX)
+            ),
+            vol.Optional(
+                CONF_HISTORY_REDACT_PATTERNS,
+                default=DEFAULT_HISTORY_REDACT_PATTERNS,
+            ): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+            ),
             # Group: Performance
             vol.Required(CONF_ENABLE_CACHE_WARMING, default=DEFAULT_ENABLE_CACHE_WARMING): BooleanSelector(),
             vol.Required(CONF_CACHE_REFRESH_INTERVAL, default=DEFAULT_CACHE_REFRESH_INTERVAL): NumberSelector(

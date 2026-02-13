@@ -346,6 +346,25 @@ class CalendarReminderTracker:
             self._dirty = True
             _LOGGER.debug("Cleaned up reminder tracking for past event %s", old_hash)
 
+    def get_event_status(
+        self, event: dict, now: datetime | None = None
+    ) -> str:
+        """Get dashboard status for an event reminder lifecycle."""
+        if now is None:
+            now = dt_util.now()
+
+        stage = self._get_current_stage(event, now)
+        event_hash = self._event_hash(event)
+        completed = self._completed_stages.get(event_hash, set())
+
+        if stage == ReminderStage.PASSED:
+            return "passed"
+        if stage is not None:
+            return "announced" if stage in completed else "pending"
+        if completed:
+            return "announced"
+        return "upcoming"
+
     def get_reminders(
         self, events: list[dict], now: datetime | None = None
     ) -> list[str]:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 import aiohttp
@@ -98,7 +99,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
                 )
                 return providers
                 
-    except (aiohttp.ClientError, TimeoutError, Exception) as err:
+    except (aiohttp.ClientError, TimeoutError, json.JSONDecodeError) as err:
         _LOGGER.warning("fetch_model_providers: Error for model %s: %s", model_id, err)
         return providers
 
@@ -193,7 +194,7 @@ async def fetch_ollama_models(base_url: str) -> list[dict[str, str]]:
                 _LOGGER.debug("Fetched %d models from Ollama", len(model_options))
                 return model_options if model_options else _get_ollama_fallback_models()
                 
-    except (aiohttp.ClientError, TimeoutError, Exception) as err:
+    except (aiohttp.ClientError, TimeoutError, json.JSONDecodeError) as err:
         _LOGGER.warning("Error fetching models from Ollama: %s", err)
         return _get_ollama_fallback_models()
 
@@ -252,7 +253,7 @@ async def fetch_groq_models(api_key: str) -> list[dict[str, str]]:
                 _LOGGER.debug("Fetched %d models from Groq", len(model_options))
                 return model_options if model_options else _get_groq_fallback_models()
                 
-    except (aiohttp.ClientError, TimeoutError, Exception) as err:
+    except (aiohttp.ClientError, TimeoutError, json.JSONDecodeError) as err:
         _LOGGER.warning("Error fetching models from Groq: %s", err)
         return _get_groq_fallback_models()
 
@@ -317,7 +318,7 @@ async def fetch_openrouter_models(api_key: str) -> list[dict[str, str]]:
                 _LOGGER.debug("Fetched %d models from OpenRouter", len(model_options))
                 return model_options
                 
-    except (aiohttp.ClientError, TimeoutError, Exception) as err:
+    except (aiohttp.ClientError, TimeoutError, json.JSONDecodeError) as err:
         _LOGGER.warning("Error fetching models from OpenRouter: %s", err)
         return _get_fallback_models()
 

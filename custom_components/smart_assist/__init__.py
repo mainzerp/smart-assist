@@ -20,6 +20,7 @@ try:
     from homeassistant.core import HomeAssistant, Event
     from homeassistant.helpers import config_validation as cv
     from homeassistant.helpers.event import async_track_time_interval
+    from homeassistant.util import dt as dt_util
 except ImportError as e:
     _LOGGER.error("Smart Assist __init__.py: Failed to import HA core: %s", e)
     raise
@@ -324,7 +325,7 @@ async def _initial_cache_warming(
         success = await _perform_cache_warming(hass, entry, subentry_id, initial=True)
         
         # Update tracking
-        warming_data["last_warmup"] = datetime.now().isoformat()
+        warming_data["last_warmup"] = dt_util.now().isoformat()
         if success:
             warming_data["warmup_count"] += 1
         else:
@@ -365,7 +366,7 @@ def _start_cache_refresh_timer(
     
     def _update_next_warmup() -> None:
         """Update the next warmup timestamp."""
-        next_time = datetime.now() + timedelta(minutes=interval_minutes)
+        next_time = dt_util.now() + timedelta(minutes=interval_minutes)
         hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]["next_warmup"] = next_time.isoformat()
     
     async def _refresh_cache(now: Any) -> None:
@@ -383,7 +384,7 @@ def _start_cache_refresh_timer(
         
         # Update tracking data
         warming_data = hass.data[DOMAIN][entry.entry_id]["cache_warming"][subentry_id]
-        warming_data["last_warmup"] = datetime.now().isoformat()
+        warming_data["last_warmup"] = dt_util.now().isoformat()
         warming_data["status"] = "active"
         if success:
             warming_data["warmup_count"] += 1

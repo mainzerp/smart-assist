@@ -63,11 +63,14 @@ try:
         CONF_API_KEY,
         CONF_ASK_FOLLOWUP,
         CONF_CLEAN_RESPONSES,
+        CONF_ENABLE_REQUEST_HISTORY_CONTENT,
         CONF_ENABLE_MEMORY,
         CONF_ENABLE_PRESENCE_HEURISTIC,
         CONF_ENABLE_QUICK_ACTIONS,
         CONF_EXPOSED_ONLY,
         CONF_GROQ_API_KEY,
+        CONF_HISTORY_REDACT_PATTERNS,
+        CONF_HISTORY_RETENTION_DAYS,
         CONF_LANGUAGE,
         CONF_LLM_PROVIDER,
         CONF_MAX_HISTORY,
@@ -83,8 +86,11 @@ try:
         CONF_USER_MAPPINGS,
         DEFAULT_ASK_FOLLOWUP,
         DEFAULT_CLEAN_RESPONSES,
+        DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
         DEFAULT_ENABLE_MEMORY,
         DEFAULT_ENABLE_PRESENCE_HEURISTIC,
+        DEFAULT_HISTORY_REDACT_PATTERNS,
+        DEFAULT_HISTORY_RETENTION_DAYS,
         DEFAULT_LLM_PROVIDER,
         DEFAULT_MAX_HISTORY,
         DEFAULT_MAX_TOKENS,
@@ -102,6 +108,7 @@ try:
         OLLAMA_DEFAULT_URL,
         REQUEST_HISTORY_INPUT_MAX_LENGTH,
         REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
+        REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
     )
     from .context import EntityManager
     from .context.calendar_reminder import CalendarReminderTracker
@@ -298,6 +305,16 @@ class SmartAssistConversationEntity(ConversationEntity):
                 )
         return self._tool_registry
 
+    def get_registered_tool_names(self) -> list[str]:
+        """Return currently registered tool names for diagnostics/UI."""
+        if not self._tool_registry:
+            return []
+        return [tool.name for tool in self._tool_registry.get_all()]
+
+    def get_calendar_reminder_tracker(self) -> CalendarReminderTracker:
+        """Return calendar reminder tracker instance."""
+        return self._calendar_reminder_tracker
+
     def _get_config(self, key: str, default: Any = None) -> Any:
         """Get config value from subentry data."""
         return self._subentry.data.get(key, default)
@@ -307,6 +324,62 @@ class SmartAssistConversationEntity(ConversationEntity):
         if key in self._entry.options:
             return self._entry.options[key]
         return self._entry.data.get(key, default)
+
+    def _parse_history_redact_patterns(self) -> list[str]:
+        """Parse configured history redaction patterns."""
+        raw = self._get_config(
+            CONF_HISTORY_REDACT_PATTERNS,
+            DEFAULT_HISTORY_REDACT_PATTERNS,
+        )
+        if not raw:
+            return []
+
+        if isinstance(raw, list):
+            patterns = [str(item).strip() for item in raw]
+        else:
+            patterns = [
+                item.strip()
+                for item in str(raw).replace("\n", ",").split(",")
+            ]
+        return [pattern for pattern in patterns if pattern]
+
+    def _apply_history_redaction(self, text: str, patterns: list[str]) -> str:
+        """Redact configured patterns from text for request history persistence."""
+        if not text or not patterns:
+            return text
+
+        redacted = text
+        for pattern in patterns:
+            try:
+                redacted = re.sub(pattern, "[REDACTED]", redacted, flags=re.IGNORECASE)
+            except re.error:
+                redacted = redacted.replace(pattern, "[REDACTED]")
+        return redacted
+
+    def _sanitize_tool_call_records(
+        self,
+        tool_call_records: list[ToolCallRecord] | None,
+        include_content: bool,
+        patterns: list[str],
+    ) -> list[ToolCallRecord]:
+        """Sanitize tool-call records for safe request history storage."""
+        sanitized: list[ToolCallRecord] = []
+        for record in tool_call_records or []:
+            args_summary = record.arguments_summary if include_content else ""
+            args_summary = RequestHistoryStore.truncate(
+                args_summary,
+                REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
+            )
+            args_summary = self._apply_history_redaction(args_summary, patterns)
+            sanitized.append(
+                ToolCallRecord(
+                    name=record.name,
+                    success=record.success,
+                    execution_time_ms=record.execution_time_ms,
+                    arguments_summary=args_summary,
+                )
+            )
+        return sanitized
 
     @property
     def supported_languages(self) -> list[str] | Literal["*"]:
@@ -819,6 +892,46 @@ class SmartAssistConversationEntity(ConversationEntity):
             ).get("request_history")
             
             if history_store:
+                include_history_content = bool(
+                    self._get_config(
+                        CONF_ENABLE_REQUEST_HISTORY_CONTENT,
+                        DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
+                    )
+                )
+                retention_days = int(
+                    self._get_config(
+                        CONF_HISTORY_RETENTION_DAYS,
+                        DEFAULT_HISTORY_RETENTION_DAYS,
+                    )
+                )
+                retention_days = max(retention_days, 1)
+                redact_patterns = self._parse_history_redact_patterns()
+
+                input_text = ""
+                response_history_text = ""
+                if include_history_content:
+                    input_text = RequestHistoryStore.truncate(
+                        user_input.text,
+                        REQUEST_HISTORY_INPUT_MAX_LENGTH,
+                    )
+                    response_history_text = RequestHistoryStore.truncate(
+                        response_text,
+                        REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
+                    )
+
+                input_text = self._apply_history_redaction(input_text, redact_patterns)
+                response_history_text = self._apply_history_redaction(
+                    response_history_text,
+                    redact_patterns,
+                )
+                sanitized_tool_calls = self._sanitize_tool_call_records(
+                    tool_call_records,
+                    include_history_content,
+                    redact_patterns,
+                )
+
+                history_store.prune_older_than_days(retention_days)
+
                 entry = RequestHistoryEntry(
                     id=RequestHistoryStore.generate_id(),
                     timestamp=dt_util.now().isoformat(),
@@ -826,12 +939,8 @@ class SmartAssistConversationEntity(ConversationEntity):
                     agent_name=self._subentry.title,
                     conversation_id=user_input.conversation_id,
                     user_id=user_id,
-                    input_text=RequestHistoryStore.truncate(
-                        user_input.text, REQUEST_HISTORY_INPUT_MAX_LENGTH
-                    ),
-                    response_text=RequestHistoryStore.truncate(
-                        response_text, REQUEST_HISTORY_RESPONSE_MAX_LENGTH
-                    ),
+                    input_text=input_text,
+                    response_text=response_history_text,
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                     cached_tokens=cached_tokens,
@@ -839,7 +948,7 @@ class SmartAssistConversationEntity(ConversationEntity):
                     llm_provider=self._get_config(CONF_LLM_PROVIDER, DEFAULT_LLM_PROVIDER),
                     model=self._get_config(CONF_MODEL, DEFAULT_MODEL),
                     llm_iterations=llm_iterations,
-                    tools_used=tool_call_records or [],
+                    tools_used=sanitized_tool_calls,
                     success=request_success,
                     error=request_error,
                     is_nevermind=is_nevermind,

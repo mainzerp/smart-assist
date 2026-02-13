@@ -4,9 +4,36 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.10 | 2026-02-13 |
+| Smart Assist | 1.13.11 | 2026-02-13 |
 
 ## Version History
+
+### v1.13.11 (2026-02-13) - Reliability, Privacy & Dashboard Hardening
+
+**Bug Fixes:**
+- Music Assistant play now waits for service execution confirmation (`blocking=True`) to avoid false positive success
+- Calendar event confirmation now consistently uses the matched calendar entity/name
+- WebSocket layer no longer relies on private memory/reminder internals for dashboard and memory operations
+
+**Performance:**
+- Calendar fetch in both prompt context and dashboard WebSocket now uses bounded parallelism with per-calendar timeout handling
+
+**Privacy & Data Lifecycle:**
+- Added request history controls: `enable_request_history_content`, `history_retention_days`, `history_redact_patterns`
+- Conversation history persistence now supports pattern-based redaction and optional metadata-only storage
+- Request history now supports retention pruning by age before appending new entries
+
+**Maintainability:**
+- Added public APIs on managers (`MemoryManager.get_summary/get_user_details/async_force_save`, `CalendarReminderTracker.get_event_status`, `RequestHistoryStore.async_force_save`)
+- Validator error handling narrowed to explicit network/timeout/JSON parsing failures
+- Datetime usage normalized to `dt_util.now()` in cache warming and conversation session tracking
+- Removed unnecessary `aiohttp` dependency from `manifest.json` requirements
+
+**Tests:**
+- Updated `UserResolver` tests to async/await and public auth mocking (`async_get_user`)
+- Added `tests/test_request_history.py` for retention pruning behavior
+
+- Files modified: tools/music_assistant_tools.py, tools/calendar_tools.py, websocket.py, context/memory.py, context/calendar_reminder.py, context/request_history.py, prompt_builder.py, conversation.py, context/conversation.py, config_validators.py, config_subentry_flows.py, const.py, tests/test_memory.py, tests/test_request_history.py, manifest.json
 
 ### v1.13.10 (2026-02-13) - Music Playback Fix
 

@@ -350,8 +350,6 @@ class CreateCalendarEventTool(BaseTool):
             )
 
             # Build confirmation message
-            calendar_name = self._get_calendar_owner(calendar_id)
-            
             if start_date_time:
                 try:
                     from datetime import datetime

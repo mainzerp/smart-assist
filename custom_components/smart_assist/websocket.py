@@ -6,6 +6,7 @@ Uses HA's native WebSocket API for secure, authenticated communication.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -44,7 +45,8 @@ from .const import (
     DEFAULT_USER_SYSTEM_PROMPT,
     DOMAIN,
 )
-from .context.calendar_reminder import CalendarReminderTracker, ReminderStage
+from .context.calendar_reminder import CalendarReminderTracker
+from .context.memory import MemoryManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,8 +106,8 @@ def _build_agent_data(
     # Get registered tools
     entity = agent_info.get("entity")
     tools_list: list[str] = []
-    if entity and hasattr(entity, "_tool_registry") and entity._tool_registry:
-        tools_list = [t.name for t in entity._tool_registry.get_all()]
+    if entity and hasattr(entity, "get_registered_tool_names"):
+        tools_list = entity.get_registered_tool_names()
 
     return {
         "name": subentry.title,
@@ -165,43 +167,14 @@ def _build_memory_summary(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
     entry_data = domain_data.get(entry_id, {})
     memory_manager = entry_data.get("memory_manager")
 
-    if not memory_manager or not hasattr(memory_manager, "_data"):
+    if not isinstance(memory_manager, MemoryManager):
         return {
             "total_users": 0,
             "total_memories": 0,
             "global_memories": 0,
             "users": {},
         }
-
-    users_data = memory_manager._data.get("users", {})
-    global_memories = memory_manager._data.get("global_memories", [])
-
-    users_summary: dict[str, Any] = {}
-    total_memories = len(global_memories)
-
-    for user_id, user_data in users_data.items():
-        memories = user_data.get("memories", [])
-        total_memories += len(memories)
-
-        # Count by category
-        categories: dict[str, int] = {}
-        for mem in memories:
-            cat = mem.get("category", "unknown")
-            categories[cat] = categories.get(cat, 0) + 1
-
-        users_summary[user_id] = {
-            "display_name": user_data.get("display_name", user_id),
-            "memory_count": len(memories),
-            "categories": categories,
-            "first_interaction": user_data.get("stats", {}).get("first_interaction"),
-        }
-
-    return {
-        "total_users": len(users_data),
-        "total_memories": total_memories,
-        "global_memories": len(global_memories),
-        "users": users_summary,
-    }
+    return memory_manager.get_summary()
 
 
 async def _build_calendar_data(
@@ -228,8 +201,8 @@ async def _build_calendar_data(
                 agents = entry_data.get("agents", {})
                 agent_info = agents.get(subentry_id, {})
                 entity = agent_info.get("entity")
-                if entity and hasattr(entity, "_calendar_reminder_tracker"):
-                    reminder_tracker = entity._calendar_reminder_tracker
+                if entity and hasattr(entity, "get_calendar_reminder_tracker"):
+                    reminder_tracker = entity.get_calendar_reminder_tracker()
                 break
 
     if not calendar_enabled:
@@ -248,65 +221,67 @@ async def _build_calendar_data(
     if not calendars:
         return {"enabled": True, "events": [], "calendars": 0}
 
-    all_events: list[dict[str, Any]] = []
-    for cal_id in calendars:
+    semaphore = asyncio.Semaphore(4)
+
+    async def _fetch_calendar(cal_id: str) -> list[dict[str, Any]]:
         try:
-            result = await hass.services.async_call(
-                "calendar",
-                "get_events",
-                {
-                    "entity_id": cal_id,
-                    "start_date_time": now.isoformat(),
-                    "end_date_time": end.isoformat(),
-                },
-                blocking=True,
-                return_response=True,
-            )
+            async with semaphore:
+                async with asyncio.timeout(8):
+                    result = await hass.services.async_call(
+                        "calendar",
+                        "get_events",
+                        {
+                            "entity_id": cal_id,
+                            "start_date_time": now.isoformat(),
+                            "end_date_time": end.isoformat(),
+                        },
+                        blocking=True,
+                        return_response=True,
+                    )
 
-            if result and cal_id in result:
-                state = hass.states.get(cal_id)
-                if state and state.attributes.get("friendly_name"):
-                    owner = state.attributes["friendly_name"]
-                else:
-                    name = cal_id.split(".", 1)[-1]
-                    owner = name.replace("_", " ").title()
+            if not result or cal_id not in result:
+                return []
 
-                for event in result[cal_id].get("events", []):
-                    event_data = {
-                        "summary": event.get("summary", "Untitled"),
-                        "start": event.get("start"),
-                        "end": event.get("end"),
-                        "owner": owner,
-                        "calendar": cal_id,
-                        "location": event.get("location"),
-                    }
+            state = hass.states.get(cal_id)
+            if state and state.attributes.get("friendly_name"):
+                owner = state.attributes["friendly_name"]
+            else:
+                name = cal_id.split(".", 1)[-1]
+                owner = name.replace("_", " ").title()
 
-                    # Determine reminder status
-                    status = "upcoming"
-                    if reminder_tracker:
-                        stage = reminder_tracker._get_current_stage(event_data, now)
-                        event_hash = reminder_tracker._event_hash(event_data)
-                        completed = reminder_tracker._completed_stages.get(
-                            event_hash, set()
-                        )
+            events: list[dict[str, Any]] = []
+            for event in result[cal_id].get("events", []):
+                event_data = {
+                    "summary": event.get("summary", "Untitled"),
+                    "start": event.get("start"),
+                    "end": event.get("end"),
+                    "owner": owner,
+                    "calendar": cal_id,
+                    "location": event.get("location"),
+                }
 
-                        if stage == ReminderStage.PASSED:
-                            status = "passed"
-                        elif stage is not None:
-                            if stage in completed:
-                                status = "announced"
-                            else:
-                                status = "pending"
-                        else:
-                            if completed:
-                                status = "announced"
+                status = "upcoming"
+                if reminder_tracker:
+                    status = reminder_tracker.get_event_status(event_data, now)
 
-                    event_data["status"] = status
-                    all_events.append(event_data)
+                event_data["status"] = status
+                events.append(event_data)
+
+            return events
+        except TimeoutError:
+            _LOGGER.debug("Timeout while fetching calendar events from %s", cal_id)
         except Exception as err:
-            _LOGGER.debug(
-                "Failed to fetch calendar events from %s: %s", cal_id, err
-            )
+            _LOGGER.debug("Failed to fetch calendar events from %s: %s", cal_id, err)
+        return []
+
+    results = await asyncio.gather(
+        *(_fetch_calendar(cal_id) for cal_id in calendars),
+        return_exceptions=False,
+    )
+
+    all_events: list[dict[str, Any]] = []
+    for events in results:
+        all_events.extend(events)
 
     all_events.sort(key=lambda x: x.get("start", ""))
 
@@ -392,20 +367,11 @@ async def ws_memory_details(
     entry_data = domain_data.get(entry.entry_id, {})
     memory_manager = entry_data.get("memory_manager")
 
-    if not memory_manager or not hasattr(memory_manager, "_data"):
+    if not isinstance(memory_manager, MemoryManager):
         connection.send_result(msg["id"], {"memories": [], "stats": {}})
         return
 
-    user_data = memory_manager._data.get("users", {}).get(user_id, {})
-    memories = user_data.get("memories", [])
-    stats = user_data.get("stats", {})
-
-    connection.send_result(msg["id"], {
-        "user_id": user_id,
-        "display_name": user_data.get("display_name", user_id),
-        "memories": memories,
-        "stats": stats,
-    })
+    connection.send_result(msg["id"], memory_manager.get_user_details(user_id))
 
 
 def _get_memory_manager(hass: HomeAssistant) -> Any | None:
@@ -415,7 +381,7 @@ def _get_memory_manager(hass: HomeAssistant) -> Any | None:
         return None
     entry_data = hass.data.get(DOMAIN, {}).get(entries[0].entry_id, {})
     mm = entry_data.get("memory_manager")
-    if mm and hasattr(mm, "_data"):
+    if isinstance(mm, MemoryManager):
         return mm
     return None
 
@@ -441,7 +407,7 @@ async def ws_memory_rename_user(
         return
 
     result = mm.rename_user(msg["user_id"], msg["display_name"])
-    await mm._force_save()
+    await mm.async_force_save()
     connection.send_result(msg["id"], {"message": result})
 
 
@@ -466,7 +432,7 @@ async def ws_memory_merge_users(
         return
 
     result = mm.merge_users(msg["source_user_id"], msg["target_user_id"])
-    await mm._force_save()
+    await mm.async_force_save()
     connection.send_result(msg["id"], {"message": result})
 
 
@@ -491,7 +457,7 @@ async def ws_memory_delete(
         return
 
     result = mm.delete_memory(msg["user_id"], msg["memory_id"])
-    await mm._force_save()
+    await mm.async_force_save()
     connection.send_result(msg["id"], {"message": result})
 
 
@@ -767,5 +733,5 @@ async def ws_request_history_clear(
 
     agent_id = msg.get("agent_id")
     removed = store.clear(agent_id=agent_id)
-    await store._force_save()
+    await store.async_force_save()
     connection.send_result(msg["id"], {"removed": removed})

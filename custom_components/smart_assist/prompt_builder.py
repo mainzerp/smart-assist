@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import timedelta
@@ -418,41 +419,56 @@ async def get_calendar_context(entity: SmartAssistConversationEntity, dry_run: b
         if not calendars:
             return ""
 
-        # Fetch events from all calendars
-        all_events: list[dict] = []
-        for cal_id in calendars:
+        semaphore = asyncio.Semaphore(4)
+
+        async def _fetch_calendar_events(cal_id: str) -> list[dict[str, str]]:
             try:
-                result = await entity.hass.services.async_call(
-                    "calendar",
-                    "get_events",
-                    {
-                        "entity_id": cal_id,
-                        "start_date_time": now.isoformat(),
-                        "end_date_time": end.isoformat(),
-                    },
-                    blocking=True,
-                    return_response=True,
-                )
+                async with semaphore:
+                    async with asyncio.timeout(8):
+                        result = await entity.hass.services.async_call(
+                            "calendar",
+                            "get_events",
+                            {
+                                "entity_id": cal_id,
+                                "start_date_time": now.isoformat(),
+                                "end_date_time": end.isoformat(),
+                            },
+                            blocking=True,
+                            return_response=True,
+                        )
 
-                _LOGGER.debug("Calendar %s result: %s", cal_id, result)
+                if not result or cal_id not in result:
+                    return []
 
-                if result and cal_id in result:
-                    # Extract owner from calendar entity
-                    state = entity.hass.states.get(cal_id)
-                    if state and state.attributes.get("friendly_name"):
-                        owner = state.attributes["friendly_name"]
-                    else:
-                        name = cal_id.split(".", 1)[-1]
-                        owner = name.replace("_", " ").title()
+                state = entity.hass.states.get(cal_id)
+                if state and state.attributes.get("friendly_name"):
+                    owner = state.attributes["friendly_name"]
+                else:
+                    name = cal_id.split(".", 1)[-1]
+                    owner = name.replace("_", " ").title()
 
-                    for event in result[cal_id].get("events", []):
-                        all_events.append({
-                            "summary": event.get("summary", "Termin"),
-                            "start": event.get("start"),
-                            "owner": owner,
-                        })
+                events: list[dict[str, str]] = []
+                for event in result[cal_id].get("events", []):
+                    events.append({
+                        "summary": event.get("summary", "Termin"),
+                        "start": event.get("start"),
+                        "owner": owner,
+                    })
+                return events
+            except TimeoutError:
+                _LOGGER.debug("Timeout while fetching calendar events from %s", cal_id)
             except Exception as err:
                 _LOGGER.debug("Failed to fetch calendar events from %s: %s", cal_id, err)
+            return []
+
+        results = await asyncio.gather(
+            *(_fetch_calendar_events(cal_id) for cal_id in calendars),
+            return_exceptions=False,
+        )
+
+        all_events: list[dict] = []
+        for events in results:
+            all_events.extend(events)
 
         _LOGGER.debug("Found %d events total: %s", len(all_events), all_events)
 

@@ -120,6 +120,10 @@ class MemoryManager:
 
         await self._force_save()
 
+    async def async_force_save(self) -> None:
+        """Public wrapper to persist memory immediately."""
+        await self._force_save()
+
     async def _force_save(self) -> None:
         """Force save memory to storage immediately."""
         try:
@@ -428,6 +432,47 @@ class MemoryManager:
     def get_known_users(self) -> list[str]:
         """Get list of known user IDs."""
         return list(self._data["users"].keys())
+
+    def get_summary(self) -> dict[str, Any]:
+        """Get memory statistics summary for dashboard views."""
+        users_data = self._data.get("users", {})
+        global_memories = self._data.get("global_memories", [])
+
+        users_summary: dict[str, Any] = {}
+        total_memories = len(global_memories)
+
+        for user_id, user_data in users_data.items():
+            memories = user_data.get("memories", [])
+            total_memories += len(memories)
+
+            categories: dict[str, int] = {}
+            for mem in memories:
+                cat = mem.get("category", "unknown")
+                categories[cat] = categories.get(cat, 0) + 1
+
+            users_summary[user_id] = {
+                "display_name": user_data.get("display_name", user_id),
+                "memory_count": len(memories),
+                "categories": categories,
+                "first_interaction": user_data.get("stats", {}).get("first_interaction"),
+            }
+
+        return {
+            "total_users": len(users_data),
+            "total_memories": total_memories,
+            "global_memories": len(global_memories),
+            "users": users_summary,
+        }
+
+    def get_user_details(self, user_id: str) -> dict[str, Any]:
+        """Get detailed memory information for a specific user."""
+        user_data = self._data.get("users", {}).get(user_id, {})
+        return {
+            "user_id": user_id,
+            "display_name": user_data.get("display_name", user_id),
+            "memories": user_data.get("memories", []),
+            "stats": user_data.get("stats", {}),
+        }
 
     def rename_user(self, user_id: str, new_display_name: str) -> str:
         """Change a user's display name.
