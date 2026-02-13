@@ -16,7 +16,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .base import BaseTool, ToolRegistry, ToolResult
-from ..const import CONF_ENABLE_WEB_SEARCH, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY, CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE
+from ..const import CONF_ENABLE_WEB_SEARCH, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY
 
 if TYPE_CHECKING:
     from typing import Any
@@ -86,23 +86,14 @@ def create_tool_registry(
     )
     
     # Core tools (always available)
-    get_entities_tool = GetEntitiesTool(hass, entity_manager=entity_manager)
-    
-    # Adjust description based on entity discovery mode
-    discovery_mode = _get_config(entry, CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE, subentry_data)
-    if discovery_mode == "smart_discovery":
-        get_entities_tool.description = (
-            "Discover entities by domain/area/name. ALWAYS call before control."
-        )
-    
-    registry.register(get_entities_tool)
+    registry.register(GetEntitiesTool(hass, entity_manager=entity_manager))
     registered_tools.append("get_entities")
     registry.register(GetEntityStateTool(hass))
     registered_tools.append("get_entity_state")
     registry.register(GetEntityHistoryTool(hass))  # Query historical entity states
     registered_tools.append("get_entity_history")
     registry.register(UnifiedControlTool(hass))  # Handles all entity control including scripts
-    registered_tools.append("control_entity")
+    registered_tools.append("control")
     registry.register(AwaitResponseTool(hass))  # Signal to keep conversation open
     registered_tools.append("await_response")
 

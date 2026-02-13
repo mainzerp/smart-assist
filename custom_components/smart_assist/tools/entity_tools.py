@@ -17,7 +17,10 @@ class GetEntitiesTool(BaseTool):
     """Tool to get entities matching filters."""
 
     name = "get_entities"
-    description = "Search entities by domain/area/name. Use only if not in ENTITY INDEX."
+    description = (
+        "Discover candidate entities by domain with optional area and name filtering. "
+        "Use when entity IDs are unknown or unresolved from index/context."
+    )
     parameters = [
         ToolParameter(
             name="domain",

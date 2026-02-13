@@ -32,7 +32,10 @@ class TimerTool(BaseTool):
     """
 
     name = "timer"
-    description = "Manage timers/reminders. 'command' param runs a voice command when timer ends (reminders/delayed actions)."
+    description = (
+        "Manage Assist timers (start, cancel, pause, resume, status) with optional labels and reminder commands. "
+        "When action=start, provide at least one of hours/minutes/seconds; command is used only for start."
+    )
     
     parameters = [
         ToolParameter(
@@ -45,19 +48,19 @@ class TimerTool(BaseTool):
         ToolParameter(
             name="hours",
             type="number",
-            description="Hours",
+            description="Duration hours. Required with action=start when minutes and seconds are not provided; ignored for non-start actions.",
             required=False,
         ),
         ToolParameter(
             name="minutes",
             type="number",
-            description="Minutes",
+            description="Duration minutes. Required with action=start when hours and seconds are not provided; ignored for non-start actions.",
             required=False,
         ),
         ToolParameter(
             name="seconds",
             type="number",
-            description="Seconds",
+            description="Duration seconds. Required with action=start when hours and minutes are not provided; ignored for non-start actions.",
             required=False,
         ),
         ToolParameter(
@@ -69,7 +72,7 @@ class TimerTool(BaseTool):
         ToolParameter(
             name="command",
             type="string",
-            description="Voice command when timer ends. For reminders: use direct statements, not requests.",
+            description="Voice command to run when timer ends. Only used for action=start; ignored for cancel/pause/resume/status.",
             required=False,
         ),
     ]

@@ -33,7 +33,10 @@ class MusicAssistantTool(BaseTool):
     """
 
     name = "music_assistant"
-    description = "Play, search, or queue music via Music Assistant. Supports tracks, albums, artists, playlists, radio stations. radio_mode for endless similar music. Also supports transport controls (pause/resume/stop) and listing players."
+    description = (
+        "Play, search, queue, and control Music Assistant playback including radio stations and player discovery. "
+        "Use for media playback/search; query is required for play/search/queue_add and not needed for get_players/pause/resume/stop."
+    )
     
     parameters = [
         ToolParameter(
@@ -46,7 +49,7 @@ class MusicAssistantTool(BaseTool):
         ToolParameter(
             name="query",
             type="string",
-            description="Search query (song, artist, album, playlist, station)",
+            description="Search query (song, artist, album, playlist, station). Required for play, search, and queue_add; ignored for get_players/pause/resume/stop.",
             required=False,
         ),
         ToolParameter(
@@ -71,7 +74,7 @@ class MusicAssistantTool(BaseTool):
         ToolParameter(
             name="player",
             type="string",
-            description="Target player entity_id (default: active)",
+            description="Target player entity_id. Optional; tool resolves from current satellite/player context when omitted.",
             required=False,
         ),
         ToolParameter(

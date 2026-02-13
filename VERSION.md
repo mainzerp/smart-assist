@@ -4,9 +4,28 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.11 | 2026-02-13 |
+| Smart Assist | 1.13.12 | 2026-02-13 |
 
 ## Version History
+
+### v1.13.12 (2026-02-13) - Prompt/Tool Determinism Hardening
+
+**Prompt & Routing Reliability:**
+- Consolidated system prompt routing into a single mode-aware policy block for `smart_discovery` vs `full_index`
+- Added explicit intent-class-first routing, strict `await_response` contract language, and deterministic one-step error recovery guidance
+- Moved response style rules later in prompt assembly so policy/routing instructions are prioritized first
+
+**Runtime Contract Alignment:**
+- Removed question-mark continuation fallback in conversation handling; continuation now follows `await_response` signaling policy
+
+**Tool Schema & Description Clarity:**
+- Standardized routing/constraint wording for key tools: `get_entities`, `control`, `timer`, `music_assistant`, `send`, `await_response`
+- Added explicit cross-field/action-dependent constraint wording (e.g., `entity_id` XOR `entity_ids`, timer duration requirements, music query requirements)
+- Fixed registry diagnostics naming mismatch: `control_entity` -> `control`
+
+**Files modified:**
+
+- prompt_builder.py, conversation.py, tools/__init__.py, tools/entity_tools.py, tools/unified_control.py, tools/timer_tools.py, tools/music_assistant_tools.py, tools/notification_tools.py, tools/conversation_tools.py, tests/test_prompt_builder.py, tests/test_tools.py, docs/prompt.md
 
 ### v1.13.11 (2026-02-13) - Reliability, Privacy & Dashboard Hardening
 

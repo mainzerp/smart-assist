@@ -24,7 +24,10 @@ class AwaitResponseTool(BaseTool):
     """
 
     name = "await_response"
-    description = "Ask user a question and keep mic open for response."
+    description = (
+        "Signal that assistant expects user input and conversation should remain open. "
+        "Call whenever output asks a question, offers choices, or requests confirmation."
+    )
     parameters = [
         ToolParameter(
             name="message",
@@ -35,7 +38,7 @@ class AwaitResponseTool(BaseTool):
         ToolParameter(
             name="reason",
             type="string",
-            description="Reason for waiting",
+            description="Reason for waiting: clarification, confirmation, choice, or follow_up.",
             required=True,
             enum=["clarification", "confirmation", "choice", "follow_up"],
         )

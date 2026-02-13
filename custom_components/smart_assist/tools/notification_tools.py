@@ -35,7 +35,10 @@ class SendTool(BaseTool):
     """
 
     name = "send"
-    description = "Send content (links, text, messages) to a device or notification service."
+    description = (
+        "Send content (links, text, messages) to a Home Assistant notification target. "
+        "Use only when a target can be resolved with confidence; otherwise ask clarification via await_response."
+    )
     parameters = [
         ToolParameter(
             name="content",
@@ -46,7 +49,7 @@ class SendTool(BaseTool):
         ToolParameter(
             name="target",
             type="string",
-            description="Target device or notification service (from the available targets list in tool description)",
+            description="Target device or notification service from available targets; if ambiguous, request clarification instead of guessing.",
             required=True,
         ),
         ToolParameter(
@@ -123,7 +126,7 @@ class SendTool(BaseTool):
             target_info = ". ".join(parts)
             description = (
                 f"Send content to a notification target. "
-                f"Available: {target_info}."
+                f"Available: {target_info}. If target is ambiguous, ask clarification via await_response."
             )
         else:
             description = (

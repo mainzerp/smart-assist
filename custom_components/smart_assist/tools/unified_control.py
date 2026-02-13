@@ -32,26 +32,29 @@ class UnifiedControlTool(BaseTool):
     """
 
     name = "control"
-    description = "Control any entity. Domain auto-detected. Use entity_ids array for batch."
+    description = (
+        "Control one or more Home Assistant entities by action and optional value parameters. "
+        "Use after entity IDs are known from index/discovery; pass exactly one of entity_id or entity_ids."
+    )
     
     parameters = [
         ToolParameter(
             name="entity_id",
             type="string",
-            description="Entity ID (use entity_ids for batch)",
+            description="Single entity ID. Required when entity_ids is not provided; do not pass with entity_ids.",
             required=False,
         ),
         ToolParameter(
             name="entity_ids",
             type="array",
-            description="Entity ID array for batch control",
+            description="Multiple entity IDs for batch control. Required when entity_id is not provided; do not pass with entity_id.",
             required=False,
             items={"type": "string"},
         ),
         ToolParameter(
             name="action",
             type="string",
-            description="turn_on, turn_off, toggle, play, pause, stop, open, close, etc.",
+            description="Action to execute, such as turn_on, turn_off, toggle, play, pause, stop, open, close, set_temperature, set_position.",
             required=True,
         ),
         # Optional parameters for domain-specific control
