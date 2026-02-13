@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.12 | 2026-02-13 |
+| Smart Assist | 1.13.13 | 2026-02-13 |
 
 ## Version History
+
+### v1.13.13 (2026-02-13) - Dashboard Data-Flow & Refactor Improvements
+
+**Performance & Reliability:**
+- Dashboard websocket path further optimized with shared lookup/response helpers and standardized fallback payloads
+- Request history analytics now use server-side caching (`tool_analytics`, `summary_stats`) with automatic invalidation on add/clear/prune/load
+- Dashboard frontend now coalesces high-frequency subscription renders via `requestAnimationFrame` to reduce render churn under burst updates
+
+**Maintainability:**
+- Frontend panel refactored with additional modular helpers for header/tab rendering, overview/history rendering, and event attachment groups
+- Backend websocket handlers refactored with shared helper utilities for prompt target resolution, store lookups, and memory mutation flow
+
+**Documentation:**
+- README dashboard section updated with explicit push-vs-poll, tab-scoped loading, stale-data behavior, and analytics caching notes
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js, custom_components/smart_assist/websocket.py, custom_components/smart_assist/context/request_history.py, README.md, VERSION.md
 
 ### v1.13.12 (2026-02-13) - Prompt/Tool Determinism Hardening
 

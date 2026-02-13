@@ -5,6 +5,17 @@
  * Two tabs: Overview (metrics, tokens, cache, tools) and Memory (user browser).
  */
 
+const DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS = 30;
+const CALENDAR_CACHE_TTL_MS = 30000;
+const HISTORY_PAGE_SIZE = 50;
+const DASHBOARD_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "memory", label: "Memory" },
+  { id: "calendar", label: "Calendar" },
+  { id: "history", label: "History" },
+  { id: "prompt", label: "Prompt" },
+];
+
 class SmartAssistPanel extends HTMLElement {
   constructor() {
     super();
@@ -22,7 +33,7 @@ class SmartAssistPanel extends HTMLElement {
     this._toolAnalytics = null;
     this._historyPage = 0;
     this._autoRefreshEnabled = true;
-    this._autoRefreshInterval = 30;
+    this._autoRefreshInterval = DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS;
     this._autoRefreshTimer = null;
     this._boundVisibilityHandler = null;
     this._promptData = null;
@@ -31,19 +42,30 @@ class SmartAssistPanel extends HTMLElement {
     this._fetchInProgress = false;
     this._historyFetchInProgress = false;
     this._promptFetchInProgress = false;
+    this._calendarFetchInProgress = false;
+    this._calendarLoading = false;
+    this._calendarError = null;
+    this._calendarLastLoaded = 0;
+    this._warning = null;
+    this._lastSubscriptionUpdate = 0;
+    this._subscriptionHealthy = false;
+    this._renderQueued = false;
   }
 
   set hass(hass) {
     const first = !this._hass;
     const connectionChanged = this._hass && hass && this._hass.connection !== hass.connection;
     this._hass = hass;
+    if (connectionChanged) {
+      this._subscriptionHealthy = false;
+    }
     if (first) {
       this._fetchData();
       this._subscribe();
       const stored = localStorage.getItem("smart_assist_auto_refresh");
       this._autoRefreshEnabled = stored !== "false";
       const storedInterval = localStorage.getItem("smart_assist_auto_refresh_interval");
-      if (storedInterval) this._autoRefreshInterval = parseInt(storedInterval, 10) || 30;
+      if (storedInterval) this._autoRefreshInterval = parseInt(storedInterval, 10) || DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS;
       if (this._autoRefreshEnabled) this._startAutoRefresh();
     } else if (connectionChanged) {
       this._resubscribe();
@@ -84,6 +106,7 @@ class SmartAssistPanel extends HTMLElement {
     this._fetchInProgress = true;
     const isInitialLoad = !this._data;
     this._error = null;
+    this._warning = null;
     if (isInitialLoad) {
       this._loading = true;
       this._render();
@@ -92,19 +115,21 @@ class SmartAssistPanel extends HTMLElement {
       const result = await this._hass.callWS({ type: "smart_assist/dashboard_data" });
       this._data = result;
       this._error = null;
+      this._warning = null;
       if (!this._selectedAgent && result.agents) {
         const ids = Object.keys(result.agents);
         if (ids.length > 0) this._selectedAgent = ids[0];
       }
     } catch (err) {
-      this._error = err.message || "Failed to load dashboard data";
-    }
-    this._loading = false;
-    this._fetchInProgress = false;
-    this._render();
-    // Also refresh history data if on history tab
-    if (this._activeTab === "history") {
-      this._loadHistory();
+      if (this._data) {
+        this._warning = "Data refresh failed. Showing last successful snapshot.";
+      } else {
+        this._error = err.message || "Failed to load dashboard data";
+      }
+    } finally {
+      this._loading = false;
+      this._fetchInProgress = false;
+      this._render();
     }
   }
 
@@ -117,8 +142,10 @@ class SmartAssistPanel extends HTMLElement {
       this._unsub = await this._hass.connection.subscribeMessage(
         (data) => {
           try {
+            this._lastSubscriptionUpdate = Date.now();
+            this._subscriptionHealthy = true;
             this._data = Object.assign(this._data || {}, data);
-            this._render();
+            this._scheduleRender();
           } catch (err) {
             console.error("Smart Assist: Render error in subscription callback:", err);
           }
@@ -126,6 +153,7 @@ class SmartAssistPanel extends HTMLElement {
         { type: "smart_assist/subscribe" }
       );
     } catch (err) {
+      this._subscriptionHealthy = false;
       console.warn("Smart Assist: Could not subscribe to updates:", err);
       setTimeout(() => {
         if (this._hass && this.isConnected) this._subscribe();
@@ -138,13 +166,30 @@ class SmartAssistPanel extends HTMLElement {
       try { this._unsub(); } catch (_) {}
       this._unsub = null;
     }
+    this._subscriptionHealthy = false;
     await this._subscribe();
+  }
+
+  _isSubscriptionHealthy() {
+    if (!this._subscriptionHealthy || !this._lastSubscriptionUpdate) return false;
+    const maxAgeMs = Math.max(15000, this._autoRefreshInterval * 2500);
+    return (Date.now() - this._lastSubscriptionUpdate) < maxAgeMs;
+  }
+
+  _maybeFetchData(force = false) {
+    if (!force && this._isSubscriptionHealthy()) {
+      return;
+    }
+    this._fetchData();
   }
 
   _startAutoRefresh() {
     this._stopAutoRefresh();
     this._autoRefreshTimer = setInterval(() => {
-      this._fetchData();
+      this._maybeFetchData(false);
+      if (this._activeTab === "calendar") {
+        this._loadCalendar(false);
+      }
     }, this._autoRefreshInterval * 1000);
   }
 
@@ -179,12 +224,27 @@ class SmartAssistPanel extends HTMLElement {
     if (document.hidden) {
       this._stopAutoRefresh();
     } else {
-      this._fetchData();
+      this._maybeFetchData(true);
+      this._loadActiveTabData(true);
       if (this._autoRefreshEnabled) {
         this._startAutoRefresh();
       }
     }
   }
+  _loadActiveTabData(force = false) {
+    if (this._activeTab === "history") {
+      this._loadHistory();
+      return;
+    }
+    if (this._activeTab === "calendar") {
+      this._loadCalendar(force);
+      return;
+    }
+    if (this._activeTab === "prompt") {
+      this._loadPrompt();
+    }
+  }
+
 
   _getScrollContainer() {
     if (this._scrollContainer) return this._scrollContainer;
@@ -294,7 +354,7 @@ class SmartAssistPanel extends HTMLElement {
     let content = "";
     if (this._loading) {
       content = '<div class="loading">Loading Smart Assist Dashboard...</div>';
-    } else if (this._error) {
+    } else if (this._error && !this._data) {
       content = '<div class="error-msg">' + this._esc(this._error) + '<br><br><button class="refresh-btn" id="retry-btn">Retry</button></div>';
     } else if (!this._data) {
       content = '<div class="loading">No data available</div>';
@@ -308,25 +368,45 @@ class SmartAssistPanel extends HTMLElement {
     }
   }
 
+  _scheduleRender() {
+    if (this._renderQueued) {
+      return;
+    }
+    this._renderQueued = true;
+    requestAnimationFrame(() => {
+      this._renderQueued = false;
+      this._render();
+    });
+  }
+
   _renderDashboard() {
     const agents = this._data.agents || {};
     const agentIds = Object.keys(agents);
 
-    // Header
-    let html = '<div class="header"><h1>Smart Assist</h1><div class="header-actions">'
+    let html = this._renderHeader();
+
+    if (this._warning) {
+      html += '<div class="warning-msg">' + this._esc(this._warning) + '</div>';
+    }
+
+    html += this._renderAgentSelector(agents, agentIds);
+    html += this._renderTabBar();
+
+    html += this._renderActiveTab(agents);
+
+    return html;
+  }
+
+  _renderHeader() {
+    const refreshIcon = this._renderRefreshIcon();
+    return '<div class="header"><h1>Smart Assist</h1><div class="header-actions">'
       + '<button class="refresh-btn" id="refresh-btn" title="Jetzt aktualisieren">'
-      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">'
-      + '<path d="M23 4v6h-6M1 20v-6h6"/>'
-      + '<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>'
-      + '</svg>'
+      + refreshIcon
       + '</button>'
       + '<div class="auto-refresh-control">'
       + '<button class="refresh-btn auto-refresh-toggle ' + (this._autoRefreshEnabled ? 'active' : '') + '" id="auto-refresh-btn" title="Auto-Refresh ' + (this._autoRefreshEnabled ? 'deaktivieren' : 'aktivieren') + '">'
       + (this._autoRefreshEnabled ? '<span class="pulse-dot"></span>' : '')
-      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">'
-      + '<path d="M23 4v6h-6M1 20v-6h6"/>'
-      + '<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>'
-      + '</svg>'
+      + refreshIcon
       + '</button>'
       + '<select class="auto-refresh-select" id="auto-refresh-interval" title="Auto-Refresh Intervall">'
       + '<option value="5"' + (this._autoRefreshInterval === 5 ? ' selected' : '') + '>5s</option>'
@@ -335,40 +415,56 @@ class SmartAssistPanel extends HTMLElement {
       + '<option value="60"' + (this._autoRefreshInterval === 60 ? ' selected' : '') + '>60s</option>'
       + '</select></div>'
       + '</div></div>';
+  }
 
-    // Agent selector (if multiple)
-    if (agentIds.length > 1) {
-      html += '<div class="agent-selector">';
-      for (const id of agentIds) {
-        const active = this._selectedAgent === id ? "active" : "";
-        html += '<button class="agent-tab ' + active + '" data-agent="' + this._esc(id) + '">' + this._esc(agents[id].name) + '</button>';
-      }
-      html += '</div>';
+  _renderRefreshIcon() {
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">'
+      + '<path d="M23 4v6h-6M1 20v-6h6"/>'
+      + '<path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>'
+      + '</svg>';
+  }
+
+  _renderAgentSelector(agents, agentIds) {
+    if (agentIds.length <= 1) {
+      return '';
     }
-
-    // Tab bar
-    html += '<div class="tab-bar">'
-      + '<button class="tab-btn ' + (this._activeTab === "overview" ? "active" : "") + '" data-tab="overview">Overview</button>'
-      + '<button class="tab-btn ' + (this._activeTab === "memory" ? "active" : "") + '" data-tab="memory">Memory</button>'
-      + '<button class="tab-btn ' + (this._activeTab === "calendar" ? "active" : "") + '" data-tab="calendar">Calendar</button>'
-      + '<button class="tab-btn ' + (this._activeTab === "history" ? "active" : "") + '" data-tab="history">History</button>'
-      + '<button class="tab-btn ' + (this._activeTab === "prompt" ? "active" : "") + '" data-tab="prompt">Prompt</button>'
-      + '</div>';
-
-    // Tab content
-    if (this._activeTab === "overview") {
-      html += this._renderOverviewTab(agents);
-    } else if (this._activeTab === "memory") {
-      html += this._renderMemoryTab();
-    } else if (this._activeTab === "calendar") {
-      html += this._renderCalendarTab();
-    } else if (this._activeTab === "history") {
-      html += this._renderHistoryTab();
-    } else if (this._activeTab === "prompt") {
-      html += this._renderPromptTab();
+    let html = '<div class="agent-selector">';
+    for (const id of agentIds) {
+      const active = this._selectedAgent === id ? "active" : "";
+      html += '<button class="agent-tab ' + active + '" data-agent="' + this._esc(id) + '">' + this._esc(agents[id].name) + '</button>';
     }
-
+    html += '</div>';
     return html;
+  }
+
+  _tabButtonClass(tab) {
+    return 'tab-btn ' + (this._activeTab === tab ? 'active' : '');
+  }
+
+  _renderTabBar() {
+    const buttons = DASHBOARD_TABS.map((tab) => {
+      return '<button class="' + this._tabButtonClass(tab.id) + '" data-tab="' + tab.id + '">' + tab.label + '</button>';
+    }).join('');
+    return '<div class="tab-bar">' + buttons + '</div>';
+  }
+
+  _renderActiveTab(agents) {
+    if (this._activeTab === "overview") {
+      return this._renderOverviewTab(agents);
+    }
+    if (this._activeTab === "memory") {
+      return this._renderMemoryTab();
+    }
+    if (this._activeTab === "calendar") {
+      return this._renderCalendarTab();
+    }
+    if (this._activeTab === "history") {
+      return this._renderHistoryTab();
+    }
+    if (this._activeTab === "prompt") {
+      return this._renderPromptTab();
+    }
+    return this._renderOverviewTab(agents);
   }
 
   _renderOverviewTab(agents) {
@@ -376,28 +472,34 @@ class SmartAssistPanel extends HTMLElement {
     const metrics = agent ? (agent.metrics || {}) : this._getAggregateMetrics();
     let html = "";
 
-    // Overview cards
-    if (metrics) {
-      const sr = metrics.success_rate ?? 100;
-      const chr = metrics.cache_hit_rate ?? 0;
-      const totalTokens = (metrics.total_prompt_tokens || 0) + (metrics.total_completion_tokens || 0);
-      html += '<div class="overview-grid">'
-        + '<div class="metric-card"><div class="label">Total Requests</div><div class="value">' + this._fmt(metrics.total_requests || 0) + '</div><div class="sub">' + (metrics.failed_requests || 0) + ' failed</div></div>'
-        + '<div class="metric-card"><div class="label">Success Rate</div><div class="value ' + this._successColor(sr) + '">' + sr.toFixed(1) + '%</div><div class="sub">' + (metrics.total_retries || 0) + ' retries</div></div>'
-        + '<div class="metric-card"><div class="label">Avg Response</div><div class="value">' + Math.round(metrics.average_response_time_ms || 0) + '</div><div class="sub">milliseconds</div></div>'
-        + '<div class="metric-card"><div class="label">Total Tokens</div><div class="value">' + this._fmt(totalTokens) + '</div><div class="sub">' + this._fmt(metrics.total_prompt_tokens || 0) + ' prompt / ' + this._fmt(metrics.total_completion_tokens || 0) + ' completion</div></div>'
-        + '<div class="metric-card"><div class="label">Cache Hit Rate</div><div class="value ' + this._cacheColor(chr) + '">' + chr.toFixed(1) + '%</div><div class="sub">' + this._fmt(metrics.cached_tokens || 0) + ' tokens cached</div></div>'
-        + '</div>';
-    }
-
-    // Content grid
-    html += '<div class="content-grid">';
-    html += this._renderTokenCard(metrics);
-    html += this._renderCacheCard(metrics, agent);
-    html += this._renderToolsCard(agent);
-    html += '</div>';
+    html += this._renderOverviewMetrics(metrics);
+    html += this._renderOverviewContent(metrics, agent);
 
     return html;
+  }
+
+  _renderOverviewMetrics(metrics) {
+    if (!metrics) {
+      return '';
+    }
+    const successRate = metrics.success_rate ?? 100;
+    const cacheHitRate = metrics.cache_hit_rate ?? 0;
+    const totalTokens = (metrics.total_prompt_tokens || 0) + (metrics.total_completion_tokens || 0);
+    return '<div class="overview-grid">'
+      + '<div class="metric-card"><div class="label">Total Requests</div><div class="value">' + this._fmt(metrics.total_requests || 0) + '</div><div class="sub">' + (metrics.failed_requests || 0) + ' failed</div></div>'
+      + '<div class="metric-card"><div class="label">Success Rate</div><div class="value ' + this._successColor(successRate) + '">' + successRate.toFixed(1) + '%</div><div class="sub">' + (metrics.total_retries || 0) + ' retries</div></div>'
+      + '<div class="metric-card"><div class="label">Avg Response</div><div class="value">' + Math.round(metrics.average_response_time_ms || 0) + '</div><div class="sub">milliseconds</div></div>'
+      + '<div class="metric-card"><div class="label">Total Tokens</div><div class="value">' + this._fmt(totalTokens) + '</div><div class="sub">' + this._fmt(metrics.total_prompt_tokens || 0) + ' prompt / ' + this._fmt(metrics.total_completion_tokens || 0) + ' completion</div></div>'
+      + '<div class="metric-card"><div class="label">Cache Hit Rate</div><div class="value ' + this._cacheColor(cacheHitRate) + '">' + cacheHitRate.toFixed(1) + '%</div><div class="sub">' + this._fmt(metrics.cached_tokens || 0) + ' tokens cached</div></div>'
+      + '</div>';
+  }
+
+  _renderOverviewContent(metrics, agent) {
+    return '<div class="content-grid">'
+      + this._renderTokenCard(metrics)
+      + this._renderCacheCard(metrics, agent)
+      + this._renderToolsCard(agent)
+      + '</div>';
   }
 
   _renderMemoryTab() {
@@ -452,6 +554,14 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   _renderCalendarTab() {
+    if (this._calendarLoading) {
+      return '<div class="loading">Loading calendar data...</div>';
+    }
+
+    if (this._calendarError) {
+      return '<div class="warning-msg">' + this._esc(this._calendarError) + '</div>';
+    }
+
     const cal = this._data ? this._data.calendar : null;
     if (!cal || !cal.enabled) {
       return '<div class="loading">Calendar context is disabled. Enable it in the agent configuration to see upcoming events.</div>';
@@ -460,21 +570,8 @@ class SmartAssistPanel extends HTMLElement {
     const events = cal.events || [];
     const calendars = cal.calendars || 0;
 
-    // Count by status
-    let pending = 0, announced = 0, passed = 0;
-    for (const e of events) {
-      if (e.status === "pending") pending++;
-      else if (e.status === "announced") announced++;
-      else if (e.status === "passed") passed++;
-    }
-
-    // Summary cards
-    let html = '<div class="overview-grid">'
-      + '<div class="metric-card"><div class="label">Upcoming Events</div><div class="value">' + events.length + '</div><div class="sub">next 28 hours</div></div>'
-      + '<div class="metric-card"><div class="label">Calendars</div><div class="value">' + calendars + '</div><div class="sub">entities tracked</div></div>'
-      + '<div class="metric-card"><div class="label">Pending</div><div class="value warning">' + pending + '</div><div class="sub">awaiting reminder</div></div>'
-      + '<div class="metric-card"><div class="label">Announced</div><div class="value success">' + announced + '</div><div class="sub">reminder delivered</div></div>'
-      + '</div>';
+    const statusCounts = this._getCalendarStatusCounts(events);
+    let html = this._renderCalendarSummary(events.length, calendars, statusCounts);
 
     // Events table
     if (events.length > 0) {
@@ -503,47 +600,29 @@ class SmartAssistPanel extends HTMLElement {
     return html;
   }
 
+  _getCalendarStatusCounts(events) {
+    const counts = { pending: 0, announced: 0, passed: 0 };
+    for (const event of events) {
+      if (event.status === "pending") counts.pending++;
+      else if (event.status === "announced") counts.announced++;
+      else if (event.status === "passed") counts.passed++;
+    }
+    return counts;
+  }
+
+  _renderCalendarSummary(eventCount, calendars, statusCounts) {
+    return '<div class="overview-grid">'
+      + '<div class="metric-card"><div class="label">Upcoming Events</div><div class="value">' + eventCount + '</div><div class="sub">next 28 hours</div></div>'
+      + '<div class="metric-card"><div class="label">Calendars</div><div class="value">' + calendars + '</div><div class="sub">entities tracked</div></div>'
+      + '<div class="metric-card"><div class="label">Pending</div><div class="value warning">' + statusCounts.pending + '</div><div class="sub">awaiting reminder</div></div>'
+      + '<div class="metric-card"><div class="label">Announced</div><div class="value success">' + statusCounts.announced + '</div><div class="sub">reminder delivered</div></div>'
+      + '</div>';
+  }
+
   _renderHistoryTab() {
     let html = '';
 
-    // Tool Analytics Section
-    if (this._toolAnalytics && this._toolAnalytics.tools) {
-      const tools = this._toolAnalytics.tools;
-      const summary = this._toolAnalytics.summary || {};
-
-      // Summary cards
-      html += '<div class="overview-grid">'
-        + '<div class="metric-card"><div class="label">Logged Requests</div><div class="value">'
-        + this._fmt(summary.total_requests || 0) + '</div></div>'
-        + '<div class="metric-card"><div class="label">Avg Response</div><div class="value">'
-        + Math.round(summary.avg_response_time_ms || 0) + '</div><div class="sub">ms</div></div>'
-        + '<div class="metric-card"><div class="label">Avg Tokens</div><div class="value">'
-        + this._fmt(summary.avg_tokens_per_request || 0) + '</div><div class="sub">per request</div></div>'
-        + '<div class="metric-card"><div class="label">Tool Calls</div><div class="value">'
-        + this._fmt(summary.total_tool_calls || 0) + '</div></div>'
-        + '</div>';
-
-      // Tool analytics table
-      if (tools.length > 0) {
-        let rows = '';
-        for (const t of tools) {
-          const srClass = this._successColor(t.success_rate || 100);
-          rows += '<tr>'
-            + '<td><strong>' + this._esc(t.name) + '</strong></td>'
-            + '<td>' + (t.total_calls || 0) + '</td>'
-            + '<td class="' + srClass + '">'
-            + (t.success_rate || 100).toFixed(1) + '%</td>'
-            + '<td>' + Math.round(t.average_execution_time_ms || 0) + ' ms</td>'
-            + '<td style="font-size:12px;color:var(--sa-text-secondary);">'
-            + (t.last_used ? new Date(t.last_used).toLocaleString() : '-') + '</td>'
-            + '</tr>';
-        }
-        html += '<div class="card"><h3>Tool Usage Analytics</h3>'
-          + '<table><thead><tr><th>Tool</th><th>Calls</th>'
-          + '<th>Success Rate</th><th>Avg Time</th><th>Last Used</th></tr></thead>'
-          + '<tbody>' + rows + '</tbody></table></div>';
-      }
-    }
+    html += this._renderHistoryAnalytics();
 
     // Request History Table
     html += '<div class="card"><h3>Request History</h3>';
@@ -590,7 +669,7 @@ class SmartAssistPanel extends HTMLElement {
         + '</tr></thead><tbody>' + rows + '</tbody></table>';
 
       // Pagination
-      const pageSize = 50;
+      const pageSize = HISTORY_PAGE_SIZE;
       const currentPage = this._historyPage || 0;
       const totalPages = Math.ceil(total / pageSize);
       if (totalPages > 1) {
@@ -613,6 +692,56 @@ class SmartAssistPanel extends HTMLElement {
     return html;
   }
 
+  _renderHistoryAnalytics() {
+    if (!this._toolAnalytics || !this._toolAnalytics.tools) {
+      return '';
+    }
+
+    const tools = this._toolAnalytics.tools;
+    const summary = this._toolAnalytics.summary || {};
+    let html = this._renderHistorySummaryCards(summary);
+
+    if (tools.length > 0) {
+      html += this._renderToolAnalyticsTable(tools);
+    }
+
+    return html;
+  }
+
+  _renderHistorySummaryCards(summary) {
+    return '<div class="overview-grid">'
+      + '<div class="metric-card"><div class="label">Logged Requests</div><div class="value">'
+      + this._fmt(summary.total_requests || 0) + '</div></div>'
+      + '<div class="metric-card"><div class="label">Avg Response</div><div class="value">'
+      + Math.round(summary.avg_response_time_ms || 0) + '</div><div class="sub">ms</div></div>'
+      + '<div class="metric-card"><div class="label">Avg Tokens</div><div class="value">'
+      + this._fmt(summary.avg_tokens_per_request || 0) + '</div><div class="sub">per request</div></div>'
+      + '<div class="metric-card"><div class="label">Tool Calls</div><div class="value">'
+      + this._fmt(summary.total_tool_calls || 0) + '</div></div>'
+      + '</div>';
+  }
+
+  _renderToolAnalyticsTable(tools) {
+    let rows = '';
+    for (const tool of tools) {
+      const successRateClass = this._successColor(tool.success_rate || 100);
+      rows += '<tr>'
+        + '<td><strong>' + this._esc(tool.name) + '</strong></td>'
+        + '<td>' + (tool.total_calls || 0) + '</td>'
+        + '<td class="' + successRateClass + '">'
+        + (tool.success_rate || 100).toFixed(1) + '%</td>'
+        + '<td>' + Math.round(tool.average_execution_time_ms || 0) + ' ms</td>'
+        + '<td style="font-size:12px;color:var(--sa-text-secondary);">'
+        + (tool.last_used ? new Date(tool.last_used).toLocaleString() : '-') + '</td>'
+        + '</tr>';
+    }
+
+    return '<div class="card"><h3>Tool Usage Analytics</h3>'
+      + '<table><thead><tr><th>Tool</th><th>Calls</th>'
+      + '<th>Success Rate</th><th>Avg Time</th><th>Last Used</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
+  }
+
   async _loadHistory() {
     if (this._historyFetchInProgress) return;
     this._historyFetchInProgress = true;
@@ -623,12 +752,12 @@ class SmartAssistPanel extends HTMLElement {
     }
     try {
       const agentId = this._selectedAgent || undefined;
-      const offset = (this._historyPage || 0) * 50;
+      const offset = (this._historyPage || 0) * HISTORY_PAGE_SIZE;
       const [historyResult, analyticsResult] = await Promise.all([
         this._hass.callWS({
           type: "smart_assist/request_history",
           agent_id: agentId,
-          limit: 50,
+          limit: HISTORY_PAGE_SIZE,
           offset: offset,
         }),
         this._hass.callWS({
@@ -640,10 +769,11 @@ class SmartAssistPanel extends HTMLElement {
       this._toolAnalytics = analyticsResult;
     } catch (err) {
       console.error("Failed to load history:", err);
+    } finally {
+      this._historyLoading = false;
+      this._historyFetchInProgress = false;
+      this._render();
     }
-    this._historyLoading = false;
-    this._historyFetchInProgress = false;
-    this._render();
   }
 
   async _loadPrompt() {
@@ -664,10 +794,37 @@ class SmartAssistPanel extends HTMLElement {
     } catch (err) {
       console.error("Failed to load system prompt:", err);
       this._promptData = null;
+    } finally {
+      this._promptLoading = false;
+      this._promptFetchInProgress = false;
+      this._render();
     }
-    this._promptLoading = false;
-    this._promptFetchInProgress = false;
+  }
+
+  async _loadCalendar(force = false) {
+    if (this._calendarFetchInProgress) return;
+    const now = Date.now();
+    if (!force && this._calendarLastLoaded && (now - this._calendarLastLoaded) < CALENDAR_CACHE_TTL_MS) {
+      return;
+    }
+    this._calendarFetchInProgress = true;
+    this._calendarLoading = true;
+    this._calendarError = null;
     this._render();
+    try {
+      const calendar = await this._hass.callWS({
+        type: "smart_assist/calendar_data",
+      });
+      this._data = this._data || {};
+      this._data.calendar = calendar;
+      this._calendarLastLoaded = Date.now();
+    } catch (err) {
+      this._calendarError = err.message || "Failed to load calendar data";
+    } finally {
+      this._calendarLoading = false;
+      this._calendarFetchInProgress = false;
+      this._render();
+    }
   }
 
   _renderPromptTab() {
@@ -822,108 +979,115 @@ class SmartAssistPanel extends HTMLElement {
     return '<div class="memory-detail">' + entries + '</div>';
   }
 
+  _onTabChange(tab) {
+    this._activeTab = tab;
+    this._loadActiveTabData(false);
+    this._render();
+  }
+
+  _onAgentChange(agentId) {
+    this._selectedAgent = agentId;
+    this._loadActiveTabData(false);
+    this._render();
+  }
+
+  _bindNodeClick(node, handler) {
+    if (!node) return;
+    node.addEventListener("click", handler);
+  }
+
+  _bindAllClick(selector, handler) {
+    this.shadowRoot.querySelectorAll(selector).forEach((node) => {
+      node.addEventListener("click", (event) => handler(node, event));
+    });
+  }
+
+  _onHistoryPrevious() {
+    this._historyPage = Math.max(0, (this._historyPage || 0) - 1);
+    this._loadHistory();
+  }
+
+  _onHistoryNext() {
+    this._historyPage = (this._historyPage || 0) + 1;
+    this._loadHistory();
+  }
+
+  async _clearHistory() {
+    if (!confirm("Clear all request history? This cannot be undone.")) return;
+    try {
+      await this._hass.callWS({
+        type: "smart_assist/request_history_clear",
+        agent_id: this._selectedAgent || undefined,
+      });
+      this._historyData = null;
+      this._toolAnalytics = null;
+      this._historyPage = 0;
+      await this._loadHistory();
+    } catch (err) {
+      alert("Failed to clear history: " + (err.message || err));
+    }
+  }
+
+  _attachCoreEvents(root) {
+    this._bindNodeClick(root.getElementById("refresh-btn"), () => this._maybeFetchData(true));
+    this._bindNodeClick(root.getElementById("auto-refresh-btn"), () => this._toggleAutoRefresh());
+
+    const autoRefreshSelect = root.getElementById("auto-refresh-interval");
+    if (autoRefreshSelect) {
+      autoRefreshSelect.addEventListener("change", (event) => {
+        this._setAutoRefreshInterval(parseInt(event.target.value, 10));
+      });
+    }
+
+    this._bindNodeClick(root.getElementById("retry-btn"), () => this._maybeFetchData(true));
+  }
+
+  _attachTabEvents() {
+    this._bindAllClick(".tab-btn", (btn) => {
+      this._onTabChange(btn.dataset.tab);
+    });
+
+    this._bindAllClick(".agent-tab", (btn) => {
+      this._onAgentChange(btn.dataset.agent);
+    });
+  }
+
+  _attachMemoryEvents() {
+    this._bindAllClick(".memory-user-row", (row, event) => {
+      if (event.target.closest(".icon-btn")) return;
+      this._toggleMemory(row.dataset.user);
+    });
+
+    this._bindAllClick(".rename-user-btn", (btn, event) => {
+      event.stopPropagation();
+      this._renameUser(btn.dataset.user);
+    });
+
+    this._bindAllClick(".merge-user-btn", (btn, event) => {
+      event.stopPropagation();
+      this._mergeUser(btn.dataset.user);
+    });
+
+    this._bindAllClick(".delete-memory-btn", (btn, event) => {
+      event.stopPropagation();
+      this._deleteMemory(btn.dataset.user, btn.dataset.memory);
+    });
+  }
+
+  _attachHistoryEvents(root) {
+    this._bindNodeClick(root.querySelector(".history-prev"), () => this._onHistoryPrevious());
+    this._bindNodeClick(root.querySelector(".history-next"), () => this._onHistoryNext());
+    this._bindNodeClick(root.getElementById("clear-history-btn"), () => this._clearHistory());
+  }
+
   _attachEvents() {
     const root = this.shadowRoot;
     if (!root) return;
 
-    const refreshBtn = root.getElementById("refresh-btn");
-    if (refreshBtn) refreshBtn.addEventListener("click", () => this._fetchData());
-
-    const autoRefreshBtn = root.getElementById("auto-refresh-btn");
-    if (autoRefreshBtn) autoRefreshBtn.addEventListener("click", () => this._toggleAutoRefresh());
-
-    const autoRefreshSelect = root.getElementById("auto-refresh-interval");
-    if (autoRefreshSelect) autoRefreshSelect.addEventListener("change", (e) => {
-      this._setAutoRefreshInterval(parseInt(e.target.value, 10));
-    });
-
-    const retryBtn = root.getElementById("retry-btn");
-    if (retryBtn) retryBtn.addEventListener("click", () => this._fetchData());
-
-    root.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        this._activeTab = btn.dataset.tab;
-        if (btn.dataset.tab === "history") {
-          this._loadHistory();
-        }
-        if (btn.dataset.tab === "prompt") {
-          this._loadPrompt();
-        }
-        this._render();
-      });
-    });
-
-    root.querySelectorAll(".agent-tab").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        this._selectedAgent = btn.dataset.agent;
-        if (this._activeTab === "prompt") {
-          this._loadPrompt();
-        }
-        this._render();
-      });
-    });
-
-    root.querySelectorAll(".memory-user-row").forEach((row) => {
-      row.addEventListener("click", (e) => {
-        // Don't toggle when clicking action buttons
-        if (e.target.closest(".icon-btn")) return;
-        this._toggleMemory(row.dataset.user);
-      });
-    });
-
-    // Rename user buttons
-    root.querySelectorAll(".rename-user-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._renameUser(btn.dataset.user);
-      });
-    });
-
-    // Merge user buttons
-    root.querySelectorAll(".merge-user-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._mergeUser(btn.dataset.user);
-      });
-    });
-
-    // Delete memory buttons
-    root.querySelectorAll(".delete-memory-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._deleteMemory(btn.dataset.user, btn.dataset.memory);
-      });
-    });
-
-    // History pagination
-    const prevBtn = root.querySelector(".history-prev");
-    if (prevBtn) prevBtn.addEventListener("click", () => {
-      this._historyPage = Math.max(0, (this._historyPage || 0) - 1);
-      this._loadHistory();
-    });
-    const nextBtn = root.querySelector(".history-next");
-    if (nextBtn) nextBtn.addEventListener("click", () => {
-      this._historyPage = (this._historyPage || 0) + 1;
-      this._loadHistory();
-    });
-
-    // Clear history
-    const clearBtn = root.getElementById("clear-history-btn");
-    if (clearBtn) clearBtn.addEventListener("click", async () => {
-      if (!confirm("Clear all request history? This cannot be undone.")) return;
-      try {
-        await this._hass.callWS({
-          type: "smart_assist/request_history_clear",
-          agent_id: this._selectedAgent || undefined,
-        });
-        this._historyData = null;
-        this._toolAnalytics = null;
-        this._historyPage = 0;
-        await this._loadHistory();
-      } catch (err) {
-        alert("Failed to clear history: " + (err.message || err));
-      }
-    });
+    this._attachCoreEvents(root);
+    this._attachTabEvents();
+    this._attachMemoryEvents();
+    this._attachHistoryEvents(root);
   }
 
   async _renameUser(userId) {
@@ -1116,6 +1280,7 @@ class SmartAssistPanel extends HTMLElement {
       // States
       + ".loading,.error-msg{text-align:center;padding:60px 20px;color:var(--sa-text-secondary);font-size:16px;}"
       + ".error-msg{color:var(--sa-error);}"
+      + ".warning-msg{margin:12px 0;padding:10px 12px;border-radius:8px;background:color-mix(in srgb,var(--sa-warning) 15%,transparent);color:var(--sa-warning);font-size:13px;border:1px solid color-mix(in srgb,var(--sa-warning) 40%,transparent);}"
       + ".sub{font-size:11px;color:var(--sa-text-secondary);margin-top:4px;}"
       // History pagination
       + ".history-pagination{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:12px;font-size:13px;color:var(--sa-text-secondary);}"

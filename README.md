@@ -112,6 +112,14 @@ Calendar Mappings:
 - **Real-Time Updates**: WebSocket API with subscription for live metric updates
 - **Theme Integration**: Adapts to HA light/dark mode via CSS custom properties
 
+#### Dashboard Data Flow
+
+- **Hot-path Metrics via Push**: Subscription updates focus on lightweight metrics refreshes
+- **Tab-Scoped Heavy Data**: Calendar data is fetched via dedicated endpoint when Calendar tab is active (with short cache TTL)
+- **Push/Poll Coordination**: Auto-refresh polling backs off while subscription is healthy and resumes as fallback on degraded push/reconnect
+- **Stale-Data UX**: Last valid snapshot stays visible on refresh errors with a non-blocking warning banner
+- **History Analytics Caching**: Tool analytics and summary stats are cached server-side and invalidated on add/clear/prune
+
 Example workflow:
 
 1. Ask a question that requires web search

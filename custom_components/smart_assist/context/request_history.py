@@ -157,6 +157,24 @@ class RequestHistoryStore:
         self._dirty = False
         self._last_save: float = 0.0
         self._save_debounce_seconds = 30.0
+        self._tool_analytics_cache: dict[str, list[dict[str, Any]]] = {}
+        self._summary_stats_cache: dict[str, dict[str, Any]] = {}
+
+    @staticmethod
+    def _analytics_cache_key(agent_id: str | None) -> str:
+        """Return cache key for optional agent filter."""
+        return agent_id or "__all__"
+
+    def _invalidate_analytics_cache(self) -> None:
+        """Invalidate all computed analytics caches."""
+        self._tool_analytics_cache.clear()
+        self._summary_stats_cache.clear()
+
+    def _get_filtered_entries(self, agent_id: str | None) -> list[dict[str, Any]]:
+        """Return history entries filtered by optional agent id."""
+        if not agent_id:
+            return self._entries
+        return [entry for entry in self._entries if entry.get("agent_id") == agent_id]
 
     async def async_load(self) -> None:
         """Load history from storage."""
@@ -170,6 +188,7 @@ class RequestHistoryStore:
         else:
             self._entries = []
             _LOGGER.info("No existing request history found, starting fresh")
+        self._invalidate_analytics_cache()
 
     async def async_save(self) -> None:
         """Save history to storage (debounced)."""
@@ -210,6 +229,7 @@ class RequestHistoryStore:
         while len(self._entries) > self._max_entries:
             self._entries.pop(0)
         self._dirty = True
+        self._invalidate_analytics_cache()
 
     def get_entries(
         self,
@@ -241,11 +261,14 @@ class RequestHistoryStore:
         Returns:
             List of ToolAnalytics dicts, sorted by total_calls descending.
         """
+        cache_key = self._analytics_cache_key(agent_id)
+        cached = self._tool_analytics_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         tools: dict[str, ToolAnalytics] = {}
 
-        for entry in self._entries:
-            if agent_id and entry.get("agent_id") != agent_id:
-                continue
+        for entry in self._get_filtered_entries(agent_id):
             for tc in entry.get("tools_used", []):
                 name = tc.get("name", "unknown")
                 if name not in tools:
@@ -264,18 +287,23 @@ class RequestHistoryStore:
         sorted_tools = sorted(
             tools.values(), key=lambda t: t.total_calls, reverse=True
         )
-        return [t.to_dict() for t in sorted_tools]
+        result = [t.to_dict() for t in sorted_tools]
+        self._tool_analytics_cache[cache_key] = result
+        return result
 
     def get_summary_stats(
         self, agent_id: str | None = None
     ) -> dict[str, Any]:
         """Get summary statistics from history."""
-        filtered = self._entries
-        if agent_id:
-            filtered = [e for e in filtered if e.get("agent_id") == agent_id]
+        cache_key = self._analytics_cache_key(agent_id)
+        cached = self._summary_stats_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        filtered = self._get_filtered_entries(agent_id)
 
         if not filtered:
-            return {
+            result = {
                 "total_requests": 0,
                 "total_tokens": 0,
                 "avg_response_time_ms": 0,
@@ -283,6 +311,8 @@ class RequestHistoryStore:
                 "total_tool_calls": 0,
                 "success_rate": 100.0,
             }
+            self._summary_stats_cache[cache_key] = result
+            return result
 
         total = len(filtered)
         successful = sum(1 for e in filtered if e.get("success", True))
@@ -297,7 +327,7 @@ class RequestHistoryStore:
             len(e.get("tools_used", [])) for e in filtered
         )
 
-        return {
+        result = {
             "total_requests": total,
             "successful_requests": successful,
             "total_tokens": total_tokens,
@@ -312,6 +342,8 @@ class RequestHistoryStore:
             if total > 0
             else 100.0,
         }
+        self._summary_stats_cache[cache_key] = result
+        return result
 
     def clear(self, agent_id: str | None = None) -> int:
         """Clear history entries. Returns count of removed entries.
@@ -331,6 +363,7 @@ class RequestHistoryStore:
             self._entries = []
         if removed > 0:
             self._dirty = True
+            self._invalidate_analytics_cache()
         return removed
 
     def prune_older_than_days(self, retention_days: int) -> int:
@@ -363,6 +396,7 @@ class RequestHistoryStore:
         if removed > 0:
             self._entries = kept
             self._dirty = True
+            self._invalidate_analytics_cache()
         return removed
 
     @staticmethod
