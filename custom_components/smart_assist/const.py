@@ -33,6 +33,9 @@ CONF_ENABLE_CANCEL_HANDLER: Final = "enable_cancel_handler"
 CONF_CANCEL_INTENT_AGENT: Final = "cancel_intent_agent"
 CONF_CALENDAR_CONTEXT: Final = "calendar_context"
 
+# Calendar user filtering
+CALENDAR_SHARED_MARKER: Final = "shared"
+
 # Entity discovery mode
 CONF_ENTITY_DISCOVERY_MODE: Final = "entity_discovery_mode"
 

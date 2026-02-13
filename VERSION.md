@@ -4,9 +4,18 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.8  | 2026-02-11 |
+| Smart Assist | 1.13.9  | 2026-02-13 |
 
 ## Version History
+
+### v1.13.9 (2026-02-13) - Calendar User Filtering
+
+**Improvements:**
+- Calendar reminders are now filtered per user identity
+- Users define "Calendar Mappings:" in the User System Prompt to map calendars to users or mark them as shared
+- Unrecognized users and unmapped calendars fall back to showing everything (safe default)
+
+- Files modified: context/calendar_reminder.py
 
 ### v1.13.8 (2026-02-11) - Prompt Simplification & Hallucination Fix
 

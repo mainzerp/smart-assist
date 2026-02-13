@@ -10,6 +10,7 @@ from typing import Any, TYPE_CHECKING
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CALENDAR_SHARED_MARKER,
     CONF_ASK_FOLLOWUP,
     CONF_CALENDAR_CONTEXT,
     CONF_CONFIRM_CRITICAL,
@@ -32,10 +33,114 @@ from .const import (
 from .llm.models import ChatMessage, MessageRole, ToolCall
 
 if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
     from homeassistant.components.conversation import ChatLog
     from .conversation import SmartAssistConversationEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def parse_calendar_mappings(user_system_prompt: str | None) -> dict[str, str] | None:
+    """Parse calendar-to-user mappings from the user system prompt.
+
+    Looks for a block starting with 'Calendar Mappings:' followed by
+    lines like '- calendar.anna -> Anna' or '- calendar.family -> shared'.
+
+    Args:
+        user_system_prompt: The user system prompt text.
+
+    Returns:
+        Dict mapping calendar entity_id/name -> user_name (lowercase) or 'shared'.
+        Returns None if no Calendar Mappings block is found (= feature not configured).
+    """
+    if not user_system_prompt:
+        return None
+
+    mappings: dict[str, str] = {}
+    in_block = False
+
+    for line in user_system_prompt.splitlines():
+        stripped = line.strip()
+
+        # Detect start of Calendar Mappings block
+        if stripped.lower().startswith("calendar mappings:"):
+            in_block = True
+            continue
+
+        # End block on empty line or new section header
+        if in_block:
+            if not stripped or (not stripped.startswith("-") and ":" in stripped and "->" not in stripped):
+                break
+
+            if stripped.startswith("-") and "->" in stripped:
+                parts = stripped.lstrip("- ").split("->", 1)
+                if len(parts) == 2:
+                    cal_key = parts[0].strip().lower()
+                    user_name = parts[1].strip().lower()
+                    mappings[cal_key] = user_name
+
+    return mappings if mappings else None
+
+
+def filter_calendars_for_user(
+    all_calendar_ids: list[str],
+    hass: HomeAssistant,
+    user_id: str,
+    calendar_mappings: dict[str, str] | None,
+) -> list[str]:
+    """Filter calendar entity_ids based on user identity and mappings.
+
+    Rules:
+    - If calendar_mappings is None: return all calendars (feature not configured)
+    - If user_id is 'default': return all calendars (user not identified)
+    - Otherwise: return calendars mapped to user_id or 'shared',
+      plus any calendars not explicitly listed in mappings (treated as shared)
+
+    Args:
+        all_calendar_ids: All available calendar entity_ids.
+        hass: Home Assistant instance for fetching friendly_names.
+        user_id: The resolved user identifier (lowercase).
+        calendar_mappings: Parsed mappings from system prompt, or None.
+
+    Returns:
+        Filtered list of calendar entity_ids.
+    """
+    # No mappings configured -> show all (current behavior)
+    if calendar_mappings is None:
+        return all_calendar_ids
+
+    # User not identified -> show all (fallback)
+    if user_id == "default":
+        return all_calendar_ids
+
+    filtered: list[str] = []
+
+    for cal_id in all_calendar_ids:
+        cal_id_lower = cal_id.lower()
+
+        # Get friendly_name for matching
+        friendly_name = ""
+        if hass:
+            state = hass.states.get(cal_id)
+            if state and state.attributes.get("friendly_name"):
+                friendly_name = state.attributes["friendly_name"].lower()
+
+        # Check if this calendar is in the mappings
+        mapped_user = None
+        if cal_id_lower in calendar_mappings:
+            mapped_user = calendar_mappings[cal_id_lower]
+        elif friendly_name and friendly_name in calendar_mappings:
+            mapped_user = calendar_mappings[friendly_name]
+
+        if mapped_user is not None:
+            # Calendar is explicitly mapped
+            if mapped_user == CALENDAR_SHARED_MARKER or mapped_user == user_id.lower():
+                filtered.append(cal_id)
+        else:
+            # Calendar not in mappings -> treat as shared (include)
+            filtered.append(cal_id)
+
+    return filtered
 
 
 async def build_system_prompt(entity: SmartAssistConversationEntity) -> str:
@@ -148,7 +253,8 @@ Pronouns:
     if calendar_enabled:
         parts.append("""
 Calendar Reminders:
-When context contains calendar reminders, answer the user's request first, then append the reminder at the end with a casual transition ("By the way...", "Also...").""")
+When context contains calendar reminders, answer the user's request first, then append the reminder at the end with a casual transition ("By the way...", "Also...").
+Reminders are already filtered per user. The 'owner' field shows whose calendar it is.""")
 
     # Control instructions - compact
     # In smart_discovery mode, add reminder that get_entities comes first
@@ -218,7 +324,7 @@ If action fails or entity not found, explain briefly and suggest alternatives.""
     return entity._cached_system_prompt
 
 
-async def get_calendar_context(entity: SmartAssistConversationEntity, dry_run: bool = False) -> str:
+async def get_calendar_context(entity: SmartAssistConversationEntity, dry_run: bool = False, user_id: str = "default") -> str:
     """Get upcoming calendar events for context injection.
 
     Returns reminders for events in appropriate reminder windows.
@@ -226,6 +332,7 @@ async def get_calendar_context(entity: SmartAssistConversationEntity, dry_run: b
 
     Args:
         dry_run: If True, don't mark reminders as completed (for cache warming).
+        user_id: Resolved user identifier for calendar filtering.
 
     Returns:
         Formatted string with calendar reminders, or empty string if none.
@@ -248,6 +355,18 @@ async def get_calendar_context(entity: SmartAssistConversationEntity, dry_run: b
         ]
 
         _LOGGER.debug("Found %d calendar entities: %s", len(calendars), calendars)
+
+        # Filter calendars based on user identity
+        user_prompt = entity._get_config(CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT)
+        calendar_mappings = parse_calendar_mappings(user_prompt)
+        if calendar_mappings is not None:
+            calendars = filter_calendars_for_user(
+                calendars, entity.hass, user_id, calendar_mappings
+            )
+            _LOGGER.debug(
+                "Calendar filtering: user=%s, mappings=%d, filtered=%d calendars",
+                user_id, len(calendar_mappings), len(calendars),
+            )
 
         if not calendars:
             return ""
@@ -340,7 +459,7 @@ async def build_messages_for_llm_async(
         Tuple of (messages, cached_prefix_length)
     """
     # Get calendar context asynchronously
-    calendar_context = await get_calendar_context(entity, dry_run=dry_run)
+    calendar_context = await get_calendar_context(entity, dry_run=dry_run, user_id=user_id)
     _LOGGER.debug("Calendar context from _get_calendar_context: len=%d", len(calendar_context) if calendar_context else 0)
 
     # Get recent entities context for pronoun resolution
