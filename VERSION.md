@@ -4,9 +4,26 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.2  | 2026-02-14 |
+| Smart Assist | 1.14.3  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.3 (2026-02-14) - AI Task Initial Status Fix
+
+**Bug Fixes:**
+- AI Task entities now expose an initial `ready` state when first added, instead of showing `unknown` before the first task execution
+- AI Task automation execution now handles empty/invalid instructions safely instead of bubbling an `unknown error`
+
+**Tests:**
+- Added targeted AI Task test for initial `ready` status on entity add
+- Added targeted AI Task test for empty instructions handling in `_async_generate_data`
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.2 (2026-02-14) - Release Metadata Sync
 

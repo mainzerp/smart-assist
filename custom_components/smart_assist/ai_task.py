@@ -202,6 +202,14 @@ class SmartAssistAITask(AITaskEntity):
             "entity": self,
         }
 
+    async def async_added_to_hass(self) -> None:
+        """Set a deterministic initial state when the entity is first added."""
+        await super().async_added_to_hass()
+
+        if self.state is None:
+            setattr(self, "_AITaskEntity__last_activity", "ready")
+            self.async_write_ha_state()
+
     async def _async_generate_data(
         self,
         task: GenDataTask,
@@ -217,15 +225,26 @@ class SmartAssistAITask(AITaskEntity):
             task.task_name,
             task.instructions[:100] if task.instructions else "None",
         )
-        
-        # Build messages for LLM
-        messages = self._build_messages(task.instructions)
-        
-        # Get tool schemas
-        tools = self._tool_registry.get_schemas()
-        
-        # Call LLM with tool support
+
+        # Normalize instructions to avoid provider-side unknown errors
+        raw_instructions = task.instructions
+        if not isinstance(raw_instructions, str):
+            raw_instructions = ""
+        instructions = raw_instructions.strip()
+        if not instructions:
+            return GenDataTaskResult(
+                conversation_id=chat_log.conversation_id,
+                data="Task instructions are empty. Please provide instructions.",
+            )
+
         try:
+            # Build messages for LLM
+            messages = self._build_messages(instructions)
+
+            # Get tool schemas
+            tools = self._tool_registry.get_schemas()
+
+            # Call LLM with tool support
             response_content = await self._process_with_tools(messages, tools)
         except Exception as e:
             _LOGGER.error("AI Task LLM call failed: %s", e)
