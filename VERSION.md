@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.3  | 2026-02-14 |
+| Smart Assist | 1.14.4  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.4 (2026-02-14) - AI Task Task-Object Compatibility Fix
+
+**Bug Fixes:**
+- Fixed AI Task `unknown error` during automation execution when Home Assistant provides task objects without `task_name`
+- `_async_generate_data` now safely reads task metadata via fallback attributes and handles variant task object shapes
+
+**Tests:**
+- Added targeted AI Task regression test for missing `task_name` attribute on task object
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.3 (2026-02-14) - AI Task Initial Status Fix
 

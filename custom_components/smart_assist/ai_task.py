@@ -222,12 +222,16 @@ class SmartAssistAITask(AITaskEntity):
         """
         _LOGGER.debug(
             "AI Task received: name=%s, instructions=%s",
-            task.task_name,
-            task.instructions[:100] if task.instructions else "None",
+            getattr(task, "task_name", getattr(task, "name", "unknown")),
+            (
+                str(getattr(task, "instructions", ""))[:100]
+                if getattr(task, "instructions", None)
+                else "None"
+            ),
         )
 
         # Normalize instructions to avoid provider-side unknown errors
-        raw_instructions = task.instructions
+        raw_instructions = getattr(task, "instructions", "")
         if not isinstance(raw_instructions, str):
             raw_instructions = ""
         instructions = raw_instructions.strip()
@@ -260,7 +264,7 @@ class SmartAssistAITask(AITaskEntity):
         )
         
         # Return result
-        if task.structure:
+        if getattr(task, "structure", None):
             # If structured output requested, try to parse response
             # For now, return as plain text - structured output parsing can be added later
             return GenDataTaskResult(
