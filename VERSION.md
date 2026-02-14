@@ -4,9 +4,35 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.0  | 2026-02-14 |
+| Smart Assist | 1.14.2  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.2 (2026-02-14) - Release Metadata Sync
+
+**Bug Fixes:**
+- Updated integration manifest version to match the latest release metadata
+
+**Files modified:**
+
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.1 (2026-02-14) - AI Task Runtime-Control UI Labels
+
+**Bug Fixes:**
+- Added missing AI Task form labels and descriptions for `tool_max_retries` and `tool_latency_budget_ms` in base strings and EN/DE translations
+- AI Task Settings and Reconfigure screens now fully expose runtime retry/timeout controls with clear localized text
+
+**Compatibility & Behavior:**
+- Runtime behavior remains unchanged: AI Task already enforced retries/timeouts and emitted structured tool metadata (`timed_out`, `retries_used`, `attempts`, `latency_budget_ms`, `execution_time_ms`)
+
+**Files modified:**
+
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- VERSION.md
 
 ### v1.14.0 (2026-02-14) - AI Task Control Opt-In + Lock Guard
 
@@ -20,6 +46,7 @@
 **Compatibility & Behavior:**
 - Conversation critical confirmation flow remains unchanged
 - Tool registry now applies control-tool suppression only in AI Task context when control opt-in is disabled
+- AI Task settings and reconfigure flows expose `tool_max_retries` and `tool_latency_budget_ms` for runtime parity with conversation agents
 
 **Tests:**
 - Added targeted AI Task tests for disabled control, lock-domain blocking, allowed non-lock control, allowed lock control, and subentry-data wiring to tool registry

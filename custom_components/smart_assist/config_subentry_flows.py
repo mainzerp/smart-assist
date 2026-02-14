@@ -787,6 +787,23 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_TOOL_MAX_RETRIES, default=DEFAULT_TOOL_MAX_RETRIES): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_RETRIES_MIN,
+                    max=TOOL_MAX_RETRIES_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_TOOL_LATENCY_BUDGET_MS, default=DEFAULT_TOOL_LATENCY_BUDGET_MS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_LATENCY_BUDGET_MS_MIN,
+                    max=TOOL_LATENCY_BUDGET_MS_MAX,
+                    step=500,
+                    unit_of_measurement="ms",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             vol.Required(CONF_TASK_ALLOW_CONTROL, default=DEFAULT_TASK_ALLOW_CONTROL): BooleanSelector(),
             vol.Required(CONF_TASK_ALLOW_LOCK_CONTROL, default=DEFAULT_TASK_ALLOW_LOCK_CONTROL): BooleanSelector(),
             vol.Required(CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT): TextSelector(
@@ -945,6 +962,23 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_TOOL_MAX_RETRIES): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_RETRIES_MIN,
+                    max=TOOL_MAX_RETRIES_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_TOOL_LATENCY_BUDGET_MS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_LATENCY_BUDGET_MS_MIN,
+                    max=TOOL_LATENCY_BUDGET_MS_MAX,
+                    step=500,
+                    unit_of_measurement="ms",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             vol.Required(CONF_TASK_ALLOW_CONTROL): BooleanSelector(),
             vol.Required(CONF_TASK_ALLOW_LOCK_CONTROL): BooleanSelector(),
             vol.Required(CONF_TASK_SYSTEM_PROMPT): TextSelector(

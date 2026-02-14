@@ -304,6 +304,8 @@ data:
 **Configuration:**
 
 - **Task System Prompt**: Custom instructions for background tasks
+- **Tool Max Retries**: Maximum retry attempts for failed tool calls per request
+- **Tool Latency Budget (ms)**: Per-tool timeout budget in milliseconds
 - **Task Prompt Caching**: Disabled by default (tasks are not time-critical)
 - **Task Cache Warming**: Disabled by default
 
