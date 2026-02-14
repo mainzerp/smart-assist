@@ -377,6 +377,9 @@ class SmartAssistConversationEntity(ConversationEntity):
                     success=record.success,
                     execution_time_ms=record.execution_time_ms,
                     arguments_summary=args_summary,
+                    timed_out=record.timed_out,
+                    retries_used=record.retries_used,
+                    latency_budget_ms=record.latency_budget_ms,
                 )
             )
         return sanitized

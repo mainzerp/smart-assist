@@ -34,6 +34,9 @@ class ToolCallRecord:
     success: bool
     execution_time_ms: float
     arguments_summary: str = ""
+    timed_out: bool = False
+    retries_used: int = 0
+    latency_budget_ms: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
@@ -42,6 +45,9 @@ class ToolCallRecord:
             "success": self.success,
             "execution_time_ms": round(self.execution_time_ms, 2),
             "arguments_summary": self.arguments_summary,
+            "timed_out": self.timed_out,
+            "retries_used": self.retries_used,
+            "latency_budget_ms": self.latency_budget_ms,
         }
 
 
@@ -104,6 +110,7 @@ class ToolAnalytics:
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
+    timeout_calls: int = 0
     total_execution_time_ms: float = 0.0
     last_used: str | None = None
 
@@ -121,6 +128,20 @@ class ToolAnalytics:
             return 0.0
         return self.total_execution_time_ms / self.total_calls
 
+    @property
+    def failure_rate(self) -> float:
+        """Calculate failure rate percentage."""
+        if self.total_calls == 0:
+            return 0.0
+        return (self.failed_calls / self.total_calls) * 100
+
+    @property
+    def timeout_rate(self) -> float:
+        """Calculate timeout rate percentage."""
+        if self.total_calls == 0:
+            return 0.0
+        return (self.timeout_calls / self.total_calls) * 100
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API response."""
         return {
@@ -128,7 +149,10 @@ class ToolAnalytics:
             "total_calls": self.total_calls,
             "successful_calls": self.successful_calls,
             "failed_calls": self.failed_calls,
+            "timeout_calls": self.timeout_calls,
             "success_rate": round(self.success_rate, 1),
+            "failure_rate": round(self.failure_rate, 1),
+            "timeout_rate": round(self.timeout_rate, 1),
             "average_execution_time_ms": round(self.average_execution_time_ms, 2),
             "total_execution_time_ms": round(self.total_execution_time_ms, 2),
             "last_used": self.last_used,
@@ -279,6 +303,8 @@ class RequestHistoryStore:
                     ta.successful_calls += 1
                 else:
                     ta.failed_calls += 1
+                if tc.get("timed_out", False):
+                    ta.timeout_calls += 1
                 ta.total_execution_time_ms += tc.get("execution_time_ms", 0.0)
                 entry_ts = entry.get("timestamp")
                 if entry_ts and (ta.last_used is None or entry_ts > ta.last_used):
@@ -309,6 +335,8 @@ class RequestHistoryStore:
                 "avg_response_time_ms": 0,
                 "avg_tokens_per_request": 0,
                 "total_tool_calls": 0,
+                "total_tool_timeouts": 0,
+                "tool_timeout_rate": 0.0,
                 "success_rate": 100.0,
             }
             self._summary_stats_cache[cache_key] = result
@@ -326,6 +354,10 @@ class RequestHistoryStore:
         total_tool_calls = sum(
             len(e.get("tools_used", [])) for e in filtered
         )
+        total_tool_timeouts = sum(
+            sum(1 for tc in e.get("tools_used", []) if tc.get("timed_out", False))
+            for e in filtered
+        )
 
         result = {
             "total_requests": total,
@@ -338,6 +370,10 @@ class RequestHistoryStore:
             if total > 0
             else 0,
             "total_tool_calls": total_tool_calls,
+            "total_tool_timeouts": total_tool_timeouts,
+            "tool_timeout_rate": round((total_tool_timeouts / total_tool_calls) * 100, 1)
+            if total_tool_calls > 0
+            else 0.0,
             "success_rate": round((successful / total) * 100, 1)
             if total > 0
             else 100.0,

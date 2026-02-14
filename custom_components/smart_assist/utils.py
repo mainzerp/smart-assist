@@ -118,6 +118,13 @@ URL_PATTERN: Final = re.compile(
     flags=re.IGNORECASE,
 )
 
+RAW_ERROR_PATTERNS: Final = [
+    re.compile(r"\{\s*\"error\"[\s\S]*\}\s*$", flags=re.IGNORECASE),
+    re.compile(r"\[[\s\S]*\]\s*$", flags=re.IGNORECASE),
+    re.compile(r"traceback[\s\S]*", flags=re.IGNORECASE),
+    re.compile(r"request id[:=]\s*[a-z0-9_-]+", flags=re.IGNORECASE),
+]
+
 # Markdown patterns
 MARKDOWN_PATTERNS: Final = [
     (re.compile(r"\*\*(.+?)\*\*"), r"\1"),  # **bold**
@@ -284,9 +291,47 @@ def remove_urls_for_tts(text: str) -> str:
     return result
 
 
+def sanitize_user_facing_error(
+    err: Exception | str,
+    fallback: str = "Sorry, I ran into a temporary issue while processing that.",
+) -> str:
+    """Return a short, user-safe error message without raw backend payloads."""
+    raw = str(err or "").strip()
+    if not raw:
+        return fallback
+
+    safe = raw
+    for pattern in RAW_ERROR_PATTERNS:
+        safe = pattern.sub("", safe).strip()
+
+    safe = URL_PATTERN.sub("", safe)
+    safe = re.sub(r"\s+", " ", safe).strip(" .:-")
+
+    lowered = safe.lower()
+    if "timeout" in lowered:
+        return "The request timed out. Please try again."
+    if any(token in lowered for token in ("unauthorized", "forbidden", "401", "403")):
+        return "Authentication failed while contacting the AI service."
+    if any(token in lowered for token in ("429", "rate limit", "too many requests")):
+        return "The AI service is busy right now. Please try again shortly."
+    if any(token in lowered for token in ("network", "connection", "unreachable")):
+        return "Network issue while contacting the AI service. Please try again."
+    if any(token in lowered for token in ("api error", "server error", "500", "502", "503", "504")):
+        return "The AI service returned an error. Please try again."
+
+    if len(safe) < 10:
+        return fallback
+    if len(safe) > 180:
+        return fallback
+    return safe
+
+
 async def execute_tools_parallel(
     tool_calls: list[ToolCall],
     tool_registry: ToolRegistry,
+    *,
+    max_retries: int | None = None,
+    latency_budget_ms: int | None = None,
 ) -> list[ChatMessage]:
     """Execute tool calls in parallel and return ChatMessages with results.
 
@@ -304,7 +349,12 @@ async def execute_tools_parallel(
     from .llm.models import ChatMessage, MessageRole
 
     async def _exec(tc: ToolCall) -> tuple[ToolCall, Any]:
-        result = await tool_registry.execute(tc.name, tc.arguments)
+        result = await tool_registry.execute(
+            tc.name,
+            tc.arguments,
+            max_retries=max_retries,
+            latency_budget_ms=latency_budget_ms,
+        )
         return (tc, result)
 
     raw_results = await asyncio.gather(

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+
+from ..utils import sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -152,7 +156,14 @@ class ToolRegistry:
         for tool in self._tools.values():
             tool._satellite_id = satellite_id
 
-    async def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
+    async def execute(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        max_retries: int | None = None,
+        latency_budget_ms: int | None = None,
+    ) -> ToolResult:
         """Execute a tool by name."""
         tool = self._tools.get(name)
         if not tool:
@@ -160,28 +171,91 @@ class ToolRegistry:
             return ToolResult(
                 success=False,
                 message=f"Unknown tool: {name}",
-                data={"execution_time_ms": 0.0},
+                data={
+                    "execution_time_ms": 0.0,
+                    "timed_out": False,
+                    "retries_used": 0,
+                    "attempts": 0,
+                    "latency_budget_ms": latency_budget_ms,
+                },
             )
 
-        try:
-            import time as _time
-            start = _time.monotonic()
-            _LOGGER.debug("Executing tool: %s with args: %s", name, arguments)
-            result = await tool.execute(**arguments)
-            elapsed_ms = (_time.monotonic() - start) * 1000
-            result.data["execution_time_ms"] = round(elapsed_ms, 2)
-            _LOGGER.debug(
-                "Tool %s result: success=%s, time=%.1fms, message=%s",
-                name,
-                result.success,
-                elapsed_ms,
-                result.message[:100] if result.message else "None",
+        retries = max(0, int(max_retries or 0))
+        attempts_allowed = retries + 1
+        last_error: Exception | None = None
+        timed_out = False
+        start = time.monotonic()
+
+        for attempt in range(1, attempts_allowed + 1):
+            try:
+                _LOGGER.debug(
+                    "Executing tool: %s attempt %d/%d with args: %s",
+                    name,
+                    attempt,
+                    attempts_allowed,
+                    arguments,
+                )
+                if latency_budget_ms and latency_budget_ms > 0:
+                    async with asyncio.timeout(latency_budget_ms / 1000):
+                        result = await tool.execute(**arguments)
+                else:
+                    result = await tool.execute(**arguments)
+
+                elapsed_ms = (time.monotonic() - start) * 1000
+                result.data["execution_time_ms"] = round(elapsed_ms, 2)
+                result.data["timed_out"] = False
+                result.data["retries_used"] = attempt - 1
+                result.data["attempts"] = attempt
+                result.data["latency_budget_ms"] = latency_budget_ms
+
+                _LOGGER.debug(
+                    "Tool %s result: success=%s, attempts=%d, time=%.1fms, message=%s",
+                    name,
+                    result.success,
+                    attempt,
+                    elapsed_ms,
+                    result.message[:100] if result.message else "None",
+                )
+                if result.success or attempt >= attempts_allowed:
+                    return result
+            except asyncio.TimeoutError as err:
+                last_error = err
+                timed_out = True
+                _LOGGER.warning(
+                    "Tool %s timed out on attempt %d/%d (budget=%sms)",
+                    name,
+                    attempt,
+                    attempts_allowed,
+                    latency_budget_ms,
+                )
+            except Exception as err:
+                last_error = err
+                _LOGGER.error(
+                    "Tool execution error for %s on attempt %d/%d: %s",
+                    name,
+                    attempt,
+                    attempts_allowed,
+                    err,
+                    exc_info=True,
+                )
+
+        elapsed_ms = (time.monotonic() - start) * 1000
+        if timed_out:
+            safe_message = "Tool request timed out."
+        else:
+            safe_message = sanitize_user_facing_error(
+                last_error or "Tool execution failed",
+                fallback="Tool request failed.",
             )
-            return result
-        except Exception as err:
-            _LOGGER.error("Tool execution error for %s: %s", name, err, exc_info=True)
-            return ToolResult(
-                success=False,
-                message=f"Tool error: {err}",
-                data={"execution_time_ms": 0.0},
-            )
+
+        return ToolResult(
+            success=False,
+            message=safe_message,
+            data={
+                "execution_time_ms": round(elapsed_ms, 2),
+                "timed_out": timed_out,
+                "retries_used": retries,
+                "attempts": attempts_allowed,
+                "latency_budget_ms": latency_budget_ms,
+            },
+        )

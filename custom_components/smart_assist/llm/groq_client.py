@@ -12,6 +12,7 @@ import aiohttp
 
 from .base_client import BaseLLMClient, LLMMetrics
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
+from ..utils import sanitize_user_facing_error
 from ..const import (
     GROQ_API_URL,
 )
@@ -119,7 +120,12 @@ class GroqClient(BaseLLMClient):
                     error_text = await response.text()
                     _LOGGER.error("Groq API error: %s", error_text)
                     self._metrics.failed_requests += 1
-                    raise GroqError(f"API error: {response.status} - {error_text}")
+                    raise GroqError(
+                        sanitize_user_facing_error(
+                            f"API error: {response.status} - {error_text}",
+                            fallback=f"API error: {response.status}",
+                        )
+                    )
 
                 async for line in response.content:
                     line = line.decode("utf-8").strip()
@@ -207,7 +213,9 @@ class GroqClient(BaseLLMClient):
         except Exception as err:
             self._metrics.failed_requests += 1
             _LOGGER.error("Groq streaming error: %s", err)
-            raise
+            raise GroqError(
+                sanitize_user_facing_error(err, fallback="Streaming error")
+            ) from err
 
     @staticmethod
     def _build_tool_calls(pending: dict[int, dict[str, Any]]) -> list[ToolCall]:
@@ -289,7 +297,12 @@ class GroqClient(BaseLLMClient):
                 if response.status != 200:
                     error_text = await response.text()
                     self._metrics.failed_requests += 1
-                    raise GroqError(f"API error: {response.status} - {error_text}")
+                    raise GroqError(
+                        sanitize_user_facing_error(
+                            f"API error: {response.status} - {error_text}",
+                            fallback=f"API error: {response.status}",
+                        )
+                    )
 
                 data = await response.json()
                 
@@ -353,4 +366,6 @@ class GroqClient(BaseLLMClient):
         except Exception as err:
             self._metrics.failed_requests += 1
             _LOGGER.error("Groq chat error: %s", err)
-            raise
+            raise GroqError(
+                sanitize_user_facing_error(err, fallback="Provider request failed")
+            ) from err

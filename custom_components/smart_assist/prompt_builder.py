@@ -14,7 +14,6 @@ from .const import (
     CALENDAR_SHARED_MARKER,
     CONF_ASK_FOLLOWUP,
     CONF_CALENDAR_CONTEXT,
-    CONF_CONFIRM_CRITICAL,
     CONF_ENABLE_AGENT_MEMORY,
     CONF_ENABLE_CANCEL_HANDLER,
     CONF_ENTITY_DISCOVERY_MODE,
@@ -216,7 +215,6 @@ async def build_system_prompt(entity: SmartAssistConversationEntity) -> str:
         # User-specified language - use directly
         language_instruction = f"Always respond in {language}."
 
-    confirm_critical = entity._get_config(CONF_CONFIRM_CRITICAL, True)
     exposed_only = entity._get_config(CONF_EXPOSED_ONLY, True)
     ask_followup = entity._get_config(CONF_ASK_FOLLOWUP, DEFAULT_ASK_FOLLOWUP)
 
@@ -268,7 +266,8 @@ Rules:
     parts.append("""
 Safety and Confirmation:
 - Never guess IDs/targets/actions when uncertain.
-- Ask confirmation before risky actions (locks, alarms, security changes) if required by policy.""")
+- Critical actions (locks, alarms, security changes) require explicit user confirmation before execution.
+- If not confirmed yet, ask for explicit confirmation and do not execute the action.""")
 
     # Conversation continuation contract
     if ask_followup:
@@ -332,11 +331,10 @@ Sending Content:
 Use 'send' tool for links/text/messages to devices. Offer when you have useful content.
 - After sending, confirm briefly ("Sent to [device].") -- do NOT repeat content in voice response.""")
 
-    # Critical actions confirmation
-    if confirm_critical:
-        parts.append("""
+    parts.append("""
 Critical Actions:
-Ask for confirmation before: locking doors, arming alarms, disabling security.""")
+Always require explicit confirmation before: locking doors, arming alarms, disabling security.
+If user has not confirmed, ask for confirmation and wait.""")
 
     # Memory instructions (if enabled)
     if entity._memory_enabled:

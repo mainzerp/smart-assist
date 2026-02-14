@@ -17,6 +17,7 @@ from ..const import (
     PROVIDER_CACHING_SUPPORT,
     supports_prompt_caching,
 )
+from ..utils import sanitize_user_facing_error
 from .base_client import BaseLLMClient, LLMMetrics
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 
@@ -170,7 +171,12 @@ class OpenRouterClient(BaseLLMClient):
                     error_text = await response.text()
                     _LOGGER.error("OpenRouter API error: %s", error_text)
                     self._metrics.failed_requests += 1
-                    raise OpenRouterError(f"API error: {response.status} - {error_text}")
+                    raise OpenRouterError(
+                        sanitize_user_facing_error(
+                            f"API error: {response.status} - {error_text}",
+                            fallback=f"API error: {response.status}",
+                        )
+                    )
 
                 data = await response.json()
                 result = self._parse_response(data)
@@ -200,7 +206,9 @@ class OpenRouterClient(BaseLLMClient):
         except Exception as err:
             _LOGGER.error("Unexpected error: %s", err)
             self._metrics.failed_requests += 1
-            raise OpenRouterError(f"Unexpected error: {err}") from err
+            raise OpenRouterError(
+                sanitize_user_facing_error(err, fallback="Unexpected provider error")
+            ) from err
 
     async def _stream_request(
         self,
@@ -281,7 +289,12 @@ class OpenRouterClient(BaseLLMClient):
                         error_text = await response.text()
                         _LOGGER.error("OpenRouter API error: %s", error_text)
                         self._metrics.failed_requests += 1
-                        raise OpenRouterError(f"API error: {response.status} - {error_text}")
+                        raise OpenRouterError(
+                            sanitize_user_facing_error(
+                                f"API error: {response.status} - {error_text}",
+                                fallback=f"API error: {response.status}",
+                            )
+                        )
 
                     async for line in response.content:
                         line = line.decode("utf-8").strip()
@@ -401,7 +414,9 @@ class OpenRouterClient(BaseLLMClient):
             except Exception as err:
                 _LOGGER.error("Streaming error: %s", err)
                 self._metrics.failed_requests += 1
-                raise OpenRouterError(f"Streaming error: {err}") from err
+                raise OpenRouterError(
+                    sanitize_user_facing_error(err, fallback="Streaming error")
+                ) from err
 
         self._metrics.failed_requests += 1
         raise last_error or OpenRouterError("Unknown error after stream retries")

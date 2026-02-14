@@ -4,9 +4,56 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.17 | 2026-02-14 |
+| Smart Assist | 1.13.18 | 2026-02-14 |
 
 ## Version History
+
+### v1.13.18 (2026-02-14) - Reliability & Safety Gate
+
+**Reliability & Safety:**
+- Added per-agent runtime controls for tool execution: `tool_max_retries` and `tool_latency_budget_ms` (config flow + translations + runtime enforcement)
+- Tool execution now records structured metadata (`timed_out`, `retries_used`, `attempts`, `latency_budget_ms`, `execution_time_ms`)
+- Implemented runtime confirmation gate for critical `control` actions (locks/alarms/covers): pending action is stored and only executed after explicit user confirmation; explicit denial cancels safely
+
+**Observability / Dashboard:**
+- Request history telemetry extended with timeout/retry fields on tool calls
+- Tool analytics now includes `failure_rate`, `timeout_calls`, and `timeout_rate`
+- History tab analytics table now shows per-tool failure rate and timeout rate
+
+**Error Safety:**
+- Added shared `sanitize_user_facing_error()` utility and applied it across tool and LLM error boundaries
+- Replaced raw backend/provider payload surfaces with normalized user-safe messages in task, tool, and provider client paths
+
+**Tests:**
+- Added/updated targeted tests for tool retries/timeouts, critical-action confirmation flow, timeout analytics, websocket analytics payloads, prompt wording alignment, and LLM error sanitization
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/tools/base.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/context/conversation.py
+- custom_components/smart_assist/context/request_history.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/utils.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/llm/base_client.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/conversation.py
+- tests/test_tools.py
+- tests/test_streaming.py
+- tests/test_request_history.py
+- tests/test_ai_task.py
+- tests/test_websocket.py
+- tests/test_prompt_builder.py
+- tests/test_llm_clients.py
+- VERSION.md
 
 ### v1.13.17 (2026-02-14) - Timer Tool-Call Guardrail
 

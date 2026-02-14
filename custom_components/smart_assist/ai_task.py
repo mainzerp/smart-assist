@@ -29,12 +29,16 @@ from .const import (
     CONF_PROVIDER,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
+    CONF_TOOL_LATENCY_BUDGET_MS,
+    CONF_TOOL_MAX_RETRIES,
     DEFAULT_LLM_PROVIDER,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
+    DEFAULT_TOOL_LATENCY_BUDGET_MS,
+    DEFAULT_TOOL_MAX_RETRIES,
     DOMAIN,
     LLM_PROVIDER_GROQ,
     LOCALE_TO_LANGUAGE,
@@ -43,7 +47,7 @@ from .context.entity_manager import EntityManager
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
-from .utils import get_config_value, execute_tools_parallel
+from .utils import execute_tools_parallel, get_config_value, sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,7 +188,10 @@ class SmartAssistAITask(AITaskEntity):
             response_content = await self._process_with_tools(messages, tools)
         except Exception as e:
             _LOGGER.error("AI Task LLM call failed: %s", e)
-            response_content = f"Error processing task: {e}"
+            response_content = sanitize_user_facing_error(
+                e,
+                fallback="Sorry, I could not process this task right now.",
+            )
         
         # Signal sensors to update their state (per subentry)
         async_dispatcher_send(
@@ -288,8 +295,20 @@ Focus on completing the task efficiently and providing structured, useful output
             )
             
             # Execute tools in parallel and add results
+            max_retries = int(
+                self._get_config(CONF_TOOL_MAX_RETRIES, DEFAULT_TOOL_MAX_RETRIES)
+            )
+            latency_budget_ms = int(
+                self._get_config(
+                    CONF_TOOL_LATENCY_BUDGET_MS,
+                    DEFAULT_TOOL_LATENCY_BUDGET_MS,
+                )
+            )
             tool_messages = await execute_tools_parallel(
-                response.tool_calls, self._tool_registry
+                response.tool_calls,
+                self._tool_registry,
+                max_retries=max_retries,
+                latency_budget_ms=latency_budget_ms,
             )
             messages.extend(tool_messages)
         

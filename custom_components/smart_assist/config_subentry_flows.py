@@ -63,6 +63,8 @@ from .const import (
     CONF_PROVIDER,
     CONF_TASK_ENABLE_CACHE_WARMING,
     CONF_TASK_SYSTEM_PROMPT,
+    CONF_TOOL_LATENCY_BUDGET_MS,
+    CONF_TOOL_MAX_RETRIES,
     CONF_TEMPERATURE,
     CONF_USER_SYSTEM_PROMPT,
     DEFAULT_ASK_FOLLOWUP,
@@ -86,6 +88,8 @@ from .const import (
     DEFAULT_PROVIDER,
     DEFAULT_TASK_ENABLE_CACHE_WARMING,
     DEFAULT_TASK_SYSTEM_PROMPT,
+    DEFAULT_TOOL_LATENCY_BUDGET_MS,
+    DEFAULT_TOOL_MAX_RETRIES,
     DEFAULT_TEMPERATURE,
     DEFAULT_USER_SYSTEM_PROMPT,
     LLM_PROVIDER_GROQ,
@@ -97,6 +101,10 @@ from .const import (
     OLLAMA_DEFAULT_NUM_CTX,
     OLLAMA_DEFAULT_TIMEOUT,
     OLLAMA_DEFAULT_URL,
+    TOOL_LATENCY_BUDGET_MS_MAX,
+    TOOL_LATENCY_BUDGET_MS_MIN,
+    TOOL_MAX_RETRIES_MAX,
+    TOOL_MAX_RETRIES_MIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -317,6 +325,23 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 SelectSelectorConfig(options=["full_index", "smart_discovery"], mode=SelectSelectorMode.DROPDOWN, translation_key="entity_discovery_mode")
             ),
             vol.Required(CONF_CONFIRM_CRITICAL, default=DEFAULT_CONFIRM_CRITICAL): BooleanSelector(),
+            vol.Required(CONF_TOOL_MAX_RETRIES, default=DEFAULT_TOOL_MAX_RETRIES): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_RETRIES_MIN,
+                    max=TOOL_MAX_RETRIES_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_TOOL_LATENCY_BUDGET_MS, default=DEFAULT_TOOL_LATENCY_BUDGET_MS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_LATENCY_BUDGET_MS_MIN,
+                    max=TOOL_LATENCY_BUDGET_MS_MAX,
+                    step=500,
+                    unit_of_measurement="ms",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             # Group: Features
             vol.Required(CONF_ENABLE_WEB_SEARCH, default=True): BooleanSelector(),
             vol.Required(CONF_CALENDAR_CONTEXT, default=DEFAULT_CALENDAR_CONTEXT): BooleanSelector(),
@@ -560,6 +585,23 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 SelectSelectorConfig(options=["full_index", "smart_discovery"], mode=SelectSelectorMode.DROPDOWN, translation_key="entity_discovery_mode")
             ),
             vol.Required(CONF_CONFIRM_CRITICAL): BooleanSelector(),
+            vol.Required(CONF_TOOL_MAX_RETRIES): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_RETRIES_MIN,
+                    max=TOOL_MAX_RETRIES_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_TOOL_LATENCY_BUDGET_MS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_LATENCY_BUDGET_MS_MIN,
+                    max=TOOL_LATENCY_BUDGET_MS_MAX,
+                    step=500,
+                    unit_of_measurement="ms",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             # Group: Features
             vol.Required(CONF_ENABLE_WEB_SEARCH): BooleanSelector(),
             vol.Required(CONF_CALENDAR_CONTEXT): BooleanSelector(),

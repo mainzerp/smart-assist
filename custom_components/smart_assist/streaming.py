@@ -9,6 +9,11 @@ from collections.abc import AsyncGenerator
 from typing import Any, TYPE_CHECKING
 
 from .const import (
+    CONF_TOOL_LATENCY_BUDGET_MS,
+    CONF_TOOL_MAX_RETRIES,
+    CRITICAL_DOMAINS,
+    DEFAULT_TOOL_LATENCY_BUDGET_MS,
+    DEFAULT_TOOL_MAX_RETRIES,
     MAX_CONSECUTIVE_FOLLOWUPS,
     MAX_TOOL_ITERATIONS,
     REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
@@ -22,6 +27,13 @@ if TYPE_CHECKING:
     from .conversation import SmartAssistConversationEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+_CONFIRM_TOKENS = {
+    "yes", "confirm", "confirmed", "proceed", "do it", "go ahead", "ja", "bestaetigt", "ok",
+}
+_DENY_TOKENS = {
+    "no", "cancel", "stop", "don't", "do not", "nein", "abbrechen", "stopp",
+}
 
 
 def _get_latest_user_text(messages: list[ChatMessage]) -> str:
@@ -64,6 +76,48 @@ def _should_force_timer_tool_retry(user_text: str, assistant_text: str) -> bool:
     return _looks_like_timer_request(user_text)
 
 
+def _is_explicit_confirmation(user_text: str) -> bool:
+    """Check if user text is an explicit confirmation."""
+    text = (user_text or "").strip().lower()
+    if not text:
+        return False
+    return any(token in text for token in _CONFIRM_TOKENS)
+
+
+def _is_explicit_denial(user_text: str) -> bool:
+    """Check if user text is an explicit deny/cancel."""
+    text = (user_text or "").strip().lower()
+    if not text:
+        return False
+    return any(token in text for token in _DENY_TOKENS)
+
+
+def _extract_target_domains(arguments: dict[str, Any]) -> set[str]:
+    """Extract target domains from tool arguments."""
+    domains: set[str] = set()
+    for key in ("entity_id", "target", "entity"):
+        value = arguments.get(key)
+        if isinstance(value, str) and "." in value:
+            domains.add(value.split(".", 1)[0])
+    entity_ids = arguments.get("entity_ids")
+    if isinstance(entity_ids, list):
+        for item in entity_ids:
+            if isinstance(item, str) and "." in item:
+                domains.add(item.split(".", 1)[0])
+    explicit_domain = arguments.get("domain")
+    if isinstance(explicit_domain, str) and explicit_domain:
+        domains.add(explicit_domain)
+    return domains
+
+
+def _is_critical_tool_call(tool_call: ToolCall) -> bool:
+    """Return True if tool call targets a critical control domain."""
+    if tool_call.name != "control":
+        return False
+    target_domains = _extract_target_domains(tool_call.arguments)
+    return any(domain in CRITICAL_DOMAINS for domain in target_domains)
+
+
 async def call_llm_streaming_with_tools(
     entity: SmartAssistConversationEntity,
     messages: list[ChatMessage],
@@ -100,6 +154,51 @@ async def call_llm_streaming_with_tools(
     final_content = ""
     await_response_called = False
     all_tool_call_records: list[ToolCallRecord] = []
+    latest_user_text = _get_latest_user_text(working_messages)
+
+    tool_max_retries = int(entity._get_config(CONF_TOOL_MAX_RETRIES, DEFAULT_TOOL_MAX_RETRIES))
+    tool_latency_budget_ms = int(
+        entity._get_config(CONF_TOOL_LATENCY_BUDGET_MS, DEFAULT_TOOL_LATENCY_BUDGET_MS)
+    )
+
+    if conversation_id:
+        pending_action = entity._conversation_manager.get_pending_critical_action(conversation_id)
+        if pending_action:
+            if _is_explicit_denial(latest_user_text):
+                entity._conversation_manager.clear_pending_critical_action(conversation_id)
+                return "Okay, I cancelled that critical action.", False, iteration, all_tool_call_records
+
+            if _is_explicit_confirmation(latest_user_text):
+                result = await (await entity._get_tool_registry()).execute(
+                    pending_action.get("tool_name", "control"),
+                    pending_action.get("arguments", {}),
+                    max_retries=tool_max_retries,
+                    latency_budget_ms=tool_latency_budget_ms,
+                )
+                entity._conversation_manager.clear_pending_critical_action(conversation_id)
+                all_tool_call_records.append(
+                    ToolCallRecord(
+                        name=pending_action.get("tool_name", "control"),
+                        success=result.success,
+                        execution_time_ms=result.data.get("execution_time_ms", 0.0),
+                        arguments_summary=RequestHistoryStore.truncate(
+                            str(pending_action.get("arguments", {})),
+                            REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
+                        ),
+                        timed_out=result.data.get("timed_out", False),
+                        retries_used=result.data.get("retries_used", 0),
+                        latency_budget_ms=result.data.get("latency_budget_ms"),
+                    )
+                )
+                return result.to_string(), False, 1, all_tool_call_records
+
+            pending_tool = pending_action.get("tool_name", "control")
+            return (
+                f"Please confirm before I run the critical action '{pending_tool}'. Reply with yes to proceed or no to cancel.",
+                True,
+                iteration,
+                all_tool_call_records,
+            )
 
     while iteration < max_iterations:
         iteration += 1
@@ -320,6 +419,24 @@ async def call_llm_streaming_with_tools(
 
             _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(other_tool_calls))
 
+            if conversation_id:
+                critical_calls = [tc for tc in other_tool_calls if _is_critical_tool_call(tc)]
+                if critical_calls:
+                    critical_call = critical_calls[0]
+                    entity._conversation_manager.set_pending_critical_action(
+                        conversation_id,
+                        {
+                            "tool_name": critical_call.name,
+                            "arguments": critical_call.arguments,
+                            "created_at": iteration,
+                            "target_domains": list(_extract_target_domains(critical_call.arguments)),
+                        },
+                    )
+                    confirmation_question = (
+                        "This is a critical action. Please confirm explicitly: yes to proceed or no to cancel."
+                    )
+                    return confirmation_question, True, iteration, all_tool_call_records
+
             # Add assistant message with tool calls to working messages
             working_messages.append(
                 ChatMessage(
@@ -334,7 +451,10 @@ async def call_llm_streaming_with_tools(
                 """Execute a single tool and return result with metadata."""
                 _LOGGER.debug("Executing tool: %s", tool_call.name)
                 result = await (await entity._get_tool_registry()).execute(
-                    tool_call.name, tool_call.arguments
+                    tool_call.name,
+                    tool_call.arguments,
+                    max_retries=tool_max_retries,
+                    latency_budget_ms=tool_latency_budget_ms,
                 )
                 return (tool_call, result)
 
@@ -355,6 +475,9 @@ async def call_llm_streaming_with_tools(
                         arguments_summary=RequestHistoryStore.truncate(
                             str(failed_tc.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
                         ),
+                        timed_out=isinstance(item, asyncio.TimeoutError),
+                        retries_used=tool_max_retries,
+                        latency_budget_ms=tool_latency_budget_ms,
                     ))
                     working_messages.append(
                         ChatMessage(
@@ -373,6 +496,9 @@ async def call_llm_streaming_with_tools(
                     arguments_summary=RequestHistoryStore.truncate(
                         str(tool_call.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
                     ),
+                    timed_out=result.data.get("timed_out", False),
+                    retries_used=result.data.get("retries_used", 0),
+                    latency_budget_ms=result.data.get("latency_budget_ms"),
                 ))
                 working_messages.append(
                     ChatMessage(

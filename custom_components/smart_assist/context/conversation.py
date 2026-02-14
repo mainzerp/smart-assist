@@ -35,6 +35,7 @@ class ConversationSession:
     recent_entities: deque[RecentEntity] = field(default_factory=lambda: deque(maxlen=SESSION_RECENT_ENTITIES_MAX))
     consecutive_followups: int = 0  # Counter for consecutive follow-up questions
     active_user_id: str | None = None  # Set by switch_user action for multi-user support
+    pending_critical_action: dict[str, Any] | None = None
     created_at: datetime = field(default_factory=dt_util.now)
     last_active: datetime = field(default_factory=dt_util.now)
 
@@ -94,6 +95,7 @@ class ConversationSession:
         self.recent_entities.clear()
         self.consecutive_followups = 0
         self.active_user_id = None
+        self.pending_critical_action = None
         self.last_active = dt_util.now()
 
     def increment_followup(self) -> int:
@@ -275,3 +277,25 @@ class ConversationManager:
         if session_id not in self._sessions:
             return None
         return self._sessions[session_id].active_user_id
+
+    def set_pending_critical_action(
+        self,
+        session_id: str,
+        action: dict[str, Any],
+    ) -> None:
+        """Store pending critical action awaiting explicit user confirmation."""
+        session = self.get_or_create_session(session_id)
+        session.pending_critical_action = action
+        session.last_active = dt_util.now()
+
+    def get_pending_critical_action(self, session_id: str) -> dict[str, Any] | None:
+        """Get pending critical action for session, if any."""
+        if session_id not in self._sessions:
+            return None
+        return self._sessions[session_id].pending_critical_action
+
+    def clear_pending_critical_action(self, session_id: str) -> None:
+        """Clear pending critical action for session."""
+        if session_id in self._sessions:
+            self._sessions[session_id].pending_critical_action = None
+            self._sessions[session_id].last_active = dt_util.now()

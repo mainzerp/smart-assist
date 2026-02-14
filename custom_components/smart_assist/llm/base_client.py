@@ -22,6 +22,7 @@ from ..const import (
     LLM_RETRY_BASE_DELAY,
     LLM_RETRY_MAX_DELAY,
 )
+from ..utils import sanitize_user_facing_error
 from .models import LLMError
 
 if TYPE_CHECKING:
@@ -247,7 +248,10 @@ class BaseLLMClient(ABC):
                 error_text = await response.text()
                 response.close()
                 last_error = LLMClientError(
-                    f"API error: {response.status} - {error_text}",
+                    sanitize_user_facing_error(
+                        f"API error: {response.status} - {error_text}",
+                        fallback=f"API error: {response.status}",
+                    ),
                     response.status,
                 )
                 
@@ -261,7 +265,9 @@ class BaseLLMClient(ABC):
                     await asyncio.sleep(delay)
                     
             except aiohttp.ClientError as err:
-                last_error = LLMClientError(f"Network error: {err}")
+                last_error = LLMClientError(
+                    sanitize_user_facing_error(err, fallback="Network error")
+                )
                 if attempt < LLM_MAX_RETRIES - 1:
                     delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(
@@ -272,7 +278,9 @@ class BaseLLMClient(ABC):
                     await asyncio.sleep(delay)
             
             except asyncio.TimeoutError as err:
-                last_error = LLMClientError(f"Request timeout: {err}")
+                last_error = LLMClientError(
+                    sanitize_user_facing_error(err, fallback="Request timeout")
+                )
                 if attempt < LLM_MAX_RETRIES - 1:
                     delay = min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY)
                     _LOGGER.warning(

@@ -725,11 +725,14 @@ class SmartAssistPanel extends HTMLElement {
     let rows = '';
     for (const tool of tools) {
       const successRateClass = this._successColor(tool.success_rate || 100);
+      const timeoutRateClass = (tool.timeout_rate || 0) > 0 ? 'warning' : 'success';
       rows += '<tr>'
         + '<td><strong>' + this._esc(tool.name) + '</strong></td>'
         + '<td>' + (tool.total_calls || 0) + '</td>'
         + '<td class="' + successRateClass + '">'
         + (tool.success_rate || 100).toFixed(1) + '%</td>'
+        + '<td>' + (tool.failure_rate || 0).toFixed(1) + '%</td>'
+        + '<td class="' + timeoutRateClass + '">' + (tool.timeout_rate || 0).toFixed(1) + '%</td>'
         + '<td>' + Math.round(tool.average_execution_time_ms || 0) + ' ms</td>'
         + '<td style="font-size:12px;color:var(--sa-text-secondary);">'
         + (tool.last_used ? new Date(tool.last_used).toLocaleString() : '-') + '</td>'
@@ -738,7 +741,7 @@ class SmartAssistPanel extends HTMLElement {
 
     return '<div class="card"><h3>Tool Usage Analytics</h3>'
       + '<table><thead><tr><th>Tool</th><th>Calls</th>'
-      + '<th>Success Rate</th><th>Avg Time</th><th>Last Used</th></tr></thead>'
+      + '<th>Success Rate</th><th>Failure Rate</th><th>Timeout Rate</th><th>Avg Time</th><th>Last Used</th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
   }
 
