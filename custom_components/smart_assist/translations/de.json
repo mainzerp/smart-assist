@@ -282,6 +282,8 @@
             "max_tokens": "Maximale Antwort-Tokens",
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
+            "task_allow_control": "Steuerungsausfuehrung erlauben",
+            "task_allow_lock_control": "Schloss-Steuerung erlauben",
             "task_system_prompt": "System Prompt",
             "task_enable_cache_warming": "Cache-Warming aktivieren"
           },
@@ -292,6 +294,8 @@
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
             "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",
+            "task_allow_control": "Wenn deaktiviert, kann dieser AI Task keine control-Tool-Aufrufe ausfuehren.",
+            "task_allow_lock_control": "Wenn deaktiviert, kann dieser AI Task keine lock.*-Entities steuern (gilt nur bei aktivierter Steuerungsausfuehrung).",
             "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
           }
         },
@@ -319,6 +323,8 @@
             "max_tokens": "Maximale Antwort-Tokens",
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
+            "task_allow_control": "Steuerungsausfuehrung erlauben",
+            "task_allow_lock_control": "Schloss-Steuerung erlauben",
             "task_system_prompt": "System Prompt",
             "task_enable_cache_warming": "Cache-Warming aktivieren"
           },
@@ -329,6 +335,8 @@
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",
             "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
+            "task_allow_control": "Wenn deaktiviert, kann dieser AI Task keine control-Tool-Aufrufe ausfuehren.",
+            "task_allow_lock_control": "Wenn deaktiviert, kann dieser AI Task keine lock.*-Entities steuern (gilt nur bei aktivierter Steuerungsausfuehrung).",
             "task_enable_cache_warming": "Nicht empfohlen - Hintergrund-Tasks sind nicht zeitkritisch."
           }
         }

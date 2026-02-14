@@ -16,7 +16,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .base import BaseTool, ToolRegistry, ToolResult
-from ..const import CONF_ENABLE_WEB_SEARCH, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY
+from ..const import (
+    CONF_ENABLE_WEB_SEARCH,
+    CONF_ENABLE_MEMORY,
+    CONF_TASK_ALLOW_CONTROL,
+    CONF_TASK_SYSTEM_PROMPT,
+    DEFAULT_ENABLE_MEMORY,
+    DEFAULT_TASK_ALLOW_CONTROL,
+)
 
 if TYPE_CHECKING:
     from typing import Any
@@ -92,8 +99,18 @@ def create_tool_registry(
     registered_tools.append("get_entity_state")
     registry.register(GetEntityHistoryTool(hass))  # Query historical entity states
     registered_tools.append("get_entity_history")
-    registry.register(UnifiedControlTool(hass))  # Handles all entity control including scripts
-    registered_tools.append("control")
+    is_ai_task_context = bool(subentry_data and CONF_TASK_SYSTEM_PROMPT in subentry_data)
+    allow_control_for_task = _get_config(
+        entry,
+        CONF_TASK_ALLOW_CONTROL,
+        DEFAULT_TASK_ALLOW_CONTROL,
+        subentry_data,
+    )
+    if not is_ai_task_context or allow_control_for_task:
+        registry.register(UnifiedControlTool(hass))  # Handles all entity control including scripts
+        registered_tools.append("control")
+    else:
+        _LOGGER.debug("AI Task control tool disabled by task_allow_control setting")
     registry.register(AwaitResponseTool(hass))  # Signal to keep conversation open
     registered_tools.append("await_response")
 

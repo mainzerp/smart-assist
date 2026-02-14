@@ -61,6 +61,8 @@ from .const import (
     CONF_OLLAMA_TIMEOUT,
     CONF_OLLAMA_URL,
     CONF_PROVIDER,
+    CONF_TASK_ALLOW_CONTROL,
+    CONF_TASK_ALLOW_LOCK_CONTROL,
     CONF_TASK_ENABLE_CACHE_WARMING,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TOOL_LATENCY_BUDGET_MS,
@@ -86,6 +88,8 @@ from .const import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
+    DEFAULT_TASK_ALLOW_CONTROL,
+    DEFAULT_TASK_ALLOW_LOCK_CONTROL,
     DEFAULT_TASK_ENABLE_CACHE_WARMING,
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TOOL_LATENCY_BUDGET_MS,
@@ -783,6 +787,8 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY, default=DEFAULT_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_TASK_ALLOW_CONTROL, default=DEFAULT_TASK_ALLOW_CONTROL): BooleanSelector(),
+            vol.Required(CONF_TASK_ALLOW_LOCK_CONTROL, default=DEFAULT_TASK_ALLOW_LOCK_CONTROL): BooleanSelector(),
             vol.Required(CONF_TASK_SYSTEM_PROMPT, default=DEFAULT_TASK_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
             ),
@@ -939,6 +945,8 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                 TextSelectorConfig(type=TextSelectorType.TEXT)
             ),
             vol.Required(CONF_EXPOSED_ONLY): BooleanSelector(),
+            vol.Required(CONF_TASK_ALLOW_CONTROL): BooleanSelector(),
+            vol.Required(CONF_TASK_ALLOW_LOCK_CONTROL): BooleanSelector(),
             vol.Required(CONF_TASK_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
             ),

@@ -30,6 +30,8 @@ CONF_USER_SYSTEM_PROMPT: Final = "user_system_prompt"
 CONF_TASK_SYSTEM_PROMPT: Final = "task_system_prompt"
 CONF_TASK_ENABLE_PROMPT_CACHING: Final = "task_enable_prompt_caching"
 CONF_TASK_ENABLE_CACHE_WARMING: Final = "task_enable_cache_warming"
+CONF_TASK_ALLOW_CONTROL: Final = "task_allow_control"
+CONF_TASK_ALLOW_LOCK_CONTROL: Final = "task_allow_lock_control"
 CONF_DEBUG_LOGGING: Final = "debug_logging"
 CONF_ENABLE_CANCEL_HANDLER: Final = "enable_cancel_handler"
 CONF_CANCEL_INTENT_AGENT: Final = "cancel_intent_agent"
@@ -79,6 +81,8 @@ DEFAULT_USER_SYSTEM_PROMPT: Final = "You are Smart Assist, a friendly and intell
 DEFAULT_TASK_SYSTEM_PROMPT: Final = "You are a smart home task executor. Complete tasks efficiently and provide structured output."
 DEFAULT_TASK_ENABLE_PROMPT_CACHING: Final = False  # Tasks are not time-critical
 DEFAULT_TASK_ENABLE_CACHE_WARMING: Final = False   # Tasks are not time-critical
+DEFAULT_TASK_ALLOW_CONTROL: Final = False  # Explicit opt-in required for control tool use
+DEFAULT_TASK_ALLOW_LOCK_CONTROL: Final = False  # Separate explicit opt-in for lock domain control
 
 # Conversation engine constants
 TTS_STREAM_MIN_CHARS: Final = 65  # Minimum chars to trigger TTS streaming in Companion App

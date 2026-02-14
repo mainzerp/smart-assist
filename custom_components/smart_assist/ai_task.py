@@ -27,10 +27,14 @@ from .const import (
     CONF_MAX_TOKENS,
     CONF_MODEL,
     CONF_PROVIDER,
+    CONF_TASK_ALLOW_CONTROL,
+    CONF_TASK_ALLOW_LOCK_CONTROL,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
     CONF_TOOL_LATENCY_BUDGET_MS,
     CONF_TOOL_MAX_RETRIES,
+    DEFAULT_TASK_ALLOW_CONTROL,
+    DEFAULT_TASK_ALLOW_LOCK_CONTROL,
     DEFAULT_LLM_PROVIDER,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
@@ -50,6 +54,42 @@ from .tools import create_tool_registry
 from .utils import execute_tools_parallel, get_config_value, sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _extract_target_domains(arguments: dict[str, Any]) -> set[str]:
+    """Extract target domains from control-tool arguments."""
+    domains: set[str] = set()
+
+    def _collect_entity_like(value: Any) -> None:
+        if isinstance(value, str):
+            if "." in value:
+                domains.add(value.split(".", 1)[0])
+            return
+
+        if isinstance(value, list):
+            for item in value:
+                _collect_entity_like(item)
+            return
+
+        if isinstance(value, dict):
+            for key in ("entity_id", "entity_ids", "target", "targets", "entity"):
+                if key in value:
+                    _collect_entity_like(value[key])
+
+    for key in ("entity_id", "entity_ids", "target", "targets", "entity"):
+        if key in arguments:
+            _collect_entity_like(arguments[key])
+
+    explicit_domain = arguments.get("domain")
+    if isinstance(explicit_domain, str) and explicit_domain:
+        domains.add(explicit_domain)
+
+    return domains
+
+
+def _targets_lock_domain(arguments: dict[str, Any]) -> bool:
+    """Return True if a control call targets lock domain."""
+    return "lock" in _extract_target_domains(arguments)
 
 
 async def async_setup_entry(
@@ -150,6 +190,7 @@ class SmartAssistAITask(AITaskEntity):
         self._tool_registry = create_tool_registry(
             hass=hass,
             entry=config_entry,
+            subentry_data=subentry.data,
         )
         
         # Store LLM client reference for sensors to access metrics
@@ -304,12 +345,68 @@ Focus on completing the task efficiently and providing structured, useful output
                     DEFAULT_TOOL_LATENCY_BUDGET_MS,
                 )
             )
-            tool_messages = await execute_tools_parallel(
-                response.tool_calls,
-                self._tool_registry,
-                max_retries=max_retries,
-                latency_budget_ms=latency_budget_ms,
+            allow_control = bool(
+                self._get_config(CONF_TASK_ALLOW_CONTROL, DEFAULT_TASK_ALLOW_CONTROL)
             )
+            allow_lock_control = bool(
+                self._get_config(
+                    CONF_TASK_ALLOW_LOCK_CONTROL,
+                    DEFAULT_TASK_ALLOW_LOCK_CONTROL,
+                )
+            )
+
+            allowed_tool_calls: list[Any] = []
+            blocked_messages: dict[str, ChatMessage] = {}
+            for tool_call in response.tool_calls:
+                if tool_call.name != "control":
+                    allowed_tool_calls.append(tool_call)
+                    continue
+
+                if not allow_control:
+                    blocked_messages[tool_call.id] = ChatMessage(
+                        role=MessageRole.TOOL,
+                        content="Control actions are disabled for this AI Task.",
+                        tool_call_id=tool_call.id,
+                        name=tool_call.name,
+                    )
+                    continue
+
+                if not allow_lock_control and _targets_lock_domain(tool_call.arguments):
+                    blocked_messages[tool_call.id] = ChatMessage(
+                        role=MessageRole.TOOL,
+                        content="Lock control is disabled for this AI Task.",
+                        tool_call_id=tool_call.id,
+                        name=tool_call.name,
+                    )
+                    continue
+
+                allowed_tool_calls.append(tool_call)
+
+            executed_messages: dict[str, ChatMessage] = {}
+            if allowed_tool_calls:
+                tool_messages = await execute_tools_parallel(
+                    allowed_tool_calls,
+                    self._tool_registry,
+                    max_retries=max_retries,
+                    latency_budget_ms=latency_budget_ms,
+                )
+                executed_messages = {
+                    msg.tool_call_id: msg
+                    for msg in tool_messages
+                    if msg.tool_call_id
+                }
+
+            tool_messages: list[ChatMessage] = []
+            for tool_call in response.tool_calls:
+                blocked_message = blocked_messages.get(tool_call.id)
+                if blocked_message is not None:
+                    tool_messages.append(blocked_message)
+                    continue
+
+                executed_message = executed_messages.get(tool_call.id)
+                if executed_message is not None:
+                    tool_messages.append(executed_message)
+
             messages.extend(tool_messages)
         
         _LOGGER.warning("AI Task max iterations reached")

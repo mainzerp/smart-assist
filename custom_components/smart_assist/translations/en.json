@@ -282,6 +282,8 @@
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
+            "task_allow_control": "Allow control execution",
+            "task_allow_lock_control": "Allow lock control",
             "task_system_prompt": "System Prompt",
             "task_enable_cache_warming": "Enable cache warming"
           },
@@ -292,6 +294,8 @@
             "language": "'auto' = uses HA language. Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
             "task_system_prompt": "Instructions for this AI task in automations.",
             "exposed_only": "Only controls entities that are explicitly exposed in Home Assistant. Disable to access all entities.",
+            "task_allow_control": "If disabled, this AI task cannot execute any control tool call.",
+            "task_allow_lock_control": "If disabled, this AI task cannot control lock.* entities (only applies when control execution is enabled).",
             "task_enable_cache_warming": "Not recommended - background tasks are not time-critical."
           }
         },
@@ -319,6 +323,8 @@
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
+            "task_allow_control": "Allow control execution",
+            "task_allow_lock_control": "Allow lock control",
             "task_system_prompt": "System Prompt",
             "task_enable_cache_warming": "Enable cache warming"
           },
@@ -329,6 +335,8 @@
             "language": "'auto' = uses HA language. Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
             "exposed_only": "Only controls entities that are explicitly exposed in Home Assistant. Disable to access all entities.",
             "task_system_prompt": "Instructions for this AI task in automations.",
+            "task_allow_control": "If disabled, this AI task cannot execute any control tool call.",
+            "task_allow_lock_control": "If disabled, this AI task cannot control lock.* entities (only applies when control execution is enabled).",
             "task_enable_cache_warming": "Not recommended - background tasks are not time-critical."
           }
         }

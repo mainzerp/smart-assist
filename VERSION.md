@@ -4,9 +4,37 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.18 | 2026-02-14 |
+| Smart Assist | 1.14.0  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.0 (2026-02-14) - AI Task Control Opt-In + Lock Guard
+
+**New Features:**
+- Added two AI Task-level safety switches: `task_allow_control` and `task_allow_lock_control`
+- AI Task settings and reconfigure forms now expose both switches with synced EN/DE/base translations
+- AI Task tool execution now enforces policy at runtime:
+  - blocks all `control` tool calls when control opt-in is disabled
+  - blocks `lock.*` control attempts when control is enabled but lock control is disabled
+
+**Compatibility & Behavior:**
+- Conversation critical confirmation flow remains unchanged
+- Tool registry now applies control-tool suppression only in AI Task context when control opt-in is disabled
+
+**Tests:**
+- Added targeted AI Task tests for disabled control, lock-domain blocking, allowed non-lock control, allowed lock control, and subentry-data wiring to tool registry
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/tools/__init__.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_ai_task.py
+- VERSION.md
 
 ### v1.13.18 (2026-02-14) - Reliability & Safety Gate
 
