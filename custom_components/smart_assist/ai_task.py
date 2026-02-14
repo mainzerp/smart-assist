@@ -434,6 +434,12 @@ Focus on completing the task efficiently and providing structured, useful output
         
         return messages
 
+    def get_registered_tool_names(self) -> list[str]:
+        """Return currently registered tool names for diagnostics/UI."""
+        if not self._tool_registry:
+            return []
+        return [tool.name for tool in self._tool_registry.get_all()]
+
     async def _process_with_tools(
         self,
         messages: list[ChatMessage],

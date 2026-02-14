@@ -4,9 +4,20 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.7  | 2026-02-14 |
+| Smart Assist | 1.14.8  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.8 (2026-02-14) - AI Task Registered Tools in Overview
+
+**Bug Fixes:**
+- Added `get_registered_tool_names()` to AI Task entities so dashboard overview can display `Registered Tools (N)` for task rows
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.7 (2026-02-14) - Overview Includes AI Task Rows
 
