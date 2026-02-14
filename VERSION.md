@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.8  | 2026-02-14 |
+| Smart Assist | 1.14.9  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.9 (2026-02-14) - Per-Entity Avg Response + Cleaner Top Overview
+
+**Dashboard UI:**
+- Added `Avg Response` display per agent/task row in Overview
+- Removed `Cache Hit Rate` card from the top aggregate Overview section
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.8 (2026-02-14) - AI Task Registered Tools in Overview
 

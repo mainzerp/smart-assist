@@ -493,6 +493,7 @@ class SmartAssistPanel extends HTMLElement {
       const agent = agents[agentId];
       const metrics = agent ? (agent.metrics || {}) : {};
       html += '<div class="card"><h3>' + this._esc(agent.name || agentId) + '</h3>'
+        + this._renderPerEntityAvgResponse(metrics)
         + this._renderOverviewContent(metrics, agent)
         + '</div>';
     }
@@ -501,6 +502,7 @@ class SmartAssistPanel extends HTMLElement {
       const task = tasks[taskId];
       const metrics = task ? (task.metrics || {}) : {};
       html += '<div class="card"><h3>AI Task: ' + this._esc(task.name || taskId) + '</h3>'
+        + this._renderPerEntityAvgResponse(metrics)
         + this._renderOverviewContent(metrics, task)
         + '</div>';
     }
@@ -513,15 +515,18 @@ class SmartAssistPanel extends HTMLElement {
       return '';
     }
     const successRate = metrics.success_rate ?? 100;
-    const cacheHitRate = metrics.cache_hit_rate ?? 0;
     const totalTokens = (metrics.total_prompt_tokens || 0) + (metrics.total_completion_tokens || 0);
     return '<div class="overview-grid">'
       + '<div class="metric-card"><div class="label">Total Requests</div><div class="value">' + this._fmt(metrics.total_requests || 0) + '</div><div class="sub">' + (metrics.failed_requests || 0) + ' failed</div></div>'
       + '<div class="metric-card"><div class="label">Success Rate</div><div class="value ' + this._successColor(successRate) + '">' + successRate.toFixed(1) + '%</div><div class="sub">' + (metrics.total_retries || 0) + ' retries</div></div>'
       + '<div class="metric-card"><div class="label">Avg Response</div><div class="value">' + Math.round(metrics.average_response_time_ms || 0) + '</div><div class="sub">milliseconds</div></div>'
       + '<div class="metric-card"><div class="label">Total Tokens</div><div class="value">' + this._fmt(totalTokens) + '</div><div class="sub">' + this._fmt(metrics.total_prompt_tokens || 0) + ' prompt / ' + this._fmt(metrics.total_completion_tokens || 0) + ' completion</div></div>'
-      + '<div class="metric-card"><div class="label">Cache Hit Rate</div><div class="value ' + this._cacheColor(cacheHitRate) + '">' + cacheHitRate.toFixed(1) + '%</div><div class="sub">' + this._fmt(metrics.cached_tokens || 0) + ' tokens cached</div></div>'
       + '</div>';
+  }
+
+  _renderPerEntityAvgResponse(metrics) {
+    if (!metrics) return '';
+    return '<div class="sub" style="margin-bottom:12px;">Avg Response: ' + Math.round(metrics.average_response_time_ms || 0) + ' ms</div>';
   }
 
   _renderOverviewContent(metrics, agent) {
