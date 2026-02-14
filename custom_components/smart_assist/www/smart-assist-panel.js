@@ -469,11 +469,29 @@ class SmartAssistPanel extends HTMLElement {
 
   _renderOverviewTab(agents) {
     const agent = this._selectedAgent ? agents[this._selectedAgent] : null;
-    const metrics = agent ? (agent.metrics || {}) : this._getAggregateMetrics();
+    const metrics = this._getAggregateMetrics();
     let html = "";
 
     html += this._renderOverviewMetrics(metrics);
-    html += this._renderOverviewContent(metrics, agent);
+    html += this._renderPerAgentOverview(agents, agent);
+
+    return html;
+  }
+
+  _renderPerAgentOverview(agents, selectedAgent) {
+    const agentIds = Object.keys(agents || {});
+    if (agentIds.length === 0) {
+      return this._renderOverviewContent(this._getAggregateMetrics(), selectedAgent);
+    }
+
+    let html = "";
+    for (const agentId of agentIds) {
+      const agent = agents[agentId];
+      const metrics = agent ? (agent.metrics || {}) : {};
+      html += '<div class="card"><h3>' + this._esc(agent.name || agentId) + '</h3>'
+        + this._renderOverviewContent(metrics, agent)
+        + '</div>';
+    }
 
     return html;
   }
@@ -754,18 +772,15 @@ class SmartAssistPanel extends HTMLElement {
       this._render();
     }
     try {
-      const agentId = this._selectedAgent || undefined;
       const offset = (this._historyPage || 0) * HISTORY_PAGE_SIZE;
       const [historyResult, analyticsResult] = await Promise.all([
         this._hass.callWS({
           type: "smart_assist/request_history",
-          agent_id: agentId,
           limit: HISTORY_PAGE_SIZE,
           offset: offset,
         }),
         this._hass.callWS({
           type: "smart_assist/tool_analytics",
-          agent_id: agentId,
         }),
       ]);
       this._historyData = historyResult;

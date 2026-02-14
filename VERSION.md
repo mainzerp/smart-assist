@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.5  | 2026-02-14 |
+| Smart Assist | 1.14.6  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.6 (2026-02-14) - Dashboard History Visibility & Per-Agent Overview
+
+**Bug Fixes:**
+- History tab now loads unfiltered request history/tool analytics by default, so AI Task entries are visible alongside conversation entries
+
+**Dashboard UI:**
+- Overview now renders per-agent sections for `Token Usage`, `Cache Performance`, and `Registered Tools (N)` instead of showing these blocks only for the currently selected agent
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.5 (2026-02-14) - AI Task History Dashboard Logging
 
