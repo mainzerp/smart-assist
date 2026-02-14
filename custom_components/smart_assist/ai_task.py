@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Any, TYPE_CHECKING
 
 from homeassistant.components.ai_task import (
@@ -17,11 +19,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_API_KEY,
     CONF_EXPOSED_ONLY,
+    CONF_ENABLE_REQUEST_HISTORY_CONTENT,
     CONF_GROQ_API_KEY,
+    CONF_HISTORY_RETENTION_DAYS,
     CONF_LANGUAGE,
     CONF_LLM_PROVIDER,
     CONF_MAX_TOKENS,
@@ -35,6 +40,8 @@ from .const import (
     CONF_TOOL_MAX_RETRIES,
     DEFAULT_TASK_ALLOW_CONTROL,
     DEFAULT_TASK_ALLOW_LOCK_CONTROL,
+    DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
+    DEFAULT_HISTORY_RETENTION_DAYS,
     DEFAULT_LLM_PROVIDER,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
@@ -46,12 +53,16 @@ from .const import (
     DOMAIN,
     LLM_PROVIDER_GROQ,
     LOCALE_TO_LANGUAGE,
+    REQUEST_HISTORY_INPUT_MAX_LENGTH,
+    REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
+    REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
 )
 from .context.entity_manager import EntityManager
+from .context.request_history import RequestHistoryEntry, RequestHistoryStore, ToolCallRecord
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
-from .utils import execute_tools_parallel, get_config_value, sanitize_user_facing_error
+from .utils import get_config_value, sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -202,6 +213,9 @@ class SmartAssistAITask(AITaskEntity):
             "entity": self,
         }
 
+        self._last_tool_call_records: list[ToolCallRecord] = []
+        self._last_llm_iterations: int = 1
+
     async def async_added_to_hass(self) -> None:
         """Set a deterministic initial state when the entity is first added."""
         await super().async_added_to_hass()
@@ -229,6 +243,7 @@ class SmartAssistAITask(AITaskEntity):
                 else "None"
             ),
         )
+        request_start_time = time.monotonic()
 
         # Normalize instructions to avoid provider-side unknown errors
         raw_instructions = getattr(task, "instructions", "")
@@ -256,6 +271,102 @@ class SmartAssistAITask(AITaskEntity):
                 e,
                 fallback="Sorry, I could not process this task right now.",
             )
+
+        history_store = self.hass.data.get(DOMAIN, {}).get(
+            self._config_entry.entry_id, {}
+        ).get("request_history")
+        if history_store:
+            include_history_content = bool(
+                get_config_value(
+                    self._config_entry,
+                    CONF_ENABLE_REQUEST_HISTORY_CONTENT,
+                    DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
+                )
+            )
+            retention_days = max(
+                1,
+                int(
+                    get_config_value(
+                        self._config_entry,
+                        CONF_HISTORY_RETENTION_DAYS,
+                        DEFAULT_HISTORY_RETENTION_DAYS,
+                    )
+                ),
+            )
+            input_text = (
+                RequestHistoryStore.truncate(
+                    instructions,
+                    REQUEST_HISTORY_INPUT_MAX_LENGTH,
+                )
+                if include_history_content
+                else ""
+            )
+            response_history_text = (
+                RequestHistoryStore.truncate(
+                    response_content,
+                    REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
+                )
+                if include_history_content
+                else ""
+            )
+
+            sanitized_tool_calls: list[ToolCallRecord] = []
+            for record in self._last_tool_call_records:
+                args_summary = (
+                    RequestHistoryStore.truncate(
+                        record.arguments_summary,
+                        REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
+                    )
+                    if include_history_content
+                    else ""
+                )
+                sanitized_tool_calls.append(
+                    ToolCallRecord(
+                        name=record.name,
+                        success=record.success,
+                        execution_time_ms=record.execution_time_ms,
+                        arguments_summary=args_summary,
+                        timed_out=record.timed_out,
+                        retries_used=record.retries_used,
+                        latency_budget_ms=record.latency_budget_ms,
+                    )
+                )
+
+            prompt_tokens = 0
+            completion_tokens = 0
+            cached_tokens = 0
+            if self._llm_client and hasattr(self._llm_client, "metrics"):
+                metrics = self._llm_client.metrics
+                prompt_tokens = getattr(metrics, "_last_prompt_tokens", 0)
+                completion_tokens = getattr(metrics, "_last_completion_tokens", 0)
+                cached_tokens = getattr(metrics, "_last_cached_tokens", 0)
+
+            history_store.prune_older_than_days(retention_days)
+            history_store.add_entry(
+                RequestHistoryEntry(
+                    id=RequestHistoryStore.generate_id(),
+                    timestamp=dt_util.now().isoformat(),
+                    agent_id=self._subentry.subentry_id,
+                    agent_name=self._subentry.title,
+                    conversation_id=chat_log.conversation_id,
+                    user_id="system",
+                    input_text=input_text,
+                    response_text=response_history_text,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cached_tokens=cached_tokens,
+                    response_time_ms=(time.monotonic() - request_start_time) * 1000,
+                    llm_provider=self._get_config(CONF_LLM_PROVIDER, DEFAULT_LLM_PROVIDER),
+                    model=self._get_config(CONF_MODEL, DEFAULT_MODEL),
+                    llm_iterations=self._last_llm_iterations,
+                    tools_used=sanitized_tool_calls,
+                    success=True,
+                    error=None,
+                    is_nevermind=False,
+                    is_system_call=True,
+                )
+            )
+            self.hass.async_create_task(history_store.async_save())
         
         # Signal sensors to update their state (per subentry)
         async_dispatcher_send(
@@ -331,6 +442,9 @@ Focus on completing the task efficiently and providing structured, useful output
     ) -> str:
         """Process LLM request with tool execution support."""
         iteration = 0
+        tool_call_records: list[ToolCallRecord] = []
+        self._last_tool_call_records = []
+        self._last_llm_iterations = 1
         # Always cache system + user message prefix
         cached_prefix_length = 2
         
@@ -345,6 +459,8 @@ Focus on completing the task efficiently and providing structured, useful output
             )
             
             if not response.has_tool_calls:
+                self._last_tool_call_records = tool_call_records
+                self._last_llm_iterations = iteration
                 return response.content or ""
             
             _LOGGER.debug("AI Task executing %d tool calls", len(response.tool_calls))
@@ -407,23 +523,72 @@ Focus on completing the task efficiently and providing structured, useful output
 
             executed_messages: dict[str, ChatMessage] = {}
             if allowed_tool_calls:
-                tool_messages = await execute_tools_parallel(
-                    allowed_tool_calls,
-                    self._tool_registry,
-                    max_retries=max_retries,
-                    latency_budget_ms=latency_budget_ms,
+                async def _exec(call: Any) -> tuple[Any, Any]:
+                    result = await self._tool_registry.execute(
+                        call.name,
+                        call.arguments,
+                        max_retries=max_retries,
+                        latency_budget_ms=latency_budget_ms,
+                    )
+                    return call, result
+
+                raw_results = await asyncio.gather(
+                    *[_exec(call) for call in allowed_tool_calls],
+                    return_exceptions=True,
                 )
-                executed_messages = {
-                    msg.tool_call_id: msg
-                    for msg in tool_messages
-                    if msg.tool_call_id
-                }
+                for idx, item in enumerate(raw_results):
+                    call = allowed_tool_calls[idx]
+                    arguments_summary = str(call.arguments)
+                    if isinstance(item, Exception):
+                        executed_messages[call.id] = ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=f"Error: {item}",
+                            tool_call_id=call.id,
+                            name=call.name,
+                        )
+                        tool_call_records.append(
+                            ToolCallRecord(
+                                name=call.name,
+                                success=False,
+                                execution_time_ms=0.0,
+                                arguments_summary=arguments_summary,
+                            )
+                        )
+                        continue
+
+                    _, result = item
+                    executed_messages[call.id] = ChatMessage(
+                        role=MessageRole.TOOL,
+                        content=result.to_string(),
+                        tool_call_id=call.id,
+                        name=call.name,
+                    )
+                    result_data = result.data if isinstance(result.data, dict) else {}
+                    tool_call_records.append(
+                        ToolCallRecord(
+                            name=call.name,
+                            success=bool(result.success),
+                            execution_time_ms=float(result_data.get("execution_time_ms", 0.0)),
+                            arguments_summary=arguments_summary,
+                            timed_out=bool(result_data.get("timed_out", False)),
+                            retries_used=int(result_data.get("retries_used", 0)),
+                            latency_budget_ms=result_data.get("latency_budget_ms"),
+                        )
+                    )
 
             tool_messages: list[ChatMessage] = []
             for tool_call in response.tool_calls:
                 blocked_message = blocked_messages.get(tool_call.id)
                 if blocked_message is not None:
                     tool_messages.append(blocked_message)
+                    tool_call_records.append(
+                        ToolCallRecord(
+                            name=tool_call.name,
+                            success=False,
+                            execution_time_ms=0.0,
+                            arguments_summary=str(tool_call.arguments),
+                        )
+                    )
                     continue
 
                 executed_message = executed_messages.get(tool_call.id)
@@ -432,6 +597,8 @@ Focus on completing the task efficiently and providing structured, useful output
 
             messages.extend(tool_messages)
         
+        self._last_tool_call_records = tool_call_records
+        self._last_llm_iterations = iteration
         _LOGGER.warning("AI Task max iterations reached")
         return response.content or ""
 

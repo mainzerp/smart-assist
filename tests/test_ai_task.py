@@ -693,3 +693,27 @@ class TestGenerateDataErrorSanitization:
         assert isinstance(result.data, str)
         assert result.data == "OK"
         entity._process_with_tools.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_async_generate_data_writes_request_history_entry(self):
+        entity = self._create_task_entity()
+        entity._process_with_tools = AsyncMock(return_value="OK")
+
+        history_store = MagicMock()
+        history_store.prune_older_than_days = MagicMock()
+        history_store.add_entry = MagicMock()
+        history_store.async_save = AsyncMock()
+        entity.hass.data["smart_assist"]["test_entry"]["request_history"] = history_store
+
+        task = MagicMock()
+        task.task_name = "test"
+        task.instructions = "turn on cellar light"
+        task.structure = None
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        result = await entity._async_generate_data(task, chat_log)
+
+        assert isinstance(result.data, str)
+        assert result.data == "OK"
+        history_store.add_entry.assert_called_once()

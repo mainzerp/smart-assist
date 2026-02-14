@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.4  | 2026-02-14 |
+| Smart Assist | 1.14.5  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.5 (2026-02-14) - AI Task History Dashboard Logging
+
+**Bug Fixes:**
+- AI Task executions are now written to `RequestHistoryStore`, so they appear in History dashboard lists and tool analytics
+- AI Task tool-call telemetry now includes execution timing, timeout/retry metadata, and iteration counts for analytics parity
+
+**Tests:**
+- Added targeted AI Task test to verify request-history entry creation for task runs
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.4 (2026-02-14) - AI Task Task-Object Compatibility Fix
 
