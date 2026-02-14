@@ -320,6 +320,65 @@ class MemoryManager:
 
         return results
 
+    def get_all_user_memories(
+        self,
+        category: str | None = None,
+        limit: int = 50,
+        include_default: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Get memories across all non-agent users for shared-satellite fallback."""
+        results: list[dict[str, Any]] = []
+
+        for user_id, user_data in self._data.get("users", {}).items():
+            if user_id == MEMORY_AGENT_USER_ID:
+                continue
+            if not include_default and user_id == "default":
+                continue
+
+            for mem in user_data.get("memories", []):
+                if category and mem.get("category") != category:
+                    continue
+                with_owner = dict(mem)
+                with_owner["user_id"] = user_id
+                results.append(with_owner)
+
+        results.sort(
+            key=lambda m: (m.get("access_count", 0), m.get("last_accessed", "")),
+            reverse=True,
+        )
+        return results[:limit]
+
+    def search_memories_all_users(
+        self,
+        query: str,
+        category: str | None = None,
+        limit: int = 50,
+        include_default: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Search memories across all non-agent users for fallback retrieval."""
+        query_lower = query.lower().strip()
+        if not query_lower:
+            return []
+
+        candidates = self.get_all_user_memories(
+            category=category,
+            limit=max(limit * 3, 100),
+            include_default=include_default,
+        )
+
+        results: list[dict[str, Any]] = []
+        for mem in candidates:
+            content_match = query_lower in mem.get("content", "").lower()
+            tag_match = any(query_lower in t.lower() for t in mem.get("tags", []))
+            if content_match or tag_match:
+                results.append(mem)
+
+        results.sort(
+            key=lambda m: (m.get("access_count", 0), m.get("last_accessed", "")),
+            reverse=True,
+        )
+        return results[:limit]
+
     # =========================================================================
     # Prompt Injection
     # =========================================================================

@@ -145,6 +145,7 @@ class MemoryTool(BaseTool):
     async def _action_list(self, kwargs: dict) -> ToolResult:
         """List memories for the current user, including agent memories."""
         category = kwargs.get("category")
+        query = kwargs.get("query", "").strip()
         memories = self._memory_manager.get_memories(
             user_id=self._current_user_id,
             category=category,
@@ -162,6 +163,48 @@ class MemoryTool(BaseTool):
         all_memories = memories + agent_memories
 
         if not all_memories:
+            if self._current_user_id == "default":
+                fallback_memories = (
+                    self._memory_manager.search_memories_all_users(
+                        query=query,
+                        category=category,
+                        limit=25,
+                    )
+                    if query
+                    else self._memory_manager.get_all_user_memories(
+                        category=category,
+                        limit=25,
+                    )
+                )
+
+                if fallback_memories:
+                    lines = []
+                    for mem in fallback_memories:
+                        cat_label = mem.get("category", "").upper()
+                        owner = mem.get("user_id", "unknown")
+                        tags = ", ".join(mem.get("tags", []))
+                        tag_str = f" [{tags}]" if tags else ""
+                        lines.append(
+                            f"- [{mem['id']}] ({cat_label}{tag_str}) [{owner}] {mem['content']}"
+                        )
+                    return ToolResult(
+                        success=True,
+                        message=(
+                            f"No memories found for unresolved default user. "
+                            f"Fallback found {len(fallback_memories)} memories across users:\n"
+                            + "\n".join(lines)
+                        ),
+                        data={"count": len(fallback_memories), "fallback": True},
+                    )
+
+                return ToolResult(
+                    success=True,
+                    message=(
+                        "No memories stored yet. Identity could not be resolved (default user). "
+                        "Configure user mapping, identify with switch_user, or ask with a specific memory query."
+                    ),
+                )
+
             return ToolResult(success=True, message="No memories stored yet.")
 
         # Format for LLM

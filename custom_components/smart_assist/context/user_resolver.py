@@ -36,12 +36,26 @@ class UserResolver:
             enable_presence_heuristic: Whether to use presence-based user detection
         """
         self._hass = hass
-        self._user_mappings = user_mappings or {}
+        self._user_mappings = self._normalize_mappings(user_mappings or {})
         self._enable_presence_heuristic = enable_presence_heuristic
 
     def update_mappings(self, mappings: dict[str, str]) -> None:
         """Update user-satellite mappings (e.g., after config change)."""
-        self._user_mappings = mappings
+        self._user_mappings = self._normalize_mappings(mappings)
+
+    def _normalize_key(self, value: str | None) -> str:
+        """Normalize mapping keys/values for robust matching."""
+        return (value or "").strip().lower()
+
+    def _normalize_mappings(self, mappings: dict[str, str]) -> dict[str, str]:
+        """Normalize satellite->user mappings by trimming/lowercasing keys/values."""
+        normalized: dict[str, str] = {}
+        for satellite, user in mappings.items():
+            sat_key = self._normalize_key(satellite)
+            user_key = self._normalize_key(user)
+            if sat_key and user_key:
+                normalized[sat_key] = user_key
+        return normalized
 
     async def resolve_user(
         self,
@@ -74,14 +88,21 @@ class UserResolver:
             return session_user_id
 
         # Layer 3: Satellite mapping
-        if satellite_id and satellite_id in self._user_mappings:
-            mapped = self._user_mappings[satellite_id]
+        sat_key = self._normalize_key(satellite_id)
+        if sat_key and sat_key in self._user_mappings:
+            mapped = self._user_mappings[sat_key]
             if mapped and mapped != "shared":
                 _LOGGER.debug(
                     "User resolved via satellite mapping: %s -> %s",
-                    satellite_id, mapped,
+                    sat_key, mapped,
                 )
                 return mapped
+        elif sat_key:
+            _LOGGER.debug(
+                "No satellite mapping found for %s (known mappings: %s)",
+                sat_key,
+                sorted(self._user_mappings.keys()),
+            )
 
         # Layer 4: Presence heuristic (only if enabled)
         if self._enable_presence_heuristic:

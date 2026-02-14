@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import AsyncGenerator
 from typing import Any, TYPE_CHECKING
 
@@ -21,6 +22,46 @@ if TYPE_CHECKING:
     from .conversation import SmartAssistConversationEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _get_latest_user_text(messages: list[ChatMessage]) -> str:
+    """Return the latest non-empty user message text."""
+    for msg in reversed(messages):
+        if msg.role == MessageRole.USER and msg.content:
+            return msg.content
+    return ""
+
+
+def _looks_like_timer_request(user_text: str) -> bool:
+    """Heuristic: detect timer-related user intent in EN/DE phrasing."""
+    text = (user_text or "").lower()
+    if "timer" not in text and "countdown" not in text:
+        return False
+
+    duration_pattern = re.compile(
+        r"\b\d+\s*(h|hr|hour|hours|std|stunde|stunden|min|minute|minuten|sec|second|seconds|sek|sekunde|sekunden)\b"
+    )
+    action_tokens = (
+        "stell",
+        "set",
+        "start",
+        "starte",
+        "cancel",
+        "stop",
+        "pause",
+        "resume",
+        "status",
+        "läuft",
+    )
+
+    return bool(duration_pattern.search(text) or any(token in text for token in action_tokens))
+
+
+def _should_force_timer_tool_retry(user_text: str, assistant_text: str) -> bool:
+    """Require a timer tool call if a timer action was requested but none was emitted."""
+    if not assistant_text.strip():
+        return False
+    return _looks_like_timer_request(user_text)
 
 
 async def call_llm_streaming_with_tools(
@@ -169,6 +210,25 @@ async def call_llm_streaming_with_tools(
 
         # If no tool calls, we're done
         if not tool_calls:
+            # Guardrail: avoid false timer confirmations without actual timer tool execution.
+            if iteration == 1:
+                latest_user_text = _get_latest_user_text(working_messages)
+                if _should_force_timer_tool_retry(latest_user_text, final_content):
+                    _LOGGER.warning(
+                        "[USER-REQUEST] Timer-like request answered without tool call in first iteration. Retrying with timer-tool nudge."
+                    )
+                    working_messages.append(
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=(
+                                "The user requested timer handling. You MUST call the timer tool for start/cancel/pause/resume/status. "
+                                "Do not claim timer success unless timer tool call succeeds. "
+                                "If required timer details are missing, ask one concise clarification using await_response."
+                            ),
+                        )
+                    )
+                    continue
+
             # Retry once if response is empty/useless on first iteration
             # This handles cases where the LLM doesn't know what to do (e.g., smart_discovery with no entity context)
             if iteration == 1 and not final_content.strip():

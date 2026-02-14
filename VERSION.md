@@ -4,9 +4,37 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.13.15 | 2026-02-13 |
+| Smart Assist | 1.13.17 | 2026-02-14 |
 
 ## Version History
+
+### v1.13.17 (2026-02-14) - Timer Tool-Call Guardrail
+
+**Bug Fixes:**
+- Added streaming guardrail to prevent false timer confirmations when no `timer` tool call was made
+- On first LLM pass, timer-like requests without tool calls now trigger a forced retry with explicit timer-tool instruction
+
+**Tests:**
+- Added `tests/test_streaming.py` for timer request detection and retry decision heuristics
+
+**Files modified:**
+
+- custom_components/smart_assist/streaming.py, tests/test_streaming.py, VERSION.md
+
+### v1.13.16 (2026-02-14) - Satellite Memory Recall Fallback & Resolver Hardening
+
+**Bug Fixes:**
+- Hardened user resolution for satellite mappings via normalized key/value matching (trim + lowercase)
+- Added resolver miss diagnostics to show mapping lookup context in debug logs
+- Improved memory recall on shared satellites: when resolved user is `default` and personal list is empty, tool now performs read-only cross-user fallback retrieval
+
+**Tests:**
+- Added regression tests for normalized satellite mapping resolution
+- Added tests for cross-user memory retrieval helpers used by fallback behavior
+
+**Files modified:**
+
+- custom_components/smart_assist/context/user_resolver.py, custom_components/smart_assist/context/memory.py, custom_components/smart_assist/tools/memory_tools.py, tests/test_memory.py, VERSION.md
 
 ### v1.13.15 (2026-02-13) - Tool Validation & Error UX Fix
 
