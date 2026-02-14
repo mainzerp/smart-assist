@@ -313,9 +313,11 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   _getAggregateMetrics() {
-    if (!this._data || !this._data.agents) return null;
-    const agents = Object.values(this._data.agents);
-    if (agents.length === 0) return null;
+    if (!this._data) return null;
+    const agents = Object.values(this._data.agents || {});
+    const tasks = Object.values(this._data.tasks || {});
+    const entities = agents.concat(tasks);
+    if (entities.length === 0) return null;
     const agg = {
       total_requests: 0, successful_requests: 0, failed_requests: 0,
       total_prompt_tokens: 0, total_completion_tokens: 0,
@@ -323,8 +325,8 @@ class SmartAssistPanel extends HTMLElement {
       empty_responses: 0, stream_timeouts: 0, total_retries: 0,
     };
     let totalRT = 0;
-    for (const a of agents) {
-      const m = a.metrics || {};
+    for (const entity of entities) {
+      const m = entity.metrics || {};
       agg.total_requests += m.total_requests || 0;
       agg.successful_requests += m.successful_requests || 0;
       agg.failed_requests += m.failed_requests || 0;
@@ -381,6 +383,7 @@ class SmartAssistPanel extends HTMLElement {
 
   _renderDashboard() {
     const agents = this._data.agents || {};
+    const tasks = this._data.tasks || {};
     const agentIds = Object.keys(agents);
 
     let html = this._renderHeader();
@@ -392,7 +395,7 @@ class SmartAssistPanel extends HTMLElement {
     html += this._renderAgentSelector(agents, agentIds);
     html += this._renderTabBar();
 
-    html += this._renderActiveTab(agents);
+    html += this._renderActiveTab(agents, tasks);
 
     return html;
   }
@@ -448,9 +451,9 @@ class SmartAssistPanel extends HTMLElement {
     return '<div class="tab-bar">' + buttons + '</div>';
   }
 
-  _renderActiveTab(agents) {
+  _renderActiveTab(agents, tasks) {
     if (this._activeTab === "overview") {
-      return this._renderOverviewTab(agents);
+      return this._renderOverviewTab(agents, tasks);
     }
     if (this._activeTab === "memory") {
       return this._renderMemoryTab();
@@ -464,23 +467,24 @@ class SmartAssistPanel extends HTMLElement {
     if (this._activeTab === "prompt") {
       return this._renderPromptTab();
     }
-    return this._renderOverviewTab(agents);
+    return this._renderOverviewTab(agents, tasks);
   }
 
-  _renderOverviewTab(agents) {
+  _renderOverviewTab(agents, tasks) {
     const agent = this._selectedAgent ? agents[this._selectedAgent] : null;
     const metrics = this._getAggregateMetrics();
     let html = "";
 
     html += this._renderOverviewMetrics(metrics);
-    html += this._renderPerAgentOverview(agents, agent);
+    html += this._renderPerAgentOverview(agents, tasks, agent);
 
     return html;
   }
 
-  _renderPerAgentOverview(agents, selectedAgent) {
+  _renderPerAgentOverview(agents, tasks, selectedAgent) {
     const agentIds = Object.keys(agents || {});
-    if (agentIds.length === 0) {
+    const taskIds = Object.keys(tasks || {});
+    if (agentIds.length === 0 && taskIds.length === 0) {
       return this._renderOverviewContent(this._getAggregateMetrics(), selectedAgent);
     }
 
@@ -490,6 +494,14 @@ class SmartAssistPanel extends HTMLElement {
       const metrics = agent ? (agent.metrics || {}) : {};
       html += '<div class="card"><h3>' + this._esc(agent.name || agentId) + '</h3>'
         + this._renderOverviewContent(metrics, agent)
+        + '</div>';
+    }
+
+    for (const taskId of taskIds) {
+      const task = tasks[taskId];
+      const metrics = task ? (task.metrics || {}) : {};
+      html += '<div class="card"><h3>AI Task: ' + this._esc(task.name || taskId) + '</h3>'
+        + this._renderOverviewContent(metrics, task)
         + '</div>';
     }
 

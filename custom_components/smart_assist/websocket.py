@@ -264,11 +264,18 @@ def _build_task_data(
     if llm_client and hasattr(llm_client, "metrics"):
         metrics_dict = llm_client.metrics.to_dict()
 
+    # Get registered tools
+    entity = task_info.get("entity")
+    tools_list: list[str] = []
+    if entity and hasattr(entity, "get_registered_tool_names"):
+        tools_list = entity.get_registered_tool_names()
+
     return {
         "name": subentry.title,
         "model": _get_subentry_config(data, CONF_MODEL, DEFAULT_MODEL),
         "llm_provider": _get_subentry_config(data, CONF_LLM_PROVIDER, DEFAULT_LLM_PROVIDER),
         "metrics": metrics_dict,
+        "tools": tools_list,
     }
 
 

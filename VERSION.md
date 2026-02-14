@@ -4,9 +4,22 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.6  | 2026-02-14 |
+| Smart Assist | 1.14.7  | 2026-02-14 |
 
 ## Version History
+
+### v1.14.7 (2026-02-14) - Overview Includes AI Task Rows
+
+**Bug Fixes:**
+- Overview now includes AI Task rows (not only conversation agents), so entries visible in Request History are also represented in Overview
+- Dashboard task payload now exposes registered tools for AI Tasks, enabling `Registered Tools (N)` cards for task rows
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.6 (2026-02-14) - Dashboard History Visibility & Per-Agent Overview
 
