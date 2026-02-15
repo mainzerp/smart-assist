@@ -110,7 +110,7 @@ try:
         REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
         REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
     )
-    from .context import EntityManager
+    from .context import EntityManager, PersistentAlarmManager
     from .context.calendar_reminder import CalendarReminderTracker
     from .context.conversation import ConversationManager
     from .context.memory import MemoryManager
@@ -278,6 +278,9 @@ class SmartAssistConversationEntity(ConversationEntity):
         # Memory manager (loaded from hass.data, initialized in __init__.py)
         self._memory_manager: MemoryManager | None = entry_data.get("memory_manager")
         self._memory_enabled = get_config(CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY)
+        self._persistent_alarm_manager: PersistentAlarmManager | None = entry_data.get(
+            "persistent_alarm_manager"
+        )
 
         # User resolver for multi-user support
         user_mappings = entry.options.get(

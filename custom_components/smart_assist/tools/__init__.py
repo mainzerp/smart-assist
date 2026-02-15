@@ -72,6 +72,7 @@ def create_tool_registry(
     from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
     from .conversation_tools import AwaitResponseTool, NevermindTool
     from .timer_tools import TimerTool
+    from .alarm_tools import AlarmTool
     from .music_assistant_tools import MusicAssistantTool
     from .notification_tools import SendTool
     
@@ -125,6 +126,10 @@ def create_tool_registry(
     # Uses HassStartTimer, HassCancelTimer etc. intents
     registry.register(TimerTool(hass))
     registered_tools.append("timer")
+
+    # Persistent absolute-time alarm tool (restart-safe)
+    registry.register(AlarmTool(hass, entry_id=entry.entry_id))
+    registered_tools.append("alarm")
     
     # Scene tool (if domain exists) - scripts handled by unified control
     if "scene" in available_domains:
@@ -222,6 +227,7 @@ from .search_tools import WebSearchTool, GetWeatherTool
 from .calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
 from .conversation_tools import AwaitResponseTool, NevermindTool
 from .timer_tools import TimerTool
+from .alarm_tools import AlarmTool
 from .music_assistant_tools import MusicAssistantTool
 from .notification_tools import SendTool
 from .memory_tools import MemoryTool
@@ -241,6 +247,8 @@ __all__ = [
     "NevermindTool",
     # Timer
     "TimerTool",
+    # Alarm
+    "AlarmTool",
     # Music
     "MusicAssistantTool",
     # Scene/Automation

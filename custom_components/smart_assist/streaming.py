@@ -76,6 +76,50 @@ def _should_force_timer_tool_retry(user_text: str, assistant_text: str) -> bool:
     return _looks_like_timer_request(user_text)
 
 
+def _looks_like_alarm_request(user_text: str) -> bool:
+    """Heuristic: detect absolute-time alarm intent in EN/DE phrasing."""
+    text = (user_text or "").lower().strip()
+    if not text:
+        return False
+
+    alarm_tokens = ("alarm", "wecker", "wake me")
+    if not any(token in text for token in alarm_tokens):
+        return False
+
+    # Relative requests should stay on timer path (e.g., "in 10 minutes").
+    relative_pattern = re.compile(
+        r"\bin\s+\d+\s*(h|hr|hour|hours|std|stunde|stunden|min|minute|minuten|sec|second|seconds|sek|sekunde|sekunden)\b"
+    )
+    if relative_pattern.search(text):
+        return False
+
+    has_clock_time = bool(
+        re.search(r"\b([01]?\d|2[0-3])[:.]([0-5]\d)(:[0-5]\d)?\b", text)
+    )
+    has_absolute_marker = any(
+        marker in text
+        for marker in (
+            "tomorrow",
+            "today",
+            "tonight",
+            "at ",
+            "on ",
+            "morgen",
+            "heute",
+            "um ",
+            "am ",
+        )
+    )
+    return has_clock_time or has_absolute_marker
+
+
+def _should_force_alarm_tool_retry(user_text: str, assistant_text: str) -> bool:
+    """Require an alarm tool call for clear alarm intent when assistant replied."""
+    if not assistant_text.strip():
+        return False
+    return _looks_like_alarm_request(user_text)
+
+
 def _is_explicit_confirmation(user_text: str) -> bool:
     """Check if user text is an explicit confirmation."""
     text = (user_text or "").strip().lower()
@@ -309,9 +353,25 @@ async def call_llm_streaming_with_tools(
 
         # If no tool calls, we're done
         if not tool_calls:
-            # Guardrail: avoid false timer confirmations without actual timer tool execution.
+            # Guardrail: avoid false timer/alarm confirmations without actual tool execution.
             if iteration == 1:
                 latest_user_text = _get_latest_user_text(working_messages)
+                if _should_force_alarm_tool_retry(latest_user_text, final_content):
+                    _LOGGER.warning(
+                        "[USER-REQUEST] Alarm-like request answered without tool call in first iteration. Retrying with alarm-tool nudge."
+                    )
+                    working_messages.append(
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=(
+                                "The user requested an absolute-time alarm. You MUST call the alarm tool for set/list/cancel/snooze/status. "
+                                "Do not claim alarm success unless alarm tool call succeeds. "
+                                "If absolute time details are missing, ask one concise clarification using await_response."
+                            ),
+                        )
+                    )
+                    continue
+
                 if _should_force_timer_tool_retry(latest_user_text, final_content):
                     _LOGGER.warning(
                         "[USER-REQUEST] Timer-like request answered without tool call in first iteration. Retrying with timer-tool nudge."

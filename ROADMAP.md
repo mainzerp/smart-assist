@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-15 (v1.15.1)
+> Last updated: 2026-02-15 (v1.16.0)
 
 ## Completed Milestones
 
@@ -55,6 +55,7 @@
 | AI Task Control Opt-In + Lock Guard | v1.14.0 | Added AI Task control safety switches (`task_allow_control`, `task_allow_lock_control`) with runtime enforcement and lock-domain guardrails. |
 | Structured Output for `ai_task` | v1.15.0 | Added schema-constrained `ai_task.generate_data` output with local validation, native structured-mode fallback retry, localized concise failures, and automation examples. |
 | AI Task Structured Output Follow-up Fixes | v1.15.1 | Fixed tool-loop compatibility regressions, hardened async chat-call compatibility, and restored robust tool execution fallback behavior. |
+| Persistent Alarms | v1.16.0 | Added restart-safe absolute-time alarms via dedicated `alarm` tool, storage-backed alarm manager, lifecycle reconciliation, and fired-alarm event emission. |
 
 ---
 
@@ -76,7 +77,6 @@ Governance note: No autonomous critical control in MVP phases without explicit u
 | Camera Image Analysis | P2 | "Who is at the door?" Analyze doorbell/camera snapshots with vision-capable LLM. |
 | Object Detection | P2 | "Is my car in the driveway?" Check specific objects in camera view. |
 | Motion Summary | P2 | "What happened in the garage?" Summarize recent camera activity. |
-| Persistent Alarms | P2 | Real alarm clock functionality with absolute times and restart-safe HA automations. |
 | Todo / Shopping List Integration | P2 | Voice-driven todo/shopping list flows using HA `todo` platform and supported providers. |
 | MCP Server Mode | P2 | Expose selected Smart Assist tools through Model Context Protocol for external clients. |
 

@@ -4,9 +4,42 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.15.1 | 2026-02-15 |
+| Smart Assist | 1.16.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.16.0 (2026-02-15) - Persistent Alarms (Restart-Safe Absolute-Time)
+
+**New Features:**
+- Added storage-backed persistent alarm manager with create/list/cancel/snooze/due-resolution lifecycle
+- Added dedicated `alarm` tool for absolute-time alarms while preserving existing native `timer` behavior
+- Added lifecycle wiring to load/save alarms on setup/unload and periodic due-alarm reconciliation
+- Added fired-alarm event emission via `smart_assist_alarm_fired` for automation compatibility
+- Added streaming guardrail heuristic to prevent false alarm confirmations when no `alarm` tool call occurred
+
+**Tests:**
+- Added/updated targeted tests for persistent alarm manager behavior, alarm tool contracts, and streaming alarm guardrails
+
+**Validation:**
+- `tests/test_persistent_alarms.py tests/test_streaming.py tests/test_tools.py`: 52 passed
+- `tests/run_windows_quickcheck.ps1`: 59 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/context/__init__.py
+- custom_components/smart_assist/tools/__init__.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/const.py
+- tests/test_persistent_alarms.py
+- tests/test_tools.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.15.1 (2026-02-15) - AI Task Structured Output Follow-up Fixes
 

@@ -38,6 +38,7 @@ try:
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_ENABLE_CANCEL_HANDLER,
         DOMAIN,
+        PERSISTENT_ALARM_EVENT_FIRED,
     )
     from .utils import apply_debug_logging
 except ImportError as e:
@@ -210,6 +211,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     request_history = RequestHistoryStore(hass)
     await request_history.async_load()
     hass.data[DOMAIN][entry.entry_id]["request_history"] = request_history
+
+    # Initialize persistent alarm manager
+    from .context.persistent_alarms import PersistentAlarmManager
+    persistent_alarm_manager = PersistentAlarmManager(hass)
+    await persistent_alarm_manager.async_load()
+    hass.data[DOMAIN][entry.entry_id]["persistent_alarm_manager"] = persistent_alarm_manager
+
+    async def _persistent_alarm_tick(now: datetime) -> None:
+        await _process_due_persistent_alarms(
+            hass,
+            entry,
+            event_name=PERSISTENT_ALARM_EVENT_FIRED,
+        )
+
+    cancel_alarm_tick = async_track_time_interval(
+        hass,
+        _persistent_alarm_tick,
+        timedelta(seconds=30),
+    )
+    hass.data[DOMAIN][entry.entry_id]["persistent_alarm_tick_cancel"] = cancel_alarm_tick
+    entry.async_on_unload(cancel_alarm_tick)
 
     # Helper to get config values (options override data)
     def get_config(key: str, default: Any = None) -> Any:
@@ -504,6 +526,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.warning("Error shutting down request history store: %s", err)
 
+    # Save pending persistent alarms before unloading
+    try:
+        alarm_manager = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("persistent_alarm_manager")
+        if alarm_manager:
+            await alarm_manager.async_shutdown()
+            _LOGGER.debug("Persistent alarm manager shutdown complete")
+    except Exception as err:
+        _LOGGER.warning("Error shutting down persistent alarm manager: %s", err)
+
     # Remove sidebar panel
     try:
         from homeassistant.components.frontend import async_remove_panel
@@ -526,3 +557,47 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
     _LOGGER.debug("Smart Assist options updated, reloading")
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def _process_due_persistent_alarms(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    event_name: str,
+) -> None:
+    """Process due persistent alarms and emit HA-compatible events."""
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    alarm_manager = entry_data.get("persistent_alarm_manager")
+    if alarm_manager is None:
+        return
+
+    due_alarms = alarm_manager.pop_due_alarms()
+    if not due_alarms:
+        return
+
+    for alarm in due_alarms:
+        payload = {
+            "entry_id": entry.entry_id,
+            "alarm_id": alarm.get("id"),
+            "label": alarm.get("label"),
+            "message": alarm.get("message"),
+            "scheduled_for": alarm.get("scheduled_for"),
+            "fired_at": alarm.get("last_fired_at"),
+        }
+        hass.bus.async_fire(event_name, payload)
+
+        try:
+            from homeassistant.components.persistent_notification import async_create
+
+            notification_message = alarm.get("message") or (
+                f"Alarm '{alarm.get('label', 'Alarm')}' fired at {alarm.get('last_fired_at', '')}."
+            )
+            async_create(
+                hass,
+                notification_message,
+                title=f"Smart Assist Alarm: {alarm.get('label', 'Alarm')}",
+                notification_id=f"{DOMAIN}_alarm_{alarm.get('id')}",
+            )
+        except Exception as err:
+            _LOGGER.debug("Persistent alarm notification failed: %s", err)
+
+    await alarm_manager.async_force_save()

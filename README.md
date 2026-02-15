@@ -6,7 +6,7 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Latest patch release: **v1.15.1** (AI Task structured-output follow-up compatibility fixes).
+Latest release: **v1.16.0** (Persistent Alarms with restart-safe absolute-time scheduling).
 
 Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
@@ -52,6 +52,13 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Native Assist Timers**: Uses Home Assistant's built-in voice timer system
 - **Satellite-Specific**: Timers are tied to the satellite where they were set
 - **Custom Commands**: Set timers with custom callback messages
+
+### Persistent Alarms
+
+- **Absolute-Time Alarms**: Dedicated `alarm` tool for date/time alarms (alarm-clock behavior)
+- **Restart-Safe Storage**: Alarms are persisted and restored across Home Assistant restarts
+- **Automation-Compatible Events**: Fired alarms emit `smart_assist_alarm_fired` for automations
+- **Clear Separation**: Use `timer` for relative durations (native Assist), `alarm` for absolute persistent alarms
 
 ### Calendar Integration
 

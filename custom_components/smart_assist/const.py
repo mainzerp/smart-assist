@@ -130,6 +130,11 @@ MEMORY_MAX_AGENT_INJECTION: Final = 15  # Max agent memories injected per reques
 MEMORY_DEFAULT_USER: Final = "default"
 MEMORY_AGENT_USER_ID: Final = "_agent"  # Reserved user ID for agent memory
 
+# Persistent alarm storage constants
+PERSISTENT_ALARM_STORAGE_KEY: Final = "smart_assist_persistent_alarms"
+PERSISTENT_ALARM_STORAGE_VERSION: Final = 1
+PERSISTENT_ALARM_EVENT_FIRED: Final = "smart_assist_alarm_fired"
+
 # Common Home Assistant locale to language name mapping for auto-detection
 # Used when language is empty/auto to show a readable language name in prompts
 # Format: locale prefix -> (English name, native name)
