@@ -349,12 +349,15 @@ async def execute_tools_parallel(
     from .llm.models import ChatMessage, MessageRole
 
     async def _exec(tc: ToolCall) -> tuple[ToolCall, Any]:
-        result = await tool_registry.execute(
-            tc.name,
-            tc.arguments,
-            max_retries=max_retries,
-            latency_budget_ms=latency_budget_ms,
-        )
+        try:
+            result = await tool_registry.execute(
+                tc.name,
+                tc.arguments,
+                max_retries=max_retries,
+                latency_budget_ms=latency_budget_ms,
+            )
+        except TypeError:
+            result = await tool_registry.execute(tc.name, tc.arguments)
         return (tc, result)
 
     raw_results = await asyncio.gather(

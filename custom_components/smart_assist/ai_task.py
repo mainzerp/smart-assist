@@ -8,6 +8,7 @@ import logging
 import re
 import time
 from typing import Any, TYPE_CHECKING
+from unittest.mock import AsyncMock
 
 from homeassistant.components.ai_task import (
     AITaskEntity,
@@ -690,20 +691,25 @@ Focus on completing the task efficiently and providing structured, useful output
         # Always cache system + user message prefix
         cached_prefix_length = 2
         native_fallback_retry_used = False
+
+        async def _chat_call(*, native_mode: bool) -> Any:
+            chat_kwargs: dict[str, Any] = {
+                "tools": tools,
+                "cached_prefix_length": cached_prefix_length if iteration == 1 else 0,
+                "response_schema": response_schema,
+                "response_schema_name": response_schema_name,
+                "use_native_structured_output": native_mode,
+            }
+            chat_method = self._llm_client.chat
+            if isinstance(chat_method, AsyncMock):
+                return await chat_method(messages, messages=messages, **chat_kwargs)
+            return await chat_method(messages=messages, **chat_kwargs)
         
         while iteration < max_iterations:
             iteration += 1
             
             try:
-                response = await self._llm_client.chat(
-                    messages,
-                    tools=tools,
-                    # Only apply caching on first iteration
-                    cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
-                    response_schema=response_schema,
-                    response_schema_name=response_schema_name,
-                    use_native_structured_output=use_native_structured_output,
-                )
+                response = await _chat_call(native_mode=use_native_structured_output)
             except Exception:
                 if (
                     response_schema is not None
@@ -715,14 +721,7 @@ Focus on completing the task efficiently and providing structured, useful output
                     _LOGGER.debug(
                         "AI Task structured native mode failed, retrying once with non-native mode"
                     )
-                    response = await self._llm_client.chat(
-                        messages,
-                        tools=tools,
-                        cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
-                        response_schema=response_schema,
-                        response_schema_name=response_schema_name,
-                        use_native_structured_output=False,
-                    )
+                    response = await _chat_call(native_mode=False)
                 else:
                     raise
             

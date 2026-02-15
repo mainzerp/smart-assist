@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.15.0 | 2026-02-15 |
+| Smart Assist | 1.15.1 | 2026-02-15 |
 
 ## Version History
+
+### v1.15.1 (2026-02-15) - AI Task Structured Output Follow-up Fixes
+
+**Bug Fixes:**
+- Fixed AI Task tool-loop compatibility regressions after structured-output rollout
+- Restored robust tool execution path compatibility for registries/mocks that don't accept retry/latency kwargs
+- Hardened AI Task chat invocation compatibility for existing async mock/test call patterns
+
+**Validation:**
+- `tests/test_ai_task.py`: 27 passed
+- Windows quickcheck script: 54 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/utils.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.15.0 (2026-02-15) - AI Task Structured Output Contracts
 
