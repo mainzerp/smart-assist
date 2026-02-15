@@ -4,9 +4,24 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.14 | 2026-02-15 |
+| Smart Assist | 1.22.15 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.15 (2026-02-15) - Alarm Tool Typo Alias Hotfix
+
+**Fixes:**
+- Alarm tool now tolerates common LLM typo aliases `wake_test_*` and maps them to canonical `wake_text_*` wake-text options
+- Prevents `unexpected keyword argument 'wake_test_include_weather'` failures during alarm creation when the model emits the typo variant
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_tools.py -q`: 40 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.14 (2026-02-15) - Alarm Dashboard: Resolved Satellites Preview
 

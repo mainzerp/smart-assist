@@ -171,8 +171,18 @@ class AlarmTool(BaseTool):
         wake_text_dynamic: bool | None = None,
         wake_text_include_weather: bool | None = None,
         wake_text_include_news: bool | None = None,
+        wake_test_dynamic: bool | None = None,
+        wake_test_include_weather: bool | None = None,
+        wake_test_include_news: bool | None = None,
     ) -> ToolResult:
         """Execute persistent alarm actions."""
+        if wake_text_dynamic is None and wake_test_dynamic is not None:
+            wake_text_dynamic = wake_test_dynamic
+        if wake_text_include_weather is None and wake_test_include_weather is not None:
+            wake_text_include_weather = wake_test_include_weather
+        if wake_text_include_news is None and wake_test_include_news is not None:
+            wake_text_include_news = wake_test_include_news
+
         manager = self._get_manager()
         if manager is None:
             return ToolResult(False, "Persistent alarm manager is not available")
