@@ -836,6 +836,9 @@ class SmartAssistPanel extends HTMLElement {
     const reactivateSuggested = (alarm.status === 'fired' || alarm.status === 'dismissed') ? 'checked' : '';
     const weekdays = Array.isArray(recurrence.byweekday) ? recurrence.byweekday : [];
     const ttsTargets = Array.isArray(alarm.tts_targets) ? alarm.tts_targets.join(', ') : '';
+    const resolvedSatellites = Array.isArray(alarm.resolved_satellites) && alarm.resolved_satellites.length
+      ? alarm.resolved_satellites.join(', ')
+      : (alarm.source_satellite_id || '');
     const wakeTextDynamicChecked = alarm.wake_text_dynamic ? 'checked' : '';
     const wakeTextWeatherChecked = alarm.wake_text_include_weather ? 'checked' : '';
     const wakeTextNewsChecked = alarm.wake_text_include_news ? 'checked' : '';
@@ -868,6 +871,8 @@ class SmartAssistPanel extends HTMLElement {
       + '<input class="alarm-edit-recurrence-interval" type="number" min="1" step="1" value="' + interval + '"></label>'
       + '<label style="display:flex;flex-direction:column;font-size:12px;">TTS targets (comma-separated)'
       + '<input class="alarm-edit-tts-targets" type="text" value="' + this._esc(ttsTargets) + '"></label>'
+      + '<label style="display:flex;flex-direction:column;font-size:12px;">Resolved satellites'
+      + '<input class="alarm-edit-resolved-satellites" type="text" value="' + this._esc(resolvedSatellites) + '" readonly></label>'
       + '<div style="display:flex;flex-direction:column;gap:8px;">'
       + '<label style="font-size:12px;"><input class="alarm-edit-reactivate" type="checkbox" ' + reactivateSuggested + '> Reactivate</label>'
       + '<label style="font-size:12px;"><input class="alarm-edit-wake-dynamic" type="checkbox" ' + wakeTextDynamicChecked + '> Dynamic wake text</label>'

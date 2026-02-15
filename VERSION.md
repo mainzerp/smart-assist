@@ -4,9 +4,26 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.13 | 2026-02-15 |
+| Smart Assist | 1.22.14 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.14 (2026-02-15) - Alarm Dashboard: Resolved Satellites Preview
+
+**Fixes:**
+- Added websocket alarm payload fields `source_satellite_id` and `resolved_satellites` for dashboard visibility
+- Added backend resolver that maps `delivery.tts_targets` (`media_player.*`) to deduplicated `assist_satellite.*` entities via entity registry
+- Added read-only `Resolved satellites` preview field in alarm dashboard edit row to show effective announce routing targets
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py -q`: 9 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.13 (2026-02-15) - Multi-Satellite Alarm Announce
 

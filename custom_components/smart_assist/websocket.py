@@ -13,6 +13,7 @@ from typing import Any
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 import voluptuous as vol
 
@@ -159,12 +160,62 @@ def _get_alarm_manager(hass: HomeAssistant, entry: Any) -> PersistentAlarmManage
     return None
 
 
-def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
+def _resolve_satellites_for_alarm(hass: HomeAssistant, delivery: dict[str, Any]) -> list[str]:
+    """Resolve deduplicated assist_satellite entities from delivery metadata."""
+    resolved: list[str] = []
+    seen: set[str] = set()
+
+    def _add(entity_id: Any) -> None:
+        value = str(entity_id or "").strip().lower()
+        if not value or not value.startswith("assist_satellite."):
+            return
+        if value in seen:
+            return
+        seen.add(value)
+        resolved.append(value)
+
+    _add(delivery.get("source_satellite_id"))
+
+    raw_targets = delivery.get("tts_targets")
+    targets: list[str] = []
+    if isinstance(raw_targets, list):
+        targets = [str(item or "").strip().lower() for item in raw_targets]
+
+    if not targets:
+        return resolved
+
+    try:
+        registry = er.async_get(hass)
+    except Exception:
+        return resolved
+
+    for media_player_entity_id in targets:
+        if not media_player_entity_id.startswith("media_player."):
+            continue
+        try:
+            player_entry = registry.async_get(media_player_entity_id)
+            device_id = getattr(player_entry, "device_id", None)
+            if not device_id:
+                continue
+            for entry in er.async_entries_for_device(registry, device_id):
+                if getattr(entry, "domain", "") != "assist_satellite":
+                    continue
+                if getattr(entry, "disabled_by", None) is not None:
+                    continue
+                _add(getattr(entry, "entity_id", None))
+        except Exception:
+            continue
+
+    return resolved
+
+
+def _serialize_alarm(hass: HomeAssistant, alarm: dict[str, Any]) -> dict[str, Any]:
     """Return normalized alarm payload for websocket responses."""
     managed = alarm.get("managed_automation") if isinstance(alarm.get("managed_automation"), dict) else {}
     direct = alarm.get("direct_execution") if isinstance(alarm.get("direct_execution"), dict) else {}
     delivery = alarm.get("delivery") if isinstance(alarm.get("delivery"), dict) else {}
     wake_text = delivery.get("wake_text") if isinstance(delivery.get("wake_text"), dict) else {}
+    resolved_satellites = _resolve_satellites_for_alarm(hass, delivery)
     status = str(alarm.get("status") or "")
     can_edit = bool(alarm.get("active")) or status in {"fired", "dismissed"}
     return {
@@ -196,6 +247,8 @@ def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
         "direct_last_error": direct.get("last_error"),
         "direct_backend_results": direct.get("last_backend_results", {}),
         "tts_targets": delivery.get("tts_targets") if isinstance(delivery.get("tts_targets"), list) else [],
+        "source_satellite_id": delivery.get("source_satellite_id"),
+        "resolved_satellites": resolved_satellites,
         "wake_text_dynamic": bool(wake_text.get("dynamic", False)),
         "wake_text_include_weather": bool(wake_text.get("include_weather", False)),
         "wake_text_include_news": bool(wake_text.get("include_news", False)),
@@ -899,7 +952,7 @@ async def ws_alarms_data(
     connection.send_result(
         msg["id"],
         {
-            "alarms": [_serialize_alarm(alarm) for alarm in alarms],
+            "alarms": [_serialize_alarm(hass, alarm) for alarm in alarms],
             "summary": summary,
             "execution_mode": execution_mode,
             "managed_reconcile_available": managed_reconcile_available,
@@ -978,7 +1031,7 @@ async def ws_alarm_action(
                 {
                     "success": True,
                     "message": f"Alarm count: {len(alarms)}",
-                    "alarms": [_serialize_alarm({**alarm, "execution_mode": execution_mode}) for alarm in alarms],
+                    "alarms": [_serialize_alarm(hass, {**alarm, "execution_mode": execution_mode}) for alarm in alarms],
                 },
             )
             return
@@ -992,7 +1045,7 @@ async def ws_alarm_action(
             {
                 "success": True,
                 "message": "Alarm status resolved",
-                "alarm": _serialize_alarm({**alarm, "execution_mode": execution_mode}),
+                "alarm": _serialize_alarm(hass, {**alarm, "execution_mode": execution_mode}),
             },
         )
         return
@@ -1036,7 +1089,7 @@ async def ws_alarm_action(
             {
                 "success": True,
                 "message": "Alarm cancelled",
-                "alarm": _serialize_alarm({**alarm, "execution_mode": execution_mode}) if alarm else None,
+                "alarm": _serialize_alarm(hass, {**alarm, "execution_mode": execution_mode}) if alarm else None,
             },
         )
         return
@@ -1155,7 +1208,7 @@ async def ws_alarm_action(
             {
                 "success": True,
                 "message": "Alarm updated",
-                "alarm": _serialize_alarm({**alarm, "execution_mode": execution_mode}),
+                "alarm": _serialize_alarm(hass, {**alarm, "execution_mode": execution_mode}),
             },
         )
         return
@@ -1214,7 +1267,7 @@ async def ws_alarm_action(
         {
             "success": True,
             "message": "Alarm snoozed",
-            "alarm": _serialize_alarm({**alarm, "execution_mode": execution_mode}),
+            "alarm": _serialize_alarm(hass, {**alarm, "execution_mode": execution_mode}),
         },
     )
 
