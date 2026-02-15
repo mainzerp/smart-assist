@@ -4,9 +4,29 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.8 | 2026-02-15 |
+| Smart Assist | 1.22.9 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.9 (2026-02-15) - Prefer Source Agent TTS Engine
+
+**Fixes:**
+- Alarm delivery metadata now stores `source_conversation_agent_id` at creation time
+- Conversation agent tracks last known runtime `tts.*` engine from request context (input/satellite attributes)
+- Direct alarm `tts.speak` now prefers the source conversation agent's last known TTS engine before global fallback resolver
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py tests/test_tools.py -q`: 58 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 74 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.8 (2026-02-15) - tts.speak Engine Target Fix
 

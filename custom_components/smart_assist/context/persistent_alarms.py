@@ -65,6 +65,7 @@ def _delivery_defaults() -> dict[str, Any]:
     return {
         "source_device_id": None,
         "source_satellite_id": None,
+        "source_conversation_agent_id": None,
         "tts_targets": [],
         "wake_text": {
             "dynamic": False,
@@ -178,6 +179,7 @@ class PersistentAlarmManager:
         recurrence: dict[str, Any] | None = None,
         source_device_id: str | None = None,
         source_satellite_id: str | None = None,
+        source_conversation_agent_id: str | None = None,
         tts_targets: list[str] | None = None,
         wake_text: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any] | None, str]:
@@ -224,6 +226,7 @@ class PersistentAlarmManager:
             "delivery": {
                 "source_device_id": str(source_device_id or "").strip() or None,
                 "source_satellite_id": str(source_satellite_id or "").strip() or None,
+                "source_conversation_agent_id": str(source_conversation_agent_id or "").strip() or None,
                 "tts_targets": self._normalize_tts_targets(tts_targets),
                 "wake_text": self._normalize_wake_text_options(wake_text),
             },
@@ -461,6 +464,7 @@ class PersistentAlarmManager:
             merged_delivery.update({
                 "source_device_id": str(delivery.get("source_device_id") or "").strip() or None,
                 "source_satellite_id": str(delivery.get("source_satellite_id") or "").strip() or None,
+                "source_conversation_agent_id": str(delivery.get("source_conversation_agent_id") or "").strip() or None,
                 "tts_targets": self._normalize_tts_targets(delivery.get("tts_targets")),
                 "wake_text": self._normalize_wake_text_options(delivery.get("wake_text")),
             })
@@ -555,6 +559,10 @@ class PersistentAlarmManager:
                     next_delivery["source_device_id"] = str(delivery_updates.get("source_device_id") or "").strip() or None
                 if "source_satellite_id" in delivery_updates:
                     next_delivery["source_satellite_id"] = str(delivery_updates.get("source_satellite_id") or "").strip() or None
+                if "source_conversation_agent_id" in delivery_updates:
+                    next_delivery["source_conversation_agent_id"] = str(
+                        delivery_updates.get("source_conversation_agent_id") or ""
+                    ).strip() or None
                 if "wake_text" in delivery_updates:
                     next_delivery["wake_text"] = self._normalize_wake_text_options(delivery_updates.get("wake_text"))
 

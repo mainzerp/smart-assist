@@ -202,7 +202,11 @@ class DirectAlarmEngine:
 
         message = await self._resolve_tts_message(alarm)
         targets = self._resolve_tts_targets(alarm)
-        tts_engine_entity_id = self._resolve_tts_engine_entity_id() if (domain == "tts" and service == "speak") else None
+        tts_engine_entity_id = (
+            self._resolve_tts_engine_entity_id(alarm)
+            if (domain == "tts" and service == "speak")
+            else None
+        )
 
         if domain == "tts" and service == "speak" and not tts_engine_entity_id:
             _LOGGER.warning(
@@ -481,8 +485,21 @@ class DirectAlarmEngine:
             payload["entity_id"] = target
         return payload
 
-    def _resolve_tts_engine_entity_id(self) -> str | None:
-        """Resolve a tts.* entity id for use with tts.speak."""
+    def _resolve_tts_engine_entity_id(self, alarm: dict[str, Any]) -> str | None:
+        """Resolve a tts.* entity id for use with tts.speak.
+
+        Priority:
+        1) last known TTS engine from the source conversation agent
+        2) first available global tts.* entity
+        """
+        raw_delivery = alarm.get("delivery")
+        delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
+        source_agent_id = str(delivery.get("source_conversation_agent_id") or "").strip()
+        if source_agent_id:
+            preferred = self._resolve_tts_engine_from_source_agent(source_agent_id)
+            if preferred:
+                return preferred
+
         candidates: list[str] = []
         try:
             scoped_states = self._hass.states.async_all("tts")
@@ -506,6 +523,39 @@ class DirectAlarmEngine:
             return None
 
         return candidates[0] if candidates else None
+
+    def _resolve_tts_engine_from_source_agent(self, source_agent_id: str) -> str | None:
+        """Resolve preferred tts.* entity from source conversation agent context."""
+        entry_data = self._hass.data.get(DOMAIN, {}).get(self._entry_id, {})
+        agents = entry_data.get("agents") if isinstance(entry_data, dict) else None
+        if not isinstance(agents, dict):
+            return None
+
+        candidate_ids: list[str] = []
+
+        direct = agents.get(source_agent_id)
+        if isinstance(direct, dict):
+            entity = direct.get("entity")
+            candidate = str(getattr(entity, "_last_tts_engine_entity_id", "") or "").strip().lower()
+            if candidate:
+                candidate_ids.append(candidate)
+
+        for agent_info in agents.values():
+            if not isinstance(agent_info, dict):
+                continue
+            entity = agent_info.get("entity")
+            entity_id = str(getattr(entity, "entity_id", "") or "").strip()
+            if entity_id != source_agent_id:
+                continue
+            candidate = str(getattr(entity, "_last_tts_engine_entity_id", "") or "").strip().lower()
+            if candidate:
+                candidate_ids.append(candidate)
+
+        for candidate in candidate_ids:
+            if candidate.startswith("tts.") and self._hass.states.get(candidate) is not None:
+                return candidate
+
+        return None
 
     def _resolve_tts_targets(self, alarm: dict[str, Any]) -> list[str]:
         """Resolve TTS targets with per-alarm override and source-aware defaults."""
