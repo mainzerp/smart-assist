@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.2 | 2026-02-15 |
+| Smart Assist | 1.22.3 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.3 (2026-02-15) - Alarm Delete WebSocket Hotfix
+
+**Fixes:**
+- Fixed `NameError` in websocket alarm `delete` action by adding missing `dt_util` import used for delete event timestamps
+- Verified delete action flow with targeted websocket/persistent alarm tests
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py tests/test_persistent_alarms.py -q`: 28 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 72 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.2 (2026-02-15) - Alarm Dashboard: Delete Obsolete Alarms
 
