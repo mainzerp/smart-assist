@@ -137,11 +137,7 @@ PERSISTENT_ALARM_EVENT_FIRED: Final = "smart_assist_alarm_fired"
 PERSISTENT_ALARM_EVENT_UPDATED: Final = "smart_assist_alarm_updated"
 POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES: Final = 5
 
-# Managed alarm automation settings (opt-in)
-CONF_ENABLE_MANAGED_ALARM_AUTOMATION: Final = "enable_managed_alarm_automation"
-CONF_MANAGED_ALARM_RECONCILE_INTERVAL: Final = "managed_alarm_reconcile_interval"
-CONF_MANAGED_ALARM_AUTO_REPAIR: Final = "managed_alarm_auto_repair"
-CONF_ENABLE_ADVANCED_ALARM_BACKENDS: Final = "enable_advanced_alarm_backends"
+# Alarm execution settings
 CONF_ALARM_EXECUTION_MODE: Final = "alarm_execution_mode"
 CONF_DIRECT_ALARM_ENABLE_NOTIFICATION: Final = "direct_alarm_enable_notification"
 CONF_DIRECT_ALARM_ENABLE_NOTIFY: Final = "direct_alarm_enable_notify"
@@ -152,21 +148,8 @@ CONF_DIRECT_ALARM_TTS_SERVICE: Final = "direct_alarm_tts_service"
 CONF_DIRECT_ALARM_TTS_TARGET: Final = "direct_alarm_tts_target"
 CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID: Final = "direct_alarm_script_entity_id"
 CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS: Final = "direct_alarm_backend_timeout_seconds"
-DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION: Final = False
-DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL: Final = 120
-DEFAULT_MANAGED_ALARM_AUTO_REPAIR: Final = True
-DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS: Final = False
-MANAGED_ALARM_RECONCILE_INTERVAL_MIN: Final = 30
-MANAGED_ALARM_RECONCILE_INTERVAL_MAX: Final = 3600
-ALARM_EXECUTION_MODE_MANAGED_ONLY: Final = "managed_only"
 ALARM_EXECUTION_MODE_DIRECT_ONLY: Final = "direct_only"
-ALARM_EXECUTION_MODE_HYBRID: Final = "hybrid"
-ALARM_EXECUTION_MODES: Final = (
-    ALARM_EXECUTION_MODE_MANAGED_ONLY,
-    ALARM_EXECUTION_MODE_DIRECT_ONLY,
-    ALARM_EXECUTION_MODE_HYBRID,
-)
-DEFAULT_ALARM_EXECUTION_MODE: Final = ALARM_EXECUTION_MODE_MANAGED_ONLY
+DEFAULT_ALARM_EXECUTION_MODE: Final = ALARM_EXECUTION_MODE_DIRECT_ONLY
 DEFAULT_DIRECT_ALARM_ENABLE_NOTIFICATION: Final = True
 DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY: Final = False
 DEFAULT_DIRECT_ALARM_ENABLE_TTS: Final = False
@@ -192,32 +175,6 @@ DIRECT_ALARM_ERROR_UNSUPPORTED: Final = "unsupported"
 DIRECT_ALARM_ERROR_VALIDATION: Final = "validation_error"
 DIRECT_ALARM_ERROR_SERVICE_FAILED: Final = "service_call_failed"
 DIRECT_ALARM_ERROR_TIMEOUT: Final = "timeout"
-
-# Managed alarm ownership markers + metadata
-MANAGED_ALARM_ALIAS_PREFIX: Final = "Smart Assist Alarm:"
-MANAGED_ALARM_OWNER: Final = "smart_assist"
-MANAGED_ALARM_MANAGED_VERSION: Final = 1
-MANAGED_ALARM_MARKER_PREFIX: Final = "smart_assist_managed:"
-MANAGED_ALARM_MARKER_OWNER_KEY: Final = "owner"
-MANAGED_ALARM_MARKER_ENTRY_ID_KEY: Final = "entry_id"
-MANAGED_ALARM_MARKER_ALARM_ID_KEY: Final = "alarm_id"
-MANAGED_ALARM_MARKER_VERSION_KEY: Final = "managed_version"
-
-# Managed alarm sync states
-MANAGED_ALARM_SYNC_PENDING: Final = "pending"
-MANAGED_ALARM_SYNC_SYNCED: Final = "synced"
-MANAGED_ALARM_SYNC_FAILED: Final = "failed"
-MANAGED_ALARM_SYNC_SKIPPED: Final = "skipped"
-
-# Managed alarm sync errors
-MANAGED_ALARM_ERROR_OWNERSHIP_MISMATCH: Final = "ownership_mismatch"
-MANAGED_ALARM_ERROR_NOT_FOUND: Final = "automation_not_found"
-MANAGED_ALARM_ERROR_SERVICE_FAILED: Final = "service_call_failed"
-MANAGED_ALARM_ERROR_UNSUPPORTED_IN_HA: Final = "unsupported_in_ha"
-MANAGED_ALARM_ERROR_INVALID_PAYLOAD: Final = "invalid_payload"
-
-# Dispatcher signals
-MANAGED_ALARM_DISPATCHER_RECONCILED: Final = f"{DOMAIN}_managed_alarm_reconciled"
 
 # Common Home Assistant locale to language name mapping for auto-detection
 # Used when language is empty/auto to show a readable language name in prompts

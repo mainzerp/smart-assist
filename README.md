@@ -6,8 +6,6 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Latest release: **v1.19.0** (Direct alarm action engine with managed-compatible execution modes and dashboard status visibility).
-
 Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
 ## Features
@@ -60,11 +58,9 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Human-Readable IDs**: Every alarm now has stable machine `id` plus user-facing unique `display_id`
 - **Post-Fire Conversational Snooze**: Relative follow-ups like "noch 5 minuten" / "5 more minutes" can snooze recent fired alarms safely
 - **Automation-Compatible Events**: Fired alarms emit `smart_assist_alarm_fired`; lifecycle changes emit `smart_assist_alarm_updated`
-- **Managed Automation (Opt-In)**: Optional Smart Assist-owned managed alarm automation reconcile loop with per-alarm sync visibility
 - **Direct Alarm Engine**: Optional internal direct execution backends at fire-time (persistent notification, notify, TTS, script)
-- **Execution Modes**: `managed_only`, `direct_only`, and `hybrid` to control managed/direct coexistence
-- **Ownership Safety**: Smart Assist only mutates automations with a verifiable Smart Assist ownership marker; user automations are never mutated
-- **Fallback Compatibility**: Event-based alarm behavior remains active and unchanged even when managed automation is disabled or sync fails
+- **Ownership Safety**: Smart Assist never mutates user-owned automations
+- **Fallback Compatibility**: Event-based alarm behavior remains active and unchanged
 - **Clear Separation**: Use `timer` for relative durations (native Assist), `alarm` for absolute persistent alarms
 
 ### Calendar Integration
@@ -252,10 +248,6 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | History Retention (days) | Auto-prune request history entries older than this limit | 30 |
 | History Redact Patterns | Comma/newline-separated regex or text patterns replaced with [REDACTED] before persistence | (empty) |
 | Entity Discovery Mode | Entity lookup strategy: "Full Index" (all in prompt) or "Smart Discovery" (on-demand via tools) | Full Index |
-| Managed Alarm Automation | Opt-in managed reconcile for Smart Assist-owned alarm automations only | false |
-| Managed Alarm Reconcile Interval | Periodic managed alarm reconcile interval (seconds) | 120 |
-| Managed Alarm Auto-Repair | Recreate missing owned managed automations during reconcile | true |
-| Alarm Execution Mode | Alarm fire execution strategy: `managed_only`, `direct_only`, or `hybrid` | managed_only |
 | Direct Alarm Notification Backend | Internal persistent notification direct backend | true |
 | Direct Alarm Notify Backend | Internal `notify.*` service direct backend | false |
 | Direct Alarm Notify Service | Notify service called by direct backend | `notify.notify` |

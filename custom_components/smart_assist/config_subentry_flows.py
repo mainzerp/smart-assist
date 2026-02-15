@@ -55,7 +55,6 @@ from .const import (
     CONF_DIRECT_ALARM_TTS_SERVICE,
     CONF_DIRECT_ALARM_TTS_TARGET,
     CONF_ENABLE_CACHE_WARMING,
-    CONF_ENABLE_ADVANCED_ALARM_BACKENDS,
     CONF_ENABLE_MEMORY,
     CONF_ENABLE_REQUEST_HISTORY_CONTENT,
     CONF_ENABLE_AGENT_MEMORY,
@@ -102,7 +101,6 @@ from .const import (
     DEFAULT_DIRECT_ALARM_TTS_SERVICE,
     DEFAULT_DIRECT_ALARM_TTS_TARGET,
     DEFAULT_ENABLE_CACHE_WARMING,
-    DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS,
     DEFAULT_ENABLE_MEMORY,
     DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
     DEFAULT_ENABLE_AGENT_MEMORY,
@@ -314,7 +312,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         """Handle settings step - provider + all other settings."""
         errors: dict[str, str] = {}
         if user_input is not None and not errors:
-            user_input[CONF_ENABLE_ADVANCED_ALARM_BACKENDS] = False
             self._data.update(user_input)
             return await self.async_step_prompt()
         
@@ -568,7 +565,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         """Handle reconfiguration step 3 - provider routing and all settings."""
         errors: dict[str, str] = {}
         if user_input is not None and not errors:
-            user_input[CONF_ENABLE_ADVANCED_ALARM_BACKENDS] = False
             self._data.update(user_input)
             return self.async_update_and_abort(
                 self._get_entry(),

@@ -228,7 +228,7 @@ Language:
 {language_instruction} This applies to ALL responses -- confirmations, errors, questions. Never mix languages.""")
 
     parts.append(
-        "Alarm policy: alarm intent behavior stays event-compatible; any managed alarm automation linkage is internal and must not change user-owned automations."
+        "Alarm policy: alarm intent behavior stays event-compatible; fired alarms execute through the internal direct engine and must not change user-owned automations."
     )
     parts.append(
         "Alarm execution compatibility: fired alarms may execute through an internal direct engine depending on configured mode; this does not require automation create/edit APIs."

@@ -243,8 +243,7 @@
       "error": {
         "groq_api_key_required": "Groq API-Schluessel wird fuer den Groq Provider benoetigt.",
         "openrouter_api_key_required": "OpenRouter API-Schluessel wird fuer den OpenRouter Provider benoetigt.",
-        "ollama_not_configured": "Ollama ist nicht konfiguriert. Bitte fuege Ollama in den Haupteinstellungen hinzu.",
-        "invalid_managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall muss zwischen 30 und 3600 Sekunden liegen."
+        "ollama_not_configured": "Ollama ist nicht konfiguriert. Bitte fuege Ollama in den Haupteinstellungen hinzu."
       }
     },
     "ai_task": {

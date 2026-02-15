@@ -14,6 +14,8 @@ from homeassistant.util import dt as dt_util
 from ..const import (
     CONF_CANCEL_INTENT_AGENT,
     CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+    CONF_USER_SYSTEM_PROMPT,
+    DEFAULT_USER_SYSTEM_PROMPT,
     CONF_DIRECT_ALARM_ENABLE_NOTIFICATION,
     CONF_DIRECT_ALARM_ENABLE_NOTIFY,
     CONF_DIRECT_ALARM_ENABLE_SCRIPT,
@@ -250,33 +252,6 @@ class DirectAlarmEngine:
                 result["target_failure_count"] = failed
                 return result
 
-        if (
-            domain == "tts"
-            and service == "speak"
-            and self._hass.services.has_service("assist_satellite", "announce")
-            and source_satellite_id
-            and source_satellite_id.startswith("assist_satellite.")
-            and not targets
-        ):
-            _LOGGER.debug(
-                "Direct alarm TTS using assist_satellite.announce for %s on source satellite=%s",
-                alarm.get("id"),
-                source_satellite_id,
-            )
-            await self._async_call_service(
-                "assist_satellite",
-                "announce",
-                {
-                    "entity_id": source_satellite_id,
-                    "message": message,
-                },
-            )
-            result = self._ok_result("assist_satellite.announce")
-            result["targets"] = targets
-            result["target_success_count"] = 1
-            result["target_failure_count"] = 0
-            return result
-
         tts_engine_entity_id = (
             self._resolve_tts_engine_entity_id(alarm)
             if (domain == "tts" and service == "speak")
@@ -302,8 +277,6 @@ class DirectAlarmEngine:
 
         if not targets:
             if domain == "tts" and service == "speak":
-                raw_delivery = alarm.get("delivery")
-                delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
                 _LOGGER.warning(
                     "Direct alarm TTS target resolution failed for %s (tts.speak). source_device_id=%s, source_satellite_id=%s, configured_target=%s",
                     alarm.get("id"),
@@ -354,7 +327,7 @@ class DirectAlarmEngine:
         if not bool(wake_text.get("dynamic", False)):
             return fallback
 
-        llm_client = self._get_llm_client()
+        llm_client, user_system_prompt = self._get_llm_client_and_prompt()
         if llm_client is None:
             return fallback
 
@@ -386,14 +359,20 @@ class DirectAlarmEngine:
         language = str(getattr(self._hass.config, "language", "en") or "en")
 
         try:
+            # Build system prompt: user personality first, then alarm-specific instructions
+            system_parts = []
+            if user_system_prompt:
+                system_parts.append(user_system_prompt)
+            system_parts.append(
+                "You are now generating a wake-up TTS message for a fired alarm. "
+                "Stay in character as described above. "
+                "Keep it concise and natural: max 2 short sentences. "
+                "No markdown, no emojis."
+            )
             messages = [
                 ChatMessage(
                     role=MessageRole.SYSTEM,
-                    content=(
-                        "You write wake-up TTS messages for a smart home alarm. "
-                        "Respond in the requested language. Keep it concise and natural: max 2 short sentences. "
-                        "No markdown, no emojis."
-                    ),
+                    content="\n\n".join(system_parts),
                 ),
                 ChatMessage(
                     role=MessageRole.USER,
@@ -407,7 +386,10 @@ class DirectAlarmEngine:
                     ),
                 ),
             ]
-            llm_response = await llm_client.chat(messages=messages, tools=[])
+            llm_response = await asyncio.wait_for(
+                llm_client.chat(messages=messages, tools=[]),
+                timeout=float(self._config.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS)),
+            )
             candidate = str(llm_response.content or "").strip()
             if candidate:
                 if len(candidate) > 260:
@@ -420,9 +402,7 @@ class DirectAlarmEngine:
 
     def _collect_weather_context(self) -> str:
         """Return compact weather context from first available weather entity."""
-        weather_entities = [
-            state for state in self._hass.states.async_all() if state.entity_id.startswith("weather.")
-        ]
+        weather_entities = list(self._hass.states.async_all("weather"))
         if not weather_entities:
             return ""
 
@@ -450,7 +430,8 @@ class DirectAlarmEngine:
                 max_results=3,
             )
             if result.success:
-                entries = result.data.get("results") if isinstance(result.data, dict) else []
+                raw_entries = result.data.get("results") if isinstance(result.data, dict) else []
+                entries = raw_entries if isinstance(raw_entries, list) else []
         except Exception:
             entries = []
 
@@ -472,6 +453,7 @@ class DirectAlarmEngine:
         """Fallback DDGS query when WebSearchTool does not yield results."""
         def _query() -> list[dict[str, Any]]:
             try:
+                # ddgs is an optional runtime dependency; import failure is handled gracefully
                 from ddgs import DDGS
 
                 with DDGS() as ddgs_client:
@@ -485,27 +467,40 @@ class DirectAlarmEngine:
         except Exception:
             return []
 
-    def _get_llm_client(self):
-        """Get preferred LLM client from entry agents for dynamic wake text."""
+    def _get_llm_client_and_prompt(self) -> tuple[Any, str]:
+        """Get preferred LLM client and user system prompt from entry agents.
+
+        Uses CONF_CANCEL_INTENT_AGENT as heuristic to find the primary conversation agent.
+        This flag is typically enabled on the default/primary agent subentry.
+
+        Returns (llm_client, user_system_prompt). Either or both may be None/empty.
+        """
         entry_data = self._hass.data.get(DOMAIN, {}).get(self._entry_id, {})
         agents = entry_data.get("agents", {}) if isinstance(entry_data, dict) else {}
         entry = self._hass.config_entries.async_get_entry(self._entry_id)
 
         fallback_client = None
+        fallback_prompt = ""
         for subentry_id, agent_info in agents.items():
             llm_client = agent_info.get("llm_client") if isinstance(agent_info, dict) else None
             if llm_client is None:
                 continue
 
+            user_prompt = ""
             if entry is not None:
                 subentry = entry.subentries.get(subentry_id)
-                if subentry is not None and subentry.data.get(CONF_CANCEL_INTENT_AGENT, DEFAULT_CANCEL_INTENT_AGENT):
-                    return llm_client
+                if subentry is not None:
+                    user_prompt = str(
+                        subentry.data.get(CONF_USER_SYSTEM_PROMPT, DEFAULT_USER_SYSTEM_PROMPT)
+                    ).strip()
+                    if subentry.data.get(CONF_CANCEL_INTENT_AGENT, DEFAULT_CANCEL_INTENT_AGENT):
+                        return llm_client, user_prompt
 
             if fallback_client is None:
                 fallback_client = llm_client
+                fallback_prompt = user_prompt
 
-        return fallback_client
+        return fallback_client, fallback_prompt
 
     async def _run_script_backend(self, alarm: dict[str, Any]) -> dict[str, Any]:
         script_entity_id = str(

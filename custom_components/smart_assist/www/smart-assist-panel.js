@@ -725,8 +725,7 @@ class SmartAssistPanel extends HTMLElement {
       || (this._data ? this._data.alarms_summary : null)
       || { total: 0, active: 0, snoozed: 0, fired: 0, dismissed: 0 };
     const alarms = alarmsPayload.alarms || [];
-    const executionMode = alarmsPayload.execution_mode || "managed_only";
-    const managedReconcileAvailable = alarmsPayload.managed_reconcile_available !== false;
+    const executionMode = alarmsPayload.execution_mode || "direct_only";
 
     let html = '<div class="overview-grid">'
       + '<div class="metric-card"><div class="label">Total</div><div class="value">' + (summary.total || 0) + '</div></div>'
@@ -736,12 +735,6 @@ class SmartAssistPanel extends HTMLElement {
       + '<div class="metric-card"><div class="label">Dismissed</div><div class="value">' + (summary.dismissed || 0) + '</div></div>'
       + '<div class="metric-card"><div class="label">Execution Mode</div><div class="value" style="font-size:18px;">' + this._esc(executionMode) + '</div></div>'
       + '</div>';
-
-    if (managedReconcileAvailable) {
-      html += '<div style="margin-bottom:12px;text-align:right;">'
-        + '<button class="refresh-btn" id="managed-reconcile-btn">Reconcile managed alarms</button>'
-        + '</div>';
-    }
 
     if (!alarms.length) {
       html += '<div class="card"><h3>Alarms</h3><div style="color:var(--sa-text-secondary);font-size:14px;padding:20px 0;">No alarms available.</div></div>';
@@ -1239,23 +1232,6 @@ class SmartAssistPanel extends HTMLElement {
     }
   }
 
-  async _reconcileManagedAlarms() {
-    try {
-      await this._callWSWithTimeout(
-        {
-          type: "smart_assist/alarm_action",
-          action: "managed_reconcile_now",
-        },
-        WS_CALL_TIMEOUT_MS,
-        "managed alarm reconcile"
-      );
-      await this._loadAlarms(true);
-    } catch (err) {
-      this._alarmsError = err.message || "Managed reconcile failed";
-      this._render();
-    }
-  }
-
   _startAlarmEdit(alarmId) {
     this._alarmEditId = alarmId || null;
     this._render();
@@ -1582,12 +1558,6 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   _attachAlarmEvents() {
-    const managedReconcileButton = this.shadowRoot.getElementById("managed-reconcile-btn");
-    if (managedReconcileButton) {
-      this._bindNodeClick(managedReconcileButton, () => {
-        this._reconcileManagedAlarms();
-      });
-    }
     this._bindAllClick(".alarm-action-btn", (btn) => {
       const action = btn.dataset.action;
       const alarmId = btn.dataset.alarmId;

@@ -9,12 +9,10 @@ import re
 import aiohttp
 
 from .const import (
-    ALARM_EXECUTION_MODES,
+    ALARM_EXECUTION_MODE_DIRECT_ONLY,
     DEFAULT_MODEL,
     DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
     DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
-    MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
-    MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
     OLLAMA_DEFAULT_MODEL,
     OPENROUTER_API_BASE,
 )
@@ -22,14 +20,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def validate_managed_alarm_reconcile_interval(value: int) -> bool:
-    """Validate managed alarm reconcile interval bounds."""
-    return MANAGED_ALARM_RECONCILE_INTERVAL_MIN <= int(value) <= MANAGED_ALARM_RECONCILE_INTERVAL_MAX
-
-
 def validate_alarm_execution_mode(value: str) -> bool:
     """Validate alarm execution mode enum."""
-    return str(value or "") in ALARM_EXECUTION_MODES
+    return str(value or "") == ALARM_EXECUTION_MODE_DIRECT_ONLY
 
 
 def validate_service_string(value: str) -> bool:

@@ -6,6 +6,7 @@ so alarms survive restarts.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -21,24 +22,11 @@ from homeassistant.util import dt as dt_util
 
 from ..const import (
     DIRECT_ALARM_STATE_SKIPPED,
-    MANAGED_ALARM_SYNC_PENDING,
     PERSISTENT_ALARM_STORAGE_KEY,
     PERSISTENT_ALARM_STORAGE_VERSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _managed_defaults() -> dict[str, Any]:
-    """Return default managed automation metadata block."""
-    return {
-        "enabled": False,
-        "automation_entity_id": None,
-        "ownership_verified": False,
-        "sync_state": MANAGED_ALARM_SYNC_PENDING,
-        "last_sync_at": None,
-        "last_sync_error": None,
-    }
 
 
 def _empty_store_data() -> dict[str, Any]:
@@ -104,6 +92,7 @@ class PersistentAlarmManager:
         self._dirty = False
         self._last_save: float = 0.0
         self._save_debounce_seconds = 5.0
+        self._pending_save_handle: asyncio.TimerHandle | None = None
 
     async def _async_migrate_storage(
         self,
@@ -150,14 +139,30 @@ class PersistentAlarmManager:
 
         now = time.monotonic()
         if now - self._last_save < self._save_debounce_seconds:
+            if self._hass is not None and self._pending_save_handle is None:
+                remaining = self._save_debounce_seconds - (now - self._last_save)
+                self._pending_save_handle = self._hass.loop.call_later(
+                    remaining + 0.1,
+                    lambda: self._hass.async_create_task(self._deferred_save()),
+                )
             return
 
         await self.async_force_save()
+
+    async def _deferred_save(self) -> None:
+        """Execute deferred save after debounce window expires."""
+        self._pending_save_handle = None
+        if self._dirty:
+            await self.async_force_save()
 
     async def async_force_save(self) -> None:
         """Persist alarms immediately."""
         if self._store is None:
             return
+
+        if self._pending_save_handle is not None:
+            self._pending_save_handle.cancel()
+            self._pending_save_handle = None
 
         try:
             await self._store.async_save(self._data)
@@ -168,6 +173,9 @@ class PersistentAlarmManager:
 
     async def async_shutdown(self) -> None:
         """Flush pending changes during unload/shutdown."""
+        if self._pending_save_handle is not None:
+            self._pending_save_handle.cancel()
+            self._pending_save_handle = None
         if self._dirty:
             await self.async_force_save()
 
@@ -223,7 +231,7 @@ class PersistentAlarmManager:
             "snoozed_until": None,
             "last_fired_at": None,
             "fire_count": 0,
-            "managed_automation": _managed_defaults(),
+            "managed_automation": {},
             "direct_execution": _direct_defaults(),
             "delivery": {
                 "source_device_id": str(source_device_id or "").strip() or None,
@@ -436,16 +444,7 @@ class PersistentAlarmManager:
             managed = alarm.get("managed_automation")
             if not isinstance(managed, dict):
                 managed = {}
-            merged_managed = _managed_defaults()
-            merged_managed.update({
-                "enabled": bool(managed.get("enabled", merged_managed["enabled"])),
-                "automation_entity_id": managed.get("automation_entity_id", merged_managed["automation_entity_id"]),
-                "ownership_verified": bool(managed.get("ownership_verified", merged_managed["ownership_verified"])),
-                "sync_state": managed.get("sync_state", merged_managed["sync_state"]),
-                "last_sync_at": managed.get("last_sync_at", merged_managed["last_sync_at"]),
-                "last_sync_error": managed.get("last_sync_error", merged_managed["last_sync_error"]),
-            })
-            alarm["managed_automation"] = merged_managed
+            alarm["managed_automation"] = managed
             direct_execution = alarm.get("direct_execution")
             if not isinstance(direct_execution, dict):
                 direct_execution = {}
@@ -597,79 +596,6 @@ class PersistentAlarmManager:
             "version": self._data.get("version", PERSISTENT_ALARM_STORAGE_VERSION),
             "alarms": [dict(alarm) for alarm in self._data.get("alarms", [])],
         }
-
-    def mark_managed_sync_state(
-        self,
-        alarm_id: str,
-        sync_state: str,
-        last_sync_error: str | None = None,
-        at_iso: str | None = None,
-    ) -> bool:
-        """Update managed automation sync state metadata for alarm."""
-        alarm = self._find_alarm(alarm_id)
-        if alarm is None:
-            return False
-
-        managed = alarm.get("managed_automation")
-        if not isinstance(managed, dict):
-            managed = _managed_defaults()
-            alarm["managed_automation"] = managed
-
-        managed["sync_state"] = sync_state
-        managed["last_sync_error"] = last_sync_error
-        managed["last_sync_at"] = at_iso or dt_util.now().isoformat()
-        alarm["updated_at"] = dt_util.now().isoformat()
-        self._dirty = True
-        return True
-
-    def set_managed_linkage(
-        self,
-        alarm_id: str,
-        enabled: bool,
-        automation_entity_id: str | None,
-        ownership_verified: bool,
-    ) -> bool:
-        """Set managed automation linkage metadata for alarm."""
-        alarm = self._find_alarm(alarm_id)
-        if alarm is None:
-            return False
-
-        managed = alarm.get("managed_automation")
-        if not isinstance(managed, dict):
-            managed = _managed_defaults()
-            alarm["managed_automation"] = managed
-
-        managed["enabled"] = bool(enabled)
-        managed["automation_entity_id"] = automation_entity_id
-        managed["ownership_verified"] = bool(ownership_verified)
-        alarm["updated_at"] = dt_util.now().isoformat()
-        self._dirty = True
-        return True
-
-    def clear_managed_linkage_if_unverified(self, alarm_id: str) -> bool:
-        """Clear managed linkage for alarm only when ownership is not verified."""
-        alarm = self._find_alarm(alarm_id)
-        if alarm is None:
-            return False
-
-        managed = alarm.get("managed_automation")
-        if not isinstance(managed, dict):
-            return False
-
-        if managed.get("ownership_verified") is True:
-            return False
-
-        changed = False
-        if managed.get("automation_entity_id") is not None:
-            managed["automation_entity_id"] = None
-            changed = True
-        if managed.get("enabled"):
-            managed["enabled"] = False
-            changed = True
-        if changed:
-            alarm["updated_at"] = dt_util.now().isoformat()
-            self._dirty = True
-        return changed
 
     def has_direct_execution_marker(self, alarm_id: str, fire_marker: str) -> bool:
         """Return whether alarm already processed given direct fire marker."""

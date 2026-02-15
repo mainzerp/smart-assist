@@ -46,13 +46,6 @@ REMINDER_WINDOWS: Final = {
 # Instead of hours-before, we check if we're on the day before (between 08:00 and 22:00)
 ALL_DAY_REMINDER_HOURS: Final = (8, 22)  # Show reminder between 8 AM and 10 PM on day before
 
-# Human-readable reminder templates per stage
-REMINDER_TEMPLATES: Final = {
-    ReminderStage.DAY_BEFORE: "Morgen um {time} hast du '{summary}'",
-    ReminderStage.HOURS_BEFORE: "In etwa {hours} Stunden hast du '{summary}'",
-    ReminderStage.HOUR_BEFORE: "In {minutes} Minuten hast du '{summary}'",
-}
-
 
 class CalendarReminderTracker:
     """Tracks calendar reminders with staged notification.
@@ -156,11 +149,11 @@ class CalendarReminderTracker:
                 # Convert to local time
                 return dt_util.as_local(dt)
             else:
-                # All-day event (date only) - assume midnight
+                # All-day event (date only) - assume midnight in local timezone
                 from datetime import date as date_type
 
                 d = date_type.fromisoformat(time_str)
-                return datetime.combine(d, datetime.min.time())
+                return dt_util.as_local(datetime.combine(d, datetime.min.time(), tzinfo=dt_util.DEFAULT_TIME_ZONE))
         except (ValueError, TypeError) as err:
             _LOGGER.debug("Failed to parse event time '%s': %s", time_str, err)
             return None
@@ -183,10 +176,8 @@ class CalendarReminderTracker:
         # Check if this is an all-day event (date only, no time)
         is_all_day = self._is_all_day_event(start_str)
 
-        # Make both timezone-aware or naive for comparison
-        if event_start.tzinfo is None:
-            now = now.replace(tzinfo=None)
-        elif now.tzinfo is None:
+        # Ensure both are timezone-aware for comparison
+        if now.tzinfo is None:
             now = dt_util.as_local(now)
 
         time_until = event_start - now

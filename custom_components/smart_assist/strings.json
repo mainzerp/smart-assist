@@ -243,8 +243,7 @@
       "error": {
         "groq_api_key_required": "Groq API key is required for Groq provider.",
         "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider.",
-        "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings.",
-        "invalid_managed_alarm_reconcile_interval": "Managed alarm reconcile interval must be between 30 and 3600 seconds."
+        "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings."
       }
     },
     "ai_task": {

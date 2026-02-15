@@ -57,8 +57,8 @@
 | AI Task Structured Output Follow-up Fixes | v1.15.1 | Fixed tool-loop compatibility regressions, hardened async chat-call compatibility, and restored robust tool execution fallback behavior. |
 | Persistent Alarms | v1.16.0 | Added restart-safe absolute-time alarms via dedicated `alarm` tool, storage-backed alarm manager, lifecycle reconciliation, and fired-alarm event emission. |
 | Alarm Governance + Dashboard Management | v1.17.0 | Added human-readable alarm `display_id`, post-fire conversational snooze resolution, alarms dashboard tab/actions, lifecycle `smart_assist_alarm_updated` contracts, and explicit no-mutation safety stance for user automations. |
-| Managed Alarm Automation (Opt-In) | v1.18.0 | Added Smart Assist-managed alarm automation reconcile loop with ownership verification, non-blocking sync failure visibility, manual reconcile action, and preserved event-based alarm compatibility. |
-| Direct Alarm Engine | v1.19.0 | Added direct internal alarm execution mode with backend fan-out (notification/notify/TTS/script), mode-aware managed coexistence (`managed_only`/`direct_only`/`hybrid`), and dashboard/websocket direct execution outcome visibility. |
+| Managed Alarm Automation (Opt-In) | v1.18.0 | (Removed in v1.20.0) Alarm execution consolidated to direct engine only. |
+| Direct Alarm Engine | v1.19.0 | Added direct internal alarm execution mode with backend fan-out (notification/notify/TTS/script) and dashboard/websocket direct execution outcome visibility. |
 
 ---
 
@@ -67,8 +67,6 @@
 ### Near-Term (P0/P1)
 
 Governance note: No autonomous critical control in MVP phases without explicit user confirmation.
-
-Alarm governance note: Managed alarm automation is now available as opt-in and ownership-safe; Smart Assist still never mutates non-owned user automations and keeps event-driven alarm behavior as fallback.
 
 | Feature | Priority | Why now | Dependencies | Acceptance Criteria |
 | ------- | -------- | ------- | ------------ | ------------------- |

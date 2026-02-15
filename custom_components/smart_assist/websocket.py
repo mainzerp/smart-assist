@@ -18,7 +18,6 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 import voluptuous as vol
 
 from .const import (
-    ALARM_EXECUTION_MODE_DIRECT_ONLY,
     CONF_ASK_FOLLOWUP,
     CONF_ALARM_EXECUTION_MODE,
     CONF_CALENDAR_CONTEXT,
@@ -49,7 +48,6 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DEFAULT_USER_SYSTEM_PROMPT,
     DOMAIN,
-    MANAGED_ALARM_DISPATCHER_RECONCILED,
     POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
     PERSISTENT_ALARM_EVENT_UPDATED,
 )
@@ -143,7 +141,6 @@ def _build_dashboard_update_signal_names(entry: Any) -> list[str]:
     for subentry_id in entry.subentries:
         for suffix in _DASHBOARD_METRIC_UPDATE_SIGNAL_SUFFIXES:
             signal_names.append(f"{DOMAIN}_{suffix}_{subentry_id}")
-    signal_names.append(f"{MANAGED_ALARM_DISPATCHER_RECONCILED}_{entry.entry_id}")
     return signal_names
 
 
@@ -941,7 +938,6 @@ async def ws_alarms_data(
 
     alarms = manager.list_alarms(active_only=bool(msg.get("active_only", False)))
     execution_mode = _get_alarm_execution_mode_for_entry(hass, entry)
-    managed_reconcile_available = execution_mode != ALARM_EXECUTION_MODE_DIRECT_ONLY
     for alarm in alarms:
         alarm["execution_mode"] = execution_mode
     summary = _build_alarms_summary(alarms)
@@ -955,7 +951,6 @@ async def ws_alarms_data(
             "alarms": [_serialize_alarm(hass, alarm) for alarm in alarms],
             "summary": summary,
             "execution_mode": execution_mode,
-            "managed_reconcile_available": managed_reconcile_available,
         },
     )
 
@@ -963,7 +958,7 @@ async def ws_alarms_data(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "smart_assist/alarm_action",
-        vol.Required("action"): vol.In(["snooze", "cancel", "delete", "status", "managed_reconcile_now", "edit"]),
+        vol.Required("action"): vol.In(["snooze", "cancel", "delete", "status", "edit"]),
         vol.Optional("alarm_id"): str,
         vol.Optional("display_id"): str,
         vol.Optional("minutes"): int,
@@ -999,29 +994,6 @@ async def ws_alarm_action(
     action = msg["action"]
     alarm_ref = msg.get("alarm_id") or msg.get("display_id")
     execution_mode = _get_alarm_execution_mode_for_entry(hass, entry)
-
-    if action == "managed_reconcile_now":
-        if execution_mode == ALARM_EXECUTION_MODE_DIRECT_ONLY:
-            connection.send_result(msg["id"], {"success": False, "message": "Managed reconcile is disabled in direct-only mode"})
-            return
-        managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
-        if managed_service is None:
-            connection.send_result(msg["id"], {"success": False, "message": "Managed alarm automation is disabled"})
-            return
-        try:
-            alarm = manager.get_alarm(str(alarm_ref)) if alarm_ref else None
-            if alarm is not None:
-                await managed_service.async_reconcile_alarm(alarm, execution_mode=execution_mode)
-            else:
-                await managed_service.async_reconcile_all(execution_mode=execution_mode)
-            await manager.async_save()
-            from homeassistant.helpers.dispatcher import async_dispatcher_send
-            async_dispatcher_send(hass, _build_alarm_update_signal_name(entry))
-            connection.send_result(msg["id"], {"success": True, "message": "Managed alarms reconciled"})
-            return
-        except Exception as err:
-            connection.send_error(msg["id"], "unknown_error", f"Managed reconcile failed: {err}")
-            return
 
     if action == "status":
         if not alarm_ref:
@@ -1059,13 +1031,6 @@ async def ws_alarm_action(
             return
         alarm = manager.get_alarm(str(alarm_ref))
         await manager.async_force_save()
-        managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
-        if alarm is not None and managed_service is not None:
-            try:
-                await managed_service.async_reconcile_alarm(alarm, execution_mode=execution_mode)
-                await manager.async_save()
-            except Exception as err:
-                _LOGGER.warning("Managed alarm reconcile failed on websocket cancel: %s", err)
         if alarm is not None:
             hass.bus.async_fire(
                 PERSISTENT_ALARM_EVENT_UPDATED,
@@ -1178,13 +1143,6 @@ async def ws_alarm_action(
             return
 
         await manager.async_force_save()
-        managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
-        if managed_service is not None:
-            try:
-                await managed_service.async_reconcile_alarm(alarm, execution_mode=execution_mode)
-                await manager.async_save()
-            except Exception as err:
-                _LOGGER.warning("Managed alarm reconcile failed on websocket edit: %s", err)
 
         hass.bus.async_fire(
             PERSISTENT_ALARM_EVENT_UPDATED,
@@ -1238,13 +1196,6 @@ async def ws_alarm_action(
         return
 
     await manager.async_force_save()
-    managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
-    if managed_service is not None:
-        try:
-            await managed_service.async_reconcile_alarm(alarm, execution_mode=execution_mode)
-            await manager.async_save()
-        except Exception as err:
-            _LOGGER.warning("Managed alarm reconcile failed on websocket snooze: %s", err)
     hass.bus.async_fire(
         PERSISTENT_ALARM_EVENT_UPDATED,
         {

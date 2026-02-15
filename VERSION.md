@@ -4,9 +4,80 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.16 | 2026-02-15 |
+| Smart Assist | 1.23.1  | 2026-02-15 |
 
 ## Version History
+
+### v1.23.1 (2026-02-15) - Alarm Wake Text: Inject User System Prompt
+
+**Improvements:**
+- Dynamic alarm wake text generation now includes the user's system prompt (personality/instructions) from the conversation agent configuration
+- The alarm LLM stays in character and responds in the same tone, language, and style the user configured for their assistant
+- Renamed `_get_llm_client()` to `_get_llm_client_and_prompt()` returning both the LLM client and the user system prompt
+
+**Files modified:**
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- VERSION.md
+
+### v1.23.0 (2026-02-15) - Alarm Pipeline Audit: Managed Alarm Removal and Bug Fixes
+
+**Breaking Changes:**
+- Completely removed `managed_alarm_automation` subsystem (ManagedAlarmAutomationService, reconcile lifecycle, HA automation sync)
+- Removed `managed_only` and `hybrid` alarm execution modes -- only `direct_only` is now supported
+- Removed `CONF_ENABLE_ADVANCED_ALARM_BACKENDS`, `CONF_ENABLE_MANAGED_ALARM_AUTOMATION`, `CONF_MANAGED_ALARM_RECONCILE_INTERVAL`, `CONF_MANAGED_ALARM_AUTO_REPAIR` configuration options
+- Removed `wake_test_*` typo alias parameters from alarm tool (use canonical `wake_text_*` names)
+- Removed managed reconcile websocket action and dashboard reconcile button
+
+**Improvements:**
+- Simplified `_get_alarm_execution_config` to respect user settings for notification/notify/TTS/script toggles (no more hardcoded overrides)
+- Simplified alarm execution mode to always use direct engine
+- Removed dead satellite announce fallback block from direct alarm engine (F03)
+- Added `asyncio.wait_for` timeout guard on LLM `chat()` call in dynamic wake text generation (F07)
+- Added deferred save callback to `async_save()` debounce in persistent alarms to prevent data loss (F08)
+- Fixed all-day event timezone handling in calendar reminder parser (F14)
+
+**Bug Fixes:**
+- Fixed redeclared `delivery` variable shadow in direct alarm engine (F04)
+- Fixed `async_all()` to pass `"weather"` domain filter for weather state collection (F05)
+- Fixed type safety in `_collect_news_context` for non-list raw entries (F06)
+- Removed dead German `REMINDER_TEMPLATES` constant from calendar reminder (F15)
+- Removed double notification in `_process_due_persistent_alarms` (F09)
+
+**Code Quality:**
+- Added clarifying comment at `ddgs` import site (F10)
+- Added docstring to `_get_llm_client()` explaining `CONF_CANCEL_INTENT_AGENT` heuristic (F11)
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; .venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_persistent_alarms.py tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py tests/test_calendar_reminder.py tests/test_config_flow.py -v --tb=short`: 132 passed, 12 pre-existing errors (hass fixture)
+
+**Files deleted:**
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- tests/test_managed_alarm_automation.py
+
+**Files modified:**
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/config_validators.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/calendar_reminder.py
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- tests/test_persistent_alarms.py
+- tests/test_direct_alarm_engine.py
+- tests/test_tools.py
+- tests/test_websocket.py
+- tests/test_config_flow.py
+- README.md
+- ROADMAP.md
+- VERSION.md
 
 ### v1.22.16 (2026-02-15) - Tool Arg Key Whitespace Normalization
 
