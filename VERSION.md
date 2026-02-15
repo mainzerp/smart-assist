@@ -4,9 +4,26 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.20.5 | 2026-02-15 |
+| Smart Assist | 1.20.6 | 2026-02-15 |
 
 ## Version History
+
+### v1.20.6 (2026-02-15) - Store API Compatibility Fix
+
+**Fixes:**
+- Added backward-compatible persistent alarm store initialization for Home Assistant versions where `Store.__init__` does not accept `async_migrate_func`
+- Preserved migration support by attaching migration callback via internal store hook when constructor keyword is unavailable
+- Prevented startup crash `TypeError: Store.__init__() got an unexpected keyword argument 'async_migrate_func'`
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest tests/test_persistent_alarms.py -q`: 18 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.20.5 (2026-02-15) - Persistent Alarm Storage Migration Hotfix
 

@@ -68,12 +68,21 @@ class PersistentAlarmManager:
         self._hass = hass
         self._store: Store | None = None
         if hass is not None:
-            self._store = Store(
-                hass,
-                PERSISTENT_ALARM_STORAGE_VERSION,
-                PERSISTENT_ALARM_STORAGE_KEY,
-                async_migrate_func=self._async_migrate_storage,
-            )
+            try:
+                self._store = Store(
+                    hass,
+                    PERSISTENT_ALARM_STORAGE_VERSION,
+                    PERSISTENT_ALARM_STORAGE_KEY,
+                    async_migrate_func=self._async_migrate_storage,
+                )
+            except TypeError:
+                self._store = Store(
+                    hass,
+                    PERSISTENT_ALARM_STORAGE_VERSION,
+                    PERSISTENT_ALARM_STORAGE_KEY,
+                )
+                if hasattr(self._store, "_async_migrate_func"):
+                    self._store._async_migrate_func = self._async_migrate_storage
 
         self._data: dict[str, Any] = _empty_store_data()
         self._dirty = False
