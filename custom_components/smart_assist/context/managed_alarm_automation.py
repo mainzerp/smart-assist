@@ -93,7 +93,9 @@ class ManagedAlarmAutomationService:
 
     def _has_automation_write_api(self) -> bool:
         """Return whether this HA runtime exposes automation write services."""
-        return len(self._list_automation_services()) > 0
+        write_services = {"upsert", "create", "edit", "update", "delete", "remove"}
+        available = set(self._list_automation_services())
+        return len(write_services.intersection(available)) > 0
 
     def _description_with_marker(self, alarm: dict[str, Any]) -> str:
         marker_json = json.dumps(self._marker(alarm), separators=(",", ":"), sort_keys=True)

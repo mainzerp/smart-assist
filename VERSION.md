@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.18.2 | 2026-02-15 |
+| Smart Assist | 1.18.3 | 2026-02-15 |
 
 ## Version History
+
+### v1.18.3 (2026-02-15) - Official Automation API Compatibility Fix
+
+**Fixes:**
+- Refined managed automation capability detection to require actual write services (`upsert/create/edit/update/delete/remove`)
+- Prevented false-positive write capability when only official runtime control services exist (`reload`, `toggle`, `trigger`, `turn_off`, `turn_on`)
+- Ensured environments with only official automation actions are classified as `unsupported_in_ha` instead of `service_call_failed`
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_managed_alarm_automation.py tests/test_websocket.py`: 11 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.18.2 (2026-02-15) - Managed Automation Unsupported-API Fallback
 
