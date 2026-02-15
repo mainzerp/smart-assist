@@ -225,13 +225,25 @@ class DirectAlarmEngine:
                 failed = 0
                 for satellite_entity_id in satellite_targets:
                     try:
-                        await self._async_call_service(
-                            "assist_satellite",
-                            "announce",
-                            {
-                                "entity_id": satellite_entity_id,
-                                "message": message,
-                            },
+                        # Satellite announce needs more time: TTS synthesis + audio streaming + playback
+                        announce_timeout = max(
+                            float(self._config.get(
+                                CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+                                DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+                            )),
+                            30.0,
+                        )
+                        await asyncio.wait_for(
+                            self._hass.services.async_call(
+                                "assist_satellite",
+                                "announce",
+                                {
+                                    "entity_id": satellite_entity_id,
+                                    "message": message,
+                                },
+                                blocking=True,
+                            ),
+                            timeout=announce_timeout,
                         )
                         successful += 1
                     except Exception as err:
@@ -403,7 +415,14 @@ class DirectAlarmEngine:
             if candidate:
                 max_length = 500 if extra_context else 260
                 if len(candidate) > max_length:
-                    candidate = candidate[:max_length].rstrip()
+                    # Truncate at last sentence boundary to avoid mid-sentence cutoff
+                    truncated = candidate[:max_length]
+                    for sep in (". ", "! ", "? "):
+                        last_pos = truncated.rfind(sep)
+                        if last_pos > max_length // 2:
+                            truncated = truncated[:last_pos + 1]
+                            break
+                    candidate = truncated.rstrip()
                 return candidate
         except Exception as err:
             _LOGGER.debug("Dynamic wake text generation failed for %s: %s", alarm.get("id"), err)
