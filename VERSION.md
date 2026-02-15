@@ -4,9 +4,24 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.20.2 | 2026-02-15 |
+| Smart Assist | 1.20.3 | 2026-02-15 |
 
 ## Version History
+
+### v1.20.3 (2026-02-15) - Inline Recurrence Preview
+
+**Improvements:**
+- Added live recurrence preview line in inline alarm editor
+- Preview updates dynamically when frequency, interval, or weekday selection changes
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.20.2 (2026-02-15) - Weekly Day Picker in Inline Alarm Edit
 

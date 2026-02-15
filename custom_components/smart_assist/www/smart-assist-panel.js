@@ -852,6 +852,8 @@ class SmartAssistPanel extends HTMLElement {
       weekdayHtml += '<label style="margin-right:8px;"><input class="alarm-edit-weekday" type="checkbox" value="' + code + '"' + checked + '> ' + weekdayLabels[code] + '</label>';
     }
 
+    const previewText = this._recurrencePreviewText(String(recurrence.frequency || '').toLowerCase(), parseInt(recurrence.interval || 1, 10) || 1, weekdays);
+
     return '<tr data-alarm-edit-id="' + this._esc(alarm.id || '') + '">'
       + '<td colspan="10" style="background:var(--ha-card-background, #fff);">'
       + '<div style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:8px;align-items:end;">'
@@ -876,7 +878,30 @@ class SmartAssistPanel extends HTMLElement {
       + '<button class="refresh-btn alarm-edit-cancel-btn" data-alarm-id="' + this._esc(alarm.id || '') + '">Cancel</button>'
         + '</div></div>'
         + '<div style="grid-column:1 / -1;font-size:12px;">Weekly days: ' + weekdayHtml + '</div>'
+      + '<div style="grid-column:1 / -1;font-size:12px;color:var(--sa-text-secondary);" class="alarm-edit-preview">Preview: ' + this._esc(previewText) + '</div>'
         + '</div></td></tr>';
+  }
+
+  _recurrencePreviewText(frequency, interval, weekdays) {
+    const normalizedFrequency = String(frequency || '').toLowerCase();
+    const normalizedInterval = parseInt(interval || 1, 10) || 1;
+    if (!normalizedFrequency) return 'No recurrence';
+    if (normalizedFrequency === 'weekly') {
+      const selected = Array.isArray(weekdays) ? weekdays : [];
+      if (!selected.length) return 'Weekly (no weekdays selected), every ' + normalizedInterval;
+      return 'Weekly on ' + selected.join(', ').toUpperCase() + ', every ' + normalizedInterval;
+    }
+    return normalizedFrequency.charAt(0).toUpperCase() + normalizedFrequency.slice(1) + ', every ' + normalizedInterval;
+  }
+
+  _updateAlarmEditPreview(row) {
+    if (!row) return;
+    const previewNode = row.querySelector('.alarm-edit-preview');
+    if (!previewNode) return;
+    const frequency = (row.querySelector('.alarm-edit-recurrence-frequency')?.value || '').trim().toLowerCase();
+    const interval = parseInt((row.querySelector('.alarm-edit-recurrence-interval')?.value || '1').trim(), 10) || 1;
+    const selectedWeekdays = Array.from(row.querySelectorAll('.alarm-edit-weekday:checked')).map((el) => String(el.value || '').trim().toLowerCase());
+    previewNode.textContent = 'Preview: ' + this._recurrencePreviewText(frequency, interval, selectedWeekdays);
   }
 
   _renderCalendarTab() {
@@ -1565,6 +1590,16 @@ class SmartAssistPanel extends HTMLElement {
     this._bindAllClick(".alarm-edit-cancel-btn", () => {
       this._cancelAlarmEdit();
     });
+
+    const editRows = this.shadowRoot.querySelectorAll('tr[data-alarm-edit-id]');
+    for (const row of editRows) {
+      this._updateAlarmEditPreview(row);
+      const controls = row.querySelectorAll('.alarm-edit-recurrence-frequency, .alarm-edit-recurrence-interval, .alarm-edit-weekday');
+      controls.forEach((node) => {
+        node.addEventListener('change', () => this._updateAlarmEditPreview(row));
+        node.addEventListener('input', () => this._updateAlarmEditPreview(row));
+      });
+    }
   }
 
   _attachEvents() {
