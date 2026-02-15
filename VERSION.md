@@ -4,9 +4,26 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.11 | 2026-02-15 |
+| Smart Assist | 1.22.12 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.12 (2026-02-15) - Preserve Satellite Voice/Provider on Alarm Fire
+
+**Fixes:**
+- Direct alarm TTS now prefers `assist_satellite.announce` for source-satellite delivery (with satellite media_player targets)
+- This preserves the Assist pipeline's configured provider and voice instead of falling back to generic `tts.speak` engine selection
+- Kept existing `tts.speak` path for non-satellite target scenarios
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py tests/test_tools.py -q`: 61 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 75 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.11 (2026-02-15) - Alarm Fire Diagnostics
 

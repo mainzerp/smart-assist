@@ -204,7 +204,34 @@ class DirectAlarmEngine:
         targets = self._resolve_tts_targets(alarm)
         raw_delivery = alarm.get("delivery")
         delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
+        source_satellite_id = str(delivery.get("source_satellite_id") or "").strip()
         source_tts_voice = str(delivery.get("source_tts_voice") or "").strip() or None
+
+        if (
+            domain == "tts"
+            and service == "speak"
+            and self._should_use_satellite_announce(source_satellite_id, targets)
+            and self._hass.services.has_service("assist_satellite", "announce")
+        ):
+            _LOGGER.debug(
+                "Direct alarm TTS using assist_satellite.announce for %s on %s",
+                alarm.get("id"),
+                source_satellite_id,
+            )
+            await self._async_call_service(
+                "assist_satellite",
+                "announce",
+                {
+                    "entity_id": source_satellite_id,
+                    "message": message,
+                },
+            )
+            result = self._ok_result("assist_satellite.announce")
+            result["targets"] = targets
+            result["target_success_count"] = 1
+            result["target_failure_count"] = 0
+            return result
+
         tts_engine_entity_id = (
             self._resolve_tts_engine_entity_id(alarm)
             if (domain == "tts" and service == "speak")
@@ -628,6 +655,15 @@ class DirectAlarmEngine:
 
         configured = str(self._config.get(CONF_DIRECT_ALARM_TTS_TARGET, DEFAULT_DIRECT_ALARM_TTS_TARGET) or "")
         return self._normalize_targets(configured)
+
+    def _should_use_satellite_announce(self, source_satellite_id: str, targets: list[str]) -> bool:
+        """Return True when delivery is source-satellite scoped and should use satellite announce."""
+        if not source_satellite_id or not source_satellite_id.startswith("assist_satellite."):
+            return False
+        if not targets:
+            return True
+
+        return all(str(target).startswith("media_player.satellite_") for target in targets)
 
     def _normalize_targets(self, targets: Any) -> list[str]:
         """Normalize targets from list or comma-separated string."""
