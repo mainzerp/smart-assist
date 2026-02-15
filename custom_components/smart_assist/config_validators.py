@@ -9,11 +9,18 @@ import aiohttp
 
 from .const import (
     DEFAULT_MODEL,
+    MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
+    MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
     OLLAMA_DEFAULT_MODEL,
     OPENROUTER_API_BASE,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def validate_managed_alarm_reconcile_interval(value: int) -> bool:
+    """Validate managed alarm reconcile interval bounds."""
+    return MANAGED_ALARM_RECONCILE_INTERVAL_MIN <= int(value) <= MANAGED_ALARM_RECONCILE_INTERVAL_MAX
 
 
 async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, str]]:

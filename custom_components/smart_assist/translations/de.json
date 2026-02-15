@@ -135,7 +135,10 @@
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung aktivieren",
             "enable_cache_warming": "Automatisches Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
-            "cancel_intent_agent": "Als Cancel Intent Handler verwenden"
+            "cancel_intent_agent": "Als Cancel Intent Handler verwenden",
+            "enable_managed_alarm_automation": "Managed Alarm-Automation aktivieren",
+            "managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall (Sekunden)",
+            "managed_alarm_auto_repair": "Managed Alarm Auto-Reparatur"
           },
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
@@ -157,7 +160,10 @@
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
-            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
+            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet.",
+            "enable_managed_alarm_automation": "Opt-in Funktion: Smart Assist verwaltet nur eigene, verifizierte Alarm-Automationen. Nutzer-Automationen werden nie geaendert.",
+            "managed_alarm_reconcile_interval": "Wie oft Managed Alarm-Besitz und Verknuepfung abgeglichen werden.",
+            "managed_alarm_auto_repair": "Wenn aktiviert, versucht Smart Assist fehlende eigene Managed-Automationen wiederherzustellen."
           }
         },
         "prompt": {
@@ -209,6 +215,9 @@
             "enable_cache_warming": "Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall",
             "cancel_intent_agent": "Als Cancel Intent Handler verwenden",
+            "enable_managed_alarm_automation": "Managed Alarm-Automation aktivieren",
+            "managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall (Sekunden)",
+            "managed_alarm_auto_repair": "Managed Alarm Auto-Reparatur",
             "user_system_prompt": "System Prompt"
           },
           "data_description": {
@@ -232,7 +241,10 @@
             "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
             "user_system_prompt": "Persoenlichkeit und Anweisungen fuer diesen Konversations-Agenten.",
-            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
+            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet.",
+            "enable_managed_alarm_automation": "Opt-in Funktion: Smart Assist verwaltet nur eigene, verifizierte Alarm-Automationen. Nutzer-Automationen werden nie geaendert.",
+            "managed_alarm_reconcile_interval": "Wie oft Managed Alarm-Besitz und Verknuepfung abgeglichen werden.",
+            "managed_alarm_auto_repair": "Wenn aktiviert, versucht Smart Assist fehlende eigene Managed-Automationen wiederherzustellen."
           }
         }
       },
@@ -243,7 +255,8 @@
       "error": {
         "groq_api_key_required": "Groq API-Schluessel wird fuer den Groq Provider benoetigt.",
         "openrouter_api_key_required": "OpenRouter API-Schluessel wird fuer den OpenRouter Provider benoetigt.",
-        "ollama_not_configured": "Ollama ist nicht konfiguriert. Bitte fuege Ollama in den Haupteinstellungen hinzu."
+        "ollama_not_configured": "Ollama ist nicht konfiguriert. Bitte fuege Ollama in den Haupteinstellungen hinzu.",
+        "invalid_managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall muss zwischen 30 und 3600 Sekunden liegen."
       }
     },
     "ai_task": {

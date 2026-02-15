@@ -45,6 +45,7 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DEFAULT_USER_SYSTEM_PROMPT,
     DOMAIN,
+    MANAGED_ALARM_DISPATCHER_RECONCILED,
     PERSISTENT_ALARM_EVENT_UPDATED,
 )
 from .context.calendar_reminder import CalendarReminderTracker
@@ -137,6 +138,7 @@ def _build_dashboard_update_signal_names(entry: Any) -> list[str]:
     for subentry_id in entry.subentries:
         for suffix in _DASHBOARD_METRIC_UPDATE_SIGNAL_SUFFIXES:
             signal_names.append(f"{DOMAIN}_{suffix}_{subentry_id}")
+    signal_names.append(f"{MANAGED_ALARM_DISPATCHER_RECONCILED}_{entry.entry_id}")
     return signal_names
 
 
@@ -155,6 +157,7 @@ def _get_alarm_manager(hass: HomeAssistant, entry: Any) -> PersistentAlarmManage
 
 def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
     """Return normalized alarm payload for websocket responses."""
+    managed = alarm.get("managed_automation") if isinstance(alarm.get("managed_automation"), dict) else {}
     return {
         "id": alarm.get("id"),
         "display_id": alarm.get("display_id"),
@@ -171,6 +174,11 @@ def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
         "fire_count": alarm.get("fire_count"),
         "created_at": alarm.get("created_at"),
         "updated_at": alarm.get("updated_at"),
+        "managed_enabled": managed.get("enabled", False),
+        "managed_sync_state": managed.get("sync_state"),
+        "managed_last_error": managed.get("last_sync_error"),
+        "managed_automation_entity_id": managed.get("automation_entity_id"),
+        "ownership_verified": managed.get("ownership_verified", False),
     }
 
 
@@ -764,7 +772,7 @@ async def ws_subscribe(
         nonlocal send_pending_types
         send_pending_types.add(update_type)
         if not send_in_progress:
-            hass.async_create_task(_flush_updates())
+            hass.add_job(_flush_updates())
 
     unsub_callbacks: list[Any] = []
     for signal_name in _build_dashboard_update_signal_names(entry):
@@ -866,7 +874,7 @@ async def ws_alarms_data(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "smart_assist/alarm_action",
-        vol.Required("action"): vol.In(["snooze", "cancel", "status"]),
+        vol.Required("action"): vol.In(["snooze", "cancel", "status", "managed_reconcile_now"]),
         vol.Optional("alarm_id"): str,
         vol.Optional("display_id"): str,
         vol.Optional("minutes"): int,
@@ -892,6 +900,26 @@ async def ws_alarm_action(
 
     action = msg["action"]
     alarm_ref = msg.get("alarm_id") or msg.get("display_id")
+
+    if action == "managed_reconcile_now":
+        managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
+        if managed_service is None:
+            connection.send_result(msg["id"], {"success": False, "message": "Managed alarm automation is disabled"})
+            return
+        try:
+            alarm = manager.get_alarm(str(alarm_ref)) if alarm_ref else None
+            if alarm is not None:
+                await managed_service.async_reconcile_alarm(alarm)
+            else:
+                await managed_service.async_reconcile_all()
+            await manager.async_save()
+            from homeassistant.helpers.dispatcher import async_dispatcher_send
+            async_dispatcher_send(hass, _build_alarm_update_signal_name(entry))
+            connection.send_result(msg["id"], {"success": True, "message": "Managed alarms reconciled"})
+            return
+        except Exception as err:
+            connection.send_error(msg["id"], "unknown_error", f"Managed reconcile failed: {err}")
+            return
 
     if action == "status":
         if not alarm_ref:
@@ -929,6 +957,13 @@ async def ws_alarm_action(
             return
         alarm = manager.get_alarm(str(alarm_ref))
         await manager.async_force_save()
+        managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
+        if alarm is not None and managed_service is not None:
+            try:
+                await managed_service.async_reconcile_alarm(alarm)
+                await manager.async_save()
+            except Exception as err:
+                _LOGGER.warning("Managed alarm reconcile failed on websocket cancel: %s", err)
         if alarm is not None:
             hass.bus.async_fire(
                 PERSISTENT_ALARM_EVENT_UPDATED,
@@ -979,6 +1014,13 @@ async def ws_alarm_action(
         return
 
     await manager.async_force_save()
+    managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
+    if managed_service is not None:
+        try:
+            await managed_service.async_reconcile_alarm(alarm)
+            await manager.async_save()
+        except Exception as err:
+            _LOGGER.warning("Managed alarm reconcile failed on websocket snooze: %s", err)
     hass.bus.async_fire(
         PERSISTENT_ALARM_EVENT_UPDATED,
         {

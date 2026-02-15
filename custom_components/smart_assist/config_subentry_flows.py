@@ -29,6 +29,7 @@ from .config_validators import (
     fetch_model_providers,
     fetch_ollama_models,
     fetch_openrouter_models,
+    validate_managed_alarm_reconcile_interval,
     validate_groq_api_key,
 )
 from .const import (
@@ -54,6 +55,9 @@ from .const import (
     CONF_LLM_PROVIDER,
     CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
+    CONF_ENABLE_MANAGED_ALARM_AUTOMATION,
+    CONF_MANAGED_ALARM_RECONCILE_INTERVAL,
+    CONF_MANAGED_ALARM_AUTO_REPAIR,
     CONF_MODEL,
     CONF_OLLAMA_KEEP_ALIVE,
     CONF_OLLAMA_MODEL,
@@ -86,6 +90,9 @@ from .const import (
     DEFAULT_HISTORY_RETENTION_DAYS,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
+    DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION,
+    DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL,
+    DEFAULT_MANAGED_ALARM_AUTO_REPAIR,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     DEFAULT_TASK_ALLOW_CONTROL,
@@ -109,6 +116,8 @@ from .const import (
     TOOL_LATENCY_BUDGET_MS_MIN,
     TOOL_MAX_RETRIES_MAX,
     TOOL_MAX_RETRIES_MIN,
+    MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
+    MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -283,7 +292,14 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle settings step - provider + all other settings."""
+        errors: dict[str, str] = {}
         if user_input is not None:
+            interval = int(user_input.get(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL))
+            if not validate_managed_alarm_reconcile_interval(interval):
+                errors["base"] = "invalid_managed_alarm_reconcile_interval"
+            else:
+                user_input[CONF_MANAGED_ALARM_RECONCILE_INTERVAL] = interval
+        if user_input is not None and not errors:
             self._data.update(user_input)
             return await self.async_step_prompt()
         
@@ -376,11 +392,24 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             ),
             # Group: Cancel Intent
             vol.Required(CONF_CANCEL_INTENT_AGENT, default=DEFAULT_CANCEL_INTENT_AGENT): BooleanSelector(),
+            # Group: Managed Alarms
+            vol.Required(CONF_ENABLE_MANAGED_ALARM_AUTOMATION, default=DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION): BooleanSelector(),
+            vol.Required(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, default=DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL): NumberSelector(
+                NumberSelectorConfig(
+                    min=MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
+                    max=MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
+                    step=10,
+                    unit_of_measurement="s",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_MANAGED_ALARM_AUTO_REPAIR, default=DEFAULT_MANAGED_ALARM_AUTO_REPAIR): BooleanSelector(),
         })
         
         return self.async_show_form(
             step_id="settings",
             data_schema=vol.Schema(schema_dict),
+            errors=errors,
         )
 
     async def async_step_prompt(
@@ -534,7 +563,14 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle reconfiguration step 3 - provider routing and all settings."""
+        errors: dict[str, str] = {}
         if user_input is not None:
+            interval = int(user_input.get(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL))
+            if not validate_managed_alarm_reconcile_interval(interval):
+                errors["base"] = "invalid_managed_alarm_reconcile_interval"
+            else:
+                user_input[CONF_MANAGED_ALARM_RECONCILE_INTERVAL] = interval
+        if user_input is not None and not errors:
             self._data.update(user_input)
             return self.async_update_and_abort(
                 self._get_entry(),
@@ -620,6 +656,18 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             ),
             # Cancel Intent
             vol.Required(CONF_CANCEL_INTENT_AGENT): BooleanSelector(),
+            # Managed Alarms
+            vol.Required(CONF_ENABLE_MANAGED_ALARM_AUTOMATION): BooleanSelector(),
+            vol.Required(CONF_MANAGED_ALARM_RECONCILE_INTERVAL): NumberSelector(
+                NumberSelectorConfig(
+                    min=MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
+                    max=MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
+                    step=10,
+                    unit_of_measurement="s",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_MANAGED_ALARM_AUTO_REPAIR): BooleanSelector(),
             # System Prompt
             vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
@@ -632,6 +680,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 vol.Schema(schema_dict),
                 self._data,
             ),
+            errors=errors,
         )
 
 

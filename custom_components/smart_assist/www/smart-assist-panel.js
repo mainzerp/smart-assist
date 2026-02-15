@@ -724,6 +724,7 @@ class SmartAssistPanel extends HTMLElement {
       || (this._data ? this._data.alarms_summary : null)
       || { total: 0, active: 0, snoozed: 0, fired: 0, dismissed: 0 };
     const alarms = alarmsPayload.alarms || [];
+    const managedEnabled = alarms.some((alarm) => alarm.managed_enabled);
 
     let html = '<div class="overview-grid">'
       + '<div class="metric-card"><div class="label">Total</div><div class="value">' + (summary.total || 0) + '</div></div>'
@@ -731,6 +732,10 @@ class SmartAssistPanel extends HTMLElement {
       + '<div class="metric-card"><div class="label">Snoozed</div><div class="value warning">' + (summary.snoozed || 0) + '</div></div>'
       + '<div class="metric-card"><div class="label">Fired</div><div class="value">' + (summary.fired || 0) + '</div></div>'
       + '<div class="metric-card"><div class="label">Dismissed</div><div class="value">' + (summary.dismissed || 0) + '</div></div>'
+      + '</div>';
+
+    html += '<div style="margin-bottom:12px;text-align:right;">'
+      + '<button class="refresh-btn" id="managed-reconcile-btn">Reconcile managed alarms</button>'
       + '</div>';
 
     if (!alarms.length) {
@@ -744,6 +749,12 @@ class SmartAssistPanel extends HTMLElement {
       const fired = alarm.last_fired_at ? this._fmtDateTime(alarm.last_fired_at) : '-';
       const status = this._esc(alarm.status || '-');
       const statusCls = (alarm.status || 'upcoming');
+      const managedStatus = alarm.managed_enabled
+        ? this._esc(alarm.managed_sync_state || 'pending')
+        : 'disabled';
+      const managedHint = alarm.managed_last_error
+        ? '<div style="font-size:11px;color:var(--sa-text-secondary);">' + this._esc(alarm.managed_last_error) + '</div>'
+        : '';
       const canSnooze = alarm.status === 'fired' || alarm.active;
       const canCancel = alarm.active;
 
@@ -752,6 +763,7 @@ class SmartAssistPanel extends HTMLElement {
         + '<td><strong>' + this._esc(alarm.label || 'Alarm') + '</strong></td>'
         + '<td>' + this._esc(alarm.display_id || alarm.id || '-') + '</td>'
         + '<td><span class="cal-status ' + statusCls + '">' + status + '</span></td>'
+        + '<td><span class="cal-status ' + (alarm.ownership_verified ? 'announced' : 'pending') + '">' + managedStatus + '</span>' + managedHint + '</td>'
         + '<td style="white-space:nowrap;">' + trigger + '</td>'
         + '<td style="white-space:nowrap;color:var(--sa-text-secondary);">' + fired + '</td>'
         + '<td style="white-space:nowrap;">'
@@ -763,8 +775,11 @@ class SmartAssistPanel extends HTMLElement {
     }
 
     html += '<div class="card"><h3>Alarms</h3>'
-      + '<table><thead><tr><th>Time</th><th>Label</th><th>Display ID</th><th>Status</th><th>Next Trigger</th><th>Last Fired</th><th>Actions</th></tr></thead>'
+      + '<table><thead><tr><th>Time</th><th>Label</th><th>Display ID</th><th>Status</th><th>Managed</th><th>Next Trigger</th><th>Last Fired</th><th>Actions</th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
+    if (!managedEnabled) {
+      html += '<div class="sub" style="margin-top:-8px;margin-bottom:12px;">Managed alarm automation is currently disabled.</div>';
+    }
     return html;
   }
 
@@ -1122,6 +1137,23 @@ class SmartAssistPanel extends HTMLElement {
     }
   }
 
+  async _reconcileManagedAlarms() {
+    try {
+      await this._callWSWithTimeout(
+        {
+          type: "smart_assist/alarm_action",
+          action: "managed_reconcile_now",
+        },
+        WS_CALL_TIMEOUT_MS,
+        "managed alarm reconcile"
+      );
+      await this._loadAlarms(true);
+    } catch (err) {
+      this._alarmsError = err.message || "Managed reconcile failed";
+      this._render();
+    }
+  }
+
   _renderPromptTab() {
     let html = '';
 
@@ -1376,6 +1408,9 @@ class SmartAssistPanel extends HTMLElement {
   }
 
   _attachAlarmEvents() {
+    this._bindNodeClick(this.shadowRoot.getElementById("managed-reconcile-btn"), () => {
+      this._reconcileManagedAlarms();
+    });
     this._bindAllClick(".alarm-action-btn", (btn) => {
       const action = btn.dataset.action;
       const alarmId = btn.dataset.alarmId;

@@ -127,6 +127,7 @@ class AlarmTool(BaseTool):
                     return ToolResult(False, status)
 
                 await manager.async_force_save()
+                await self._reconcile_managed_alarm(alarm)
                 self._emit_alarm_update(alarm, "set")
                 return ToolResult(
                     True,
@@ -165,6 +166,7 @@ class AlarmTool(BaseTool):
                 await manager.async_force_save()
                 alarm = manager.get_alarm(alarm_ref)
                 if alarm:
+                    await self._reconcile_managed_alarm(alarm)
                     self._emit_alarm_update(alarm, "cancel")
                     return ToolResult(
                         True,
@@ -183,6 +185,7 @@ class AlarmTool(BaseTool):
                 if alarm is None:
                     return ToolResult(False, status)
                 await manager.async_force_save()
+                await self._reconcile_managed_alarm(alarm)
                 self._emit_alarm_update(alarm, "snooze")
                 return ToolResult(
                     True,
@@ -312,6 +315,23 @@ class AlarmTool(BaseTool):
             return dt_util.as_local(parsed).isoformat()
 
         return None
+
+    async def _reconcile_managed_alarm(self, alarm: dict[str, Any]) -> None:
+        """Best-effort managed automation sync; never block alarm command success."""
+        if not self._entry_id:
+            return
+
+        entry_data = self._hass.data.get(DOMAIN, {}).get(self._entry_id, {})
+        managed_service = entry_data.get("managed_alarm_automation")
+        manager = entry_data.get("persistent_alarm_manager")
+        if managed_service is None or manager is None:
+            return
+
+        try:
+            await managed_service.async_reconcile_alarm(alarm)
+            await manager.async_save()
+        except Exception as err:
+            _LOGGER.warning("Managed alarm reconcile failed after tool action: %s", err)
 
     def _get_manager(self) -> PersistentAlarmManager | None:
         """Resolve persistent alarm manager from integration runtime data."""

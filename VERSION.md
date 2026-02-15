@@ -4,9 +4,58 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.17.0 | 2026-02-15 |
+| Smart Assist | 1.18.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.18.0 (2026-02-15) - Managed Alarm Automation (Opt-In, Ownership-Safe)
+
+**New Features:**
+- Added opt-in managed alarm automation configuration with reconcile interval and auto-repair controls
+- Added `ManagedAlarmAutomationService` for ownership-verified reconcile/upsert/remove lifecycle with failure categorization
+- Added per-alarm managed sync metadata (`managed_enabled`, sync state, last error, ownership verification, automation entity linkage)
+- Added dashboard/websocket visibility for managed status and admin `managed_reconcile_now` action
+- Preserved existing event-based alarm behavior (`smart_assist_alarm_fired`, `smart_assist_alarm_updated`) as compatibility fallback
+
+**Safety:**
+- Managed automation mutation is restricted to verifiable Smart Assist-owned artifacts only
+- Ownership mismatch never mutates user automations and surfaces explicit sync failure state
+- Managed sync failures are non-blocking for alarm create/snooze/cancel/fired lifecycle
+
+**Tests:**
+- Extended persistent alarm tests for managed metadata defaults and sync-state helpers
+- Added managed automation service tests for ownership verification, idempotent reconcile, upsert/remove safety, and mismatch handling
+- Extended websocket tests for managed alarm payload fields and manual reconcile action
+- Added config validator tests for managed reconcile interval bounds
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_persistent_alarms.py tests/test_managed_alarm_automation.py tests/test_websocket.py tests/test_config_flow.py`: 30 passed, 12 errors (`hass` fixture unavailable in this run mode for broader `test_config_flow.py` cases)
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_persistent_alarms.py tests/test_managed_alarm_automation.py tests/test_websocket.py tests/test_config_flow.py::TestManagedAlarmConfigValidation`: 30 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 66 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/config_validators.py
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_persistent_alarms.py
+- tests/test_managed_alarm_automation.py
+- tests/test_websocket.py
+- tests/test_config_flow.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.17.0 (2026-02-15) - Alarm Governance + Dashboard Alarm Management
 

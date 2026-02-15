@@ -32,12 +32,19 @@ try:
         CONF_DEBUG_LOGGING,
         CONF_ENABLE_CACHE_WARMING,
         CONF_ENABLE_CANCEL_HANDLER,
+        CONF_ENABLE_MANAGED_ALARM_AUTOMATION,
+        CONF_MANAGED_ALARM_AUTO_REPAIR,
+        CONF_MANAGED_ALARM_RECONCILE_INTERVAL,
         DEFAULT_CACHE_REFRESH_INTERVAL,
         DEFAULT_CANCEL_INTENT_AGENT,
         DEFAULT_DEBUG_LOGGING,
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_ENABLE_CANCEL_HANDLER,
+        DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION,
+        DEFAULT_MANAGED_ALARM_AUTO_REPAIR,
+        DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL,
         DOMAIN,
+        MANAGED_ALARM_DISPATCHER_RECONCILED,
         PERSISTENT_ALARM_EVENT_FIRED,
         PERSISTENT_ALARM_EVENT_UPDATED,
     )
@@ -218,6 +225,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     persistent_alarm_manager = PersistentAlarmManager(hass)
     await persistent_alarm_manager.async_load()
     hass.data[DOMAIN][entry.entry_id]["persistent_alarm_manager"] = persistent_alarm_manager
+
+    def _get_managed_alarm_config() -> tuple[bool, int, bool]:
+        enabled = bool(entry.options.get(CONF_ENABLE_MANAGED_ALARM_AUTOMATION, entry.data.get(CONF_ENABLE_MANAGED_ALARM_AUTOMATION, DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION)))
+        interval = int(entry.options.get(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, entry.data.get(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL)))
+        auto_repair = bool(entry.options.get(CONF_MANAGED_ALARM_AUTO_REPAIR, entry.data.get(CONF_MANAGED_ALARM_AUTO_REPAIR, DEFAULT_MANAGED_ALARM_AUTO_REPAIR)))
+
+        if not enabled:
+            for subentry in entry.subentries.values():
+                if subentry.subentry_type != "conversation":
+                    continue
+                if subentry.data.get(CONF_ENABLE_MANAGED_ALARM_AUTOMATION, False):
+                    enabled = True
+                    interval = int(subentry.data.get(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, interval))
+                    auto_repair = bool(subentry.data.get(CONF_MANAGED_ALARM_AUTO_REPAIR, auto_repair))
+                    break
+        return enabled, max(30, interval), auto_repair
+
+    managed_enabled, managed_interval_seconds, managed_auto_repair = _get_managed_alarm_config()
+    if managed_enabled:
+        from .context.managed_alarm_automation import ManagedAlarmAutomationService
+        managed_alarm_service = ManagedAlarmAutomationService(
+            hass=hass,
+            entry_id=entry.entry_id,
+            alarm_manager=persistent_alarm_manager,
+            auto_repair=managed_auto_repair,
+        )
+        hass.data[DOMAIN][entry.entry_id]["managed_alarm_automation"] = managed_alarm_service
+
+        async def _managed_alarm_tick(now: datetime) -> None:
+            await _reconcile_managed_alarm_automation(hass, entry)
+
+        cancel_managed_tick = async_track_time_interval(
+            hass,
+            _managed_alarm_tick,
+            timedelta(seconds=managed_interval_seconds),
+        )
+        hass.data[DOMAIN][entry.entry_id]["managed_alarm_tick_cancel"] = cancel_managed_tick
+        entry.async_on_unload(cancel_managed_tick)
+        await _reconcile_managed_alarm_automation(hass, entry)
 
     async def _persistent_alarm_tick(now: datetime) -> None:
         await _process_due_persistent_alarms(
@@ -536,6 +582,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.warning("Error shutting down persistent alarm manager: %s", err)
 
+    # Cancel managed alarm reconcile ticker on unload
+    try:
+        managed_cancel = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("managed_alarm_tick_cancel")
+        if callable(managed_cancel):
+            managed_cancel()
+    except Exception as err:
+        _LOGGER.warning("Error stopping managed alarm reconcile timer: %s", err)
+
     # Remove sidebar panel
     try:
         from homeassistant.components.frontend import async_remove_panel
@@ -622,4 +676,48 @@ async def _process_due_persistent_alarms(
 
         async_dispatcher_send(hass, f"{DOMAIN}_alarms_updated_{entry.entry_id}")
 
+    if entry_data.get("managed_alarm_automation") is not None:
+        for alarm in due_alarms:
+            await _reconcile_single_managed_alarm(hass, entry, alarm)
+
     await alarm_manager.async_force_save()
+
+
+async def _reconcile_single_managed_alarm(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    alarm: dict[str, Any],
+) -> None:
+    """Reconcile one managed alarm automation and persist non-blocking status."""
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    managed_service = entry_data.get("managed_alarm_automation")
+    alarm_manager = entry_data.get("persistent_alarm_manager")
+    if managed_service is None or alarm_manager is None:
+        return
+
+    try:
+        await managed_service.async_reconcile_alarm(alarm)
+    except Exception as err:
+        _LOGGER.warning("Managed alarm reconcile failed for %s: %s", alarm.get("id"), err)
+    finally:
+        await alarm_manager.async_save()
+
+
+async def _reconcile_managed_alarm_automation(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Run managed alarm automation reconcile for all alarms."""
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    managed_service = entry_data.get("managed_alarm_automation")
+    alarm_manager = entry_data.get("persistent_alarm_manager")
+    if managed_service is None or alarm_manager is None:
+        return
+
+    try:
+        await managed_service.async_reconcile_all()
+    except Exception as err:
+        _LOGGER.warning("Managed alarm reconcile-all failed: %s", err)
+    finally:
+        await alarm_manager.async_save()
+        async_dispatcher_send(hass, f"{MANAGED_ALARM_DISPATCHER_RECONCILED}_{entry.entry_id}")
+        async_dispatcher_send(hass, f"{DOMAIN}_alarms_updated_{entry.entry_id}")

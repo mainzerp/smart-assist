@@ -135,7 +135,10 @@
             "enable_presence_heuristic": "Enable presence-based user detection",
             "enable_cache_warming": "Enable automatic cache warming",
             "cache_refresh_interval": "Cache refresh interval (minutes)",
-            "cancel_intent_agent": "Use as cancel intent handler"
+            "cancel_intent_agent": "Use as cancel intent handler",
+            "enable_managed_alarm_automation": "Enable managed alarm automation",
+            "managed_alarm_reconcile_interval": "Managed alarm reconcile interval (seconds)",
+            "managed_alarm_auto_repair": "Managed alarm auto-repair"
           },
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
@@ -157,7 +160,10 @@
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home.",
             "enable_cache_warming": "Keeps the prompt cache warm by sending periodic requests. Incurs small additional API costs.",
             "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL.",
-            "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used."
+            "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used.",
+            "enable_managed_alarm_automation": "Opt-in feature: Smart Assist manages only its own owned alarm automations. User-created automations are never modified.",
+            "managed_alarm_reconcile_interval": "How often managed alarm ownership and linkage are reconciled.",
+            "managed_alarm_auto_repair": "If enabled, Smart Assist attempts to recreate missing owned managed automations."
           }
         },
         "prompt": {
@@ -209,6 +215,9 @@
             "enable_cache_warming": "Enable cache warming",
             "cache_refresh_interval": "Cache refresh interval",
             "cancel_intent_agent": "Use as cancel intent handler",
+            "enable_managed_alarm_automation": "Enable managed alarm automation",
+            "managed_alarm_reconcile_interval": "Managed alarm reconcile interval (seconds)",
+            "managed_alarm_auto_repair": "Managed alarm auto-repair",
             "user_system_prompt": "System Prompt"
           },
           "data_description": {
@@ -232,7 +241,10 @@
             "enable_agent_memory": "Allows the assistant to learn from interactions and save its own observations (patterns, habits, system insights). Requires memory to be enabled.",
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home.",
             "user_system_prompt": "Personality and instructions for this conversation agent.",
-            "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used."
+            "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used.",
+            "enable_managed_alarm_automation": "Opt-in feature: Smart Assist manages only its own owned alarm automations. User-created automations are never modified.",
+            "managed_alarm_reconcile_interval": "How often managed alarm ownership and linkage are reconciled.",
+            "managed_alarm_auto_repair": "If enabled, Smart Assist attempts to recreate missing owned managed automations."
           }
         }
       },
@@ -243,7 +255,8 @@
       "error": {
         "groq_api_key_required": "Groq API key is required for Groq provider.",
         "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider.",
-        "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings."
+        "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings.",
+        "invalid_managed_alarm_reconcile_interval": "Managed alarm reconcile interval must be between 30 and 3600 seconds."
       }
     },
     "ai_task": {

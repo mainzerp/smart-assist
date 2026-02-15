@@ -136,6 +136,41 @@ PERSISTENT_ALARM_STORAGE_VERSION: Final = 2
 PERSISTENT_ALARM_EVENT_FIRED: Final = "smart_assist_alarm_fired"
 PERSISTENT_ALARM_EVENT_UPDATED: Final = "smart_assist_alarm_updated"
 
+# Managed alarm automation settings (opt-in)
+CONF_ENABLE_MANAGED_ALARM_AUTOMATION: Final = "enable_managed_alarm_automation"
+CONF_MANAGED_ALARM_RECONCILE_INTERVAL: Final = "managed_alarm_reconcile_interval"
+CONF_MANAGED_ALARM_AUTO_REPAIR: Final = "managed_alarm_auto_repair"
+DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION: Final = False
+DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL: Final = 120
+DEFAULT_MANAGED_ALARM_AUTO_REPAIR: Final = True
+MANAGED_ALARM_RECONCILE_INTERVAL_MIN: Final = 30
+MANAGED_ALARM_RECONCILE_INTERVAL_MAX: Final = 3600
+
+# Managed alarm ownership markers + metadata
+MANAGED_ALARM_ALIAS_PREFIX: Final = "Smart Assist Alarm:"
+MANAGED_ALARM_OWNER: Final = "smart_assist"
+MANAGED_ALARM_MANAGED_VERSION: Final = 1
+MANAGED_ALARM_MARKER_PREFIX: Final = "smart_assist_managed:"
+MANAGED_ALARM_MARKER_OWNER_KEY: Final = "owner"
+MANAGED_ALARM_MARKER_ENTRY_ID_KEY: Final = "entry_id"
+MANAGED_ALARM_MARKER_ALARM_ID_KEY: Final = "alarm_id"
+MANAGED_ALARM_MARKER_VERSION_KEY: Final = "managed_version"
+
+# Managed alarm sync states
+MANAGED_ALARM_SYNC_PENDING: Final = "pending"
+MANAGED_ALARM_SYNC_SYNCED: Final = "synced"
+MANAGED_ALARM_SYNC_FAILED: Final = "failed"
+MANAGED_ALARM_SYNC_SKIPPED: Final = "skipped"
+
+# Managed alarm sync errors
+MANAGED_ALARM_ERROR_OWNERSHIP_MISMATCH: Final = "ownership_mismatch"
+MANAGED_ALARM_ERROR_NOT_FOUND: Final = "automation_not_found"
+MANAGED_ALARM_ERROR_SERVICE_FAILED: Final = "service_call_failed"
+MANAGED_ALARM_ERROR_INVALID_PAYLOAD: Final = "invalid_payload"
+
+# Dispatcher signals
+MANAGED_ALARM_DISPATCHER_RECONCILED: Final = f"{DOMAIN}_managed_alarm_reconciled"
+
 # Common Home Assistant locale to language name mapping for auto-detection
 # Used when language is empty/auto to show a readable language name in prompts
 # Format: locale prefix -> (English name, native name)

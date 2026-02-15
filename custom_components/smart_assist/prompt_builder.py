@@ -227,6 +227,10 @@ async def build_system_prompt(entity: SmartAssistConversationEntity) -> str:
 Language:
 {language_instruction} This applies to ALL responses -- confirmations, errors, questions. Never mix languages.""")
 
+    parts.append(
+        "Alarm policy: alarm intent behavior stays event-compatible; any managed alarm automation linkage is internal and must not change user-owned automations."
+    )
+
     # Global intent routing and entity discovery policy (single source of truth)
     discovery_mode = entity._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
     if discovery_mode == "smart_discovery":
