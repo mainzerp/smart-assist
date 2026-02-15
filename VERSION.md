@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.7 | 2026-02-15 |
+| Smart Assist | 1.22.8 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.8 (2026-02-15) - tts.speak Engine Target Fix
+
+**Fixes:**
+- Fixed direct alarm `tts.speak` calls by adding required TTS engine target (`entity_id`) in addition to `media_player_entity_id`
+- Added automatic resolver for `tts.*` entities used by `tts.speak`
+- Added explicit validation error (`tts_engine_required`) when no TTS engine entity can be resolved
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 57 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 74 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- tests/test_direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.7 (2026-02-15) - Stricter Post-Fire Snooze Window
 

@@ -202,6 +202,14 @@ class DirectAlarmEngine:
 
         message = await self._resolve_tts_message(alarm)
         targets = self._resolve_tts_targets(alarm)
+        tts_engine_entity_id = self._resolve_tts_engine_entity_id() if (domain == "tts" and service == "speak") else None
+
+        if domain == "tts" and service == "speak" and not tts_engine_entity_id:
+            _LOGGER.warning(
+                "Direct alarm TTS engine resolution failed for %s (tts.speak). No tts.* entity found.",
+                alarm.get("id"),
+            )
+            return self._failure_result(DIRECT_ALARM_ERROR_VALIDATION, "tts_engine_required")
 
         if not targets:
             if domain == "tts" and service == "speak":
@@ -222,7 +230,13 @@ class DirectAlarmEngine:
         successful = 0
         failed = 0
         for target in targets:
-            payload = self._build_tts_call_payload(domain, service, message, target)
+            payload = self._build_tts_call_payload(
+                domain,
+                service,
+                message,
+                target,
+                tts_engine_entity_id=tts_engine_entity_id,
+            )
             try:
                 await self._async_call_service(domain, service, payload)
                 successful += 1
@@ -455,14 +469,43 @@ class DirectAlarmEngine:
         service: str,
         message: str,
         target: str,
+        tts_engine_entity_id: str | None = None,
     ) -> dict[str, Any]:
         """Build backend-specific TTS payload for one target."""
         payload: dict[str, Any] = {"message": message}
         if domain == "tts" and service == "speak":
+            if tts_engine_entity_id:
+                payload["entity_id"] = tts_engine_entity_id
             payload["media_player_entity_id"] = target
         else:
             payload["entity_id"] = target
         return payload
+
+    def _resolve_tts_engine_entity_id(self) -> str | None:
+        """Resolve a tts.* entity id for use with tts.speak."""
+        candidates: list[str] = []
+        try:
+            scoped_states = self._hass.states.async_all("tts")
+            for state in scoped_states if isinstance(scoped_states, list) else []:
+                entity_id = str(getattr(state, "entity_id", "") or "").strip().lower()
+                if entity_id.startswith("tts."):
+                    candidates.append(entity_id)
+        except Exception:
+            pass
+
+        if candidates:
+            return candidates[0]
+
+        try:
+            all_states = self._hass.states.async_all()
+            for state in all_states if isinstance(all_states, list) else []:
+                entity_id = str(getattr(state, "entity_id", "") or "").strip().lower()
+                if entity_id.startswith("tts."):
+                    candidates.append(entity_id)
+        except Exception:
+            return None
+
+        return candidates[0] if candidates else None
 
     def _resolve_tts_targets(self, alarm: dict[str, Any]) -> list[str]:
         """Resolve TTS targets with per-alarm override and source-aware defaults."""
