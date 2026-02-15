@@ -19,6 +19,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    DIRECT_ALARM_STATE_SKIPPED,
     MANAGED_ALARM_SYNC_PENDING,
     PERSISTENT_ALARM_STORAGE_KEY,
     PERSISTENT_ALARM_STORAGE_VERSION,
@@ -44,6 +45,17 @@ def _empty_store_data() -> dict[str, Any]:
     return {
         "version": PERSISTENT_ALARM_STORAGE_VERSION,
         "alarms": [],
+    }
+
+
+def _direct_defaults() -> dict[str, Any]:
+    """Return default direct execution metadata block."""
+    return {
+        "last_executed_at": None,
+        "last_state": DIRECT_ALARM_STATE_SKIPPED,
+        "last_error": None,
+        "last_backend_results": {},
+        "last_fire_marker": None,
     }
 
 
@@ -148,6 +160,7 @@ class PersistentAlarmManager:
             "last_fired_at": None,
             "fire_count": 0,
             "managed_automation": _managed_defaults(),
+            "direct_execution": _direct_defaults(),
         }
 
         self._data.setdefault("alarms", []).append(alarm)
@@ -310,6 +323,20 @@ class PersistentAlarmManager:
                 "last_sync_error": managed.get("last_sync_error", merged_managed["last_sync_error"]),
             })
             alarm["managed_automation"] = merged_managed
+            direct_execution = alarm.get("direct_execution")
+            if not isinstance(direct_execution, dict):
+                direct_execution = {}
+            merged_direct = _direct_defaults()
+            merged_direct.update({
+                "last_executed_at": direct_execution.get("last_executed_at", merged_direct["last_executed_at"]),
+                "last_state": direct_execution.get("last_state", merged_direct["last_state"]),
+                "last_error": direct_execution.get("last_error", merged_direct["last_error"]),
+                "last_backend_results": direct_execution.get("last_backend_results", merged_direct["last_backend_results"]),
+                "last_fire_marker": direct_execution.get("last_fire_marker", merged_direct["last_fire_marker"]),
+            })
+            if not isinstance(merged_direct.get("last_backend_results"), dict):
+                merged_direct["last_backend_results"] = {}
+            alarm["direct_execution"] = merged_direct
             display_id = alarm.get("display_id")
             if not isinstance(display_id, str) or not display_id.strip():
                 display_id = self._generate_display_id(
@@ -408,6 +435,47 @@ class PersistentAlarmManager:
             alarm["updated_at"] = dt_util.now().isoformat()
             self._dirty = True
         return changed
+
+    def has_direct_execution_marker(self, alarm_id: str, fire_marker: str) -> bool:
+        """Return whether alarm already processed given direct fire marker."""
+        alarm = self._find_alarm(alarm_id)
+        if alarm is None:
+            return False
+
+        direct = alarm.get("direct_execution")
+        if not isinstance(direct, dict):
+            return False
+        return str(direct.get("last_fire_marker") or "") == str(fire_marker or "")
+
+    def mark_direct_execution_result(
+        self,
+        alarm_id: str,
+        *,
+        fire_marker: str | None,
+        state: str,
+        error: str | None = None,
+        backend_results: dict[str, Any] | None = None,
+        at_iso: str | None = None,
+    ) -> bool:
+        """Update direct execution metadata for an alarm."""
+        alarm = self._find_alarm(alarm_id)
+        if alarm is None:
+            return False
+
+        direct = alarm.get("direct_execution")
+        if not isinstance(direct, dict):
+            direct = _direct_defaults()
+            alarm["direct_execution"] = direct
+
+        direct["last_executed_at"] = at_iso or dt_util.now().isoformat()
+        direct["last_state"] = state
+        direct["last_error"] = error
+        direct["last_backend_results"] = dict(backend_results or {})
+        direct["last_fire_marker"] = fire_marker
+
+        alarm["updated_at"] = dt_util.now().isoformat()
+        self._dirty = True
+        return True
 
     def _find_alarm(self, alarm_id: str) -> dict[str, Any] | None:
         """Find mutable alarm by machine id or display id."""

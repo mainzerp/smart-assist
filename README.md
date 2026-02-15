@@ -6,7 +6,7 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Latest release: **v1.18.0** (Managed alarm automation: opt-in ownership-safe reconcile with event-compatibility fallback).
+Latest release: **v1.19.0** (Direct alarm action engine with managed-compatible execution modes and dashboard status visibility).
 
 Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
@@ -61,6 +61,8 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 - **Post-Fire Conversational Snooze**: Relative follow-ups like "noch 5 minuten" / "5 more minutes" can snooze recent fired alarms safely
 - **Automation-Compatible Events**: Fired alarms emit `smart_assist_alarm_fired`; lifecycle changes emit `smart_assist_alarm_updated`
 - **Managed Automation (Opt-In)**: Optional Smart Assist-owned managed alarm automation reconcile loop with per-alarm sync visibility
+- **Direct Alarm Engine**: Optional internal direct execution backends at fire-time (persistent notification, notify, TTS, script)
+- **Execution Modes**: `managed_only`, `direct_only`, and `hybrid` to control managed/direct coexistence
 - **Ownership Safety**: Smart Assist only mutates automations with a verifiable Smart Assist ownership marker; user automations are never mutated
 - **Fallback Compatibility**: Event-based alarm behavior remains active and unchanged even when managed automation is disabled or sync fails
 - **Clear Separation**: Use `timer` for relative durations (native Assist), `alarm` for absolute persistent alarms
@@ -253,6 +255,16 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | Managed Alarm Automation | Opt-in managed reconcile for Smart Assist-owned alarm automations only | false |
 | Managed Alarm Reconcile Interval | Periodic managed alarm reconcile interval (seconds) | 120 |
 | Managed Alarm Auto-Repair | Recreate missing owned managed automations during reconcile | true |
+| Alarm Execution Mode | Alarm fire execution strategy: `managed_only`, `direct_only`, or `hybrid` | managed_only |
+| Direct Alarm Notification Backend | Internal persistent notification direct backend | true |
+| Direct Alarm Notify Backend | Internal `notify.*` service direct backend | false |
+| Direct Alarm Notify Service | Notify service called by direct backend | `notify.notify` |
+| Direct Alarm TTS Backend | Internal TTS service direct backend | false |
+| Direct Alarm TTS Service | TTS service called by direct backend | `tts.speak` |
+| Direct Alarm TTS Target | Optional target `entity_id` for direct TTS service | (empty) |
+| Direct Alarm Script Backend | Internal `script.turn_on` direct backend | false |
+| Direct Alarm Script Entity | Script entity called by direct backend (`script.*`) | (empty) |
+| Direct Alarm Backend Timeout | Per-backend timeout for direct execution (seconds) | 8 |
 
 ### Caching Settings
 

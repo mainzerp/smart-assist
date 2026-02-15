@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import aiohttp
 
 from .const import (
+    ALARM_EXECUTION_MODES,
     DEFAULT_MODEL,
+    DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
+    DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
     MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
     MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
     OLLAMA_DEFAULT_MODEL,
@@ -21,6 +25,32 @@ _LOGGER = logging.getLogger(__name__)
 def validate_managed_alarm_reconcile_interval(value: int) -> bool:
     """Validate managed alarm reconcile interval bounds."""
     return MANAGED_ALARM_RECONCILE_INTERVAL_MIN <= int(value) <= MANAGED_ALARM_RECONCILE_INTERVAL_MAX
+
+
+def validate_alarm_execution_mode(value: str) -> bool:
+    """Validate alarm execution mode enum."""
+    return str(value or "") in ALARM_EXECUTION_MODES
+
+
+def validate_service_string(value: str) -> bool:
+    """Validate Home Assistant service string format domain.service."""
+    raw = str(value or "").strip()
+    if not raw:
+        return False
+    return bool(re.fullmatch(r"[a-z0-9_]+\.[a-z0-9_]+", raw))
+
+
+def validate_script_entity_id(value: str) -> bool:
+    """Validate script entity id format script.<object_id>."""
+    raw = str(value or "").strip()
+    if not raw:
+        return False
+    return bool(re.fullmatch(r"script\.[a-z0-9_]+", raw))
+
+
+def validate_direct_alarm_timeout(value: int) -> bool:
+    """Validate direct alarm backend timeout bounds in seconds."""
+    return DIRECT_ALARM_BACKEND_TIMEOUT_MIN <= int(value) <= DIRECT_ALARM_BACKEND_TIMEOUT_MAX
 
 
 async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, str]]:

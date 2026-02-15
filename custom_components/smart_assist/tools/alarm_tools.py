@@ -10,7 +10,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
-from ..const import DOMAIN, PERSISTENT_ALARM_EVENT_UPDATED
+from ..const import (
+    CONF_ALARM_EXECUTION_MODE,
+    DEFAULT_ALARM_EXECUTION_MODE,
+    DOMAIN,
+    PERSISTENT_ALARM_EVENT_UPDATED,
+)
 from ..context.persistent_alarms import PersistentAlarmManager
 from .base import BaseTool, ToolParameter, ToolResult
 
@@ -203,13 +208,17 @@ class AlarmTool(BaseTool):
                     if alarm is None:
                         return ToolResult(False, f"Alarm not found: {alarm_ref}")
                     next_trigger = alarm.get("snoozed_until") or alarm.get("scheduled_for")
+                    direct = alarm.get("direct_execution") if isinstance(alarm.get("direct_execution"), dict) else {}
+                    execution_mode = self._get_execution_mode()
                     return ToolResult(
                         True,
                         (
                             f"Alarm {alarm.get('display_id', alarm.get('id'))}: {alarm.get('label')} at {next_trigger}, "
-                            f"status={alarm.get('status')}, active={alarm.get('active')}"
+                            f"status={alarm.get('status')}, active={alarm.get('active')}, "
+                            f"execution_mode={execution_mode}, direct_state={direct.get('last_state')}, "
+                            f"direct_last_executed_at={direct.get('last_executed_at')}"
                         ),
-                        data={"alarm": alarm},
+                        data={"alarm": {**alarm, "execution_mode": execution_mode}},
                     )
 
                 alarms = manager.list_alarms(active_only=True)
@@ -328,10 +337,21 @@ class AlarmTool(BaseTool):
             return
 
         try:
-            await managed_service.async_reconcile_alarm(alarm)
+            await managed_service.async_reconcile_alarm(
+                alarm,
+                execution_mode=self._get_execution_mode(),
+            )
             await manager.async_save()
         except Exception as err:
             _LOGGER.warning("Managed alarm reconcile failed after tool action: %s", err)
+
+    def _get_execution_mode(self) -> str:
+        """Return configured alarm execution mode from runtime entry data."""
+        if not self._entry_id:
+            return DEFAULT_ALARM_EXECUTION_MODE
+        entry_data = self._hass.data.get(DOMAIN, {}).get(self._entry_id, {})
+        execution_config = entry_data.get("alarm_execution_config") or {}
+        return str(execution_config.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE))
 
     def _get_manager(self) -> PersistentAlarmManager | None:
         """Resolve persistent alarm manager from integration runtime data."""

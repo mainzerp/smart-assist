@@ -16,6 +16,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    ALARM_EXECUTION_MODE_DIRECT_ONLY,
+    ALARM_EXECUTION_MODE_MANAGED_ONLY,
     MANAGED_ALARM_ALIAS_PREFIX,
     MANAGED_ALARM_ERROR_INVALID_PAYLOAD,
     MANAGED_ALARM_ERROR_NOT_FOUND,
@@ -225,11 +227,30 @@ class ManagedAlarmAutomationService:
             )
         return removed
 
-    async def async_reconcile_alarm(self, alarm: dict[str, Any]) -> ManagedAlarmSyncResult:
+    async def async_reconcile_alarm(
+        self,
+        alarm: dict[str, Any],
+        execution_mode: str = ALARM_EXECUTION_MODE_MANAGED_ONLY,
+    ) -> ManagedAlarmSyncResult:
         """Reconcile one alarm to managed automation state."""
         alarm_id = str(alarm.get("id") or "")
         if not alarm_id:
             return ManagedAlarmSyncResult(False, MANAGED_ALARM_ERROR_INVALID_PAYLOAD, message="Missing alarm id")
+
+        if execution_mode == ALARM_EXECUTION_MODE_DIRECT_ONLY:
+            self._alarm_manager.mark_managed_sync_state(
+                alarm_id,
+                MANAGED_ALARM_SYNC_SKIPPED,
+                None,
+                dt_util.now().isoformat(),
+            )
+            return ManagedAlarmSyncResult(
+                success=True,
+                category=MANAGED_ALARM_SYNC_SKIPPED,
+                automation_entity_id=None,
+                ownership_verified=False,
+                message="Managed reconcile skipped in direct_only mode",
+            )
 
         managed = alarm.get("managed_automation")
         if not isinstance(managed, dict):
@@ -406,11 +427,14 @@ class ManagedAlarmAutomationService:
             message="Managed automation removed",
         )
 
-    async def async_reconcile_all(self) -> list[ManagedAlarmSyncResult]:
+    async def async_reconcile_all(
+        self,
+        execution_mode: str = ALARM_EXECUTION_MODE_MANAGED_ONLY,
+    ) -> list[ManagedAlarmSyncResult]:
         """Reconcile all known alarms."""
         results: list[ManagedAlarmSyncResult] = []
         alarms = self._alarm_manager.list_alarms(active_only=False)
         for alarm in alarms:
-            result = await self.async_reconcile_alarm(alarm)
+            result = await self.async_reconcile_alarm(alarm, execution_mode=execution_mode)
             results.append(result)
         return results

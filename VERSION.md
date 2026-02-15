@@ -4,9 +4,50 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.18.3 | 2026-02-15 |
+| Smart Assist | 1.19.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.19.0 (2026-02-15) - Direct Alarm Engine (Internal Execution Mode)
+
+**New Features:**
+- Added direct internal alarm execution engine with per-backend outcome capture and timeout isolation
+- Added execution modes `managed_only`, `direct_only`, and `hybrid` for managed/direct coexistence
+- Added optional direct backends for `persistent_notification`, `notify`, `tts`, and `script`
+- Added direct execution metadata on alarms (`last_state`, `last_executed_at`, `last_error`, backend results, fire marker)
+- Extended websocket/dashboard payloads with direct execution visibility and mode-aware managed reconcile availability
+
+**Compatibility/Safety:**
+- Preserved canonical lifecycle source-of-truth at `PersistentAlarmManager.pop_due_alarms()`
+- Preserved lifecycle events (`smart_assist_alarm_fired`, `smart_assist_alarm_updated`) regardless of backend outcome
+- Kept managed automation behavior unchanged for `managed_only`; skipped managed write reconcile in `direct_only`
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/config_validators.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/prompt_builder.py
+- tests/test_direct_alarm_engine.py
+- tests/test_persistent_alarms.py
+- tests/test_websocket.py
+- tests/test_tools.py
+- tests/test_config_flow.py
+- tests/test_managed_alarm_automation.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.18.3 (2026-02-15) - Official Automation API Compatibility Fix
 

@@ -27,17 +27,40 @@ except ImportError as e:
 
 try:
     from .const import (
+        ALARM_EXECUTION_MODE_DIRECT_ONLY,
+        ALARM_EXECUTION_MODE_HYBRID,
+        ALARM_EXECUTION_MODE_MANAGED_ONLY,
+        CONF_ALARM_EXECUTION_MODE,
         CONF_CACHE_REFRESH_INTERVAL,
         CONF_CANCEL_INTENT_AGENT,
         CONF_DEBUG_LOGGING,
+        CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+        CONF_DIRECT_ALARM_ENABLE_NOTIFICATION,
+        CONF_DIRECT_ALARM_ENABLE_NOTIFY,
+        CONF_DIRECT_ALARM_ENABLE_SCRIPT,
+        CONF_DIRECT_ALARM_ENABLE_TTS,
+        CONF_DIRECT_ALARM_NOTIFY_SERVICE,
+        CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID,
+        CONF_DIRECT_ALARM_TTS_SERVICE,
+        CONF_DIRECT_ALARM_TTS_TARGET,
         CONF_ENABLE_CACHE_WARMING,
         CONF_ENABLE_CANCEL_HANDLER,
         CONF_ENABLE_MANAGED_ALARM_AUTOMATION,
         CONF_MANAGED_ALARM_AUTO_REPAIR,
         CONF_MANAGED_ALARM_RECONCILE_INTERVAL,
+        DEFAULT_ALARM_EXECUTION_MODE,
         DEFAULT_CACHE_REFRESH_INTERVAL,
         DEFAULT_CANCEL_INTENT_AGENT,
         DEFAULT_DEBUG_LOGGING,
+        DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+        DEFAULT_DIRECT_ALARM_ENABLE_NOTIFICATION,
+        DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY,
+        DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT,
+        DEFAULT_DIRECT_ALARM_ENABLE_TTS,
+        DEFAULT_DIRECT_ALARM_NOTIFY_SERVICE,
+        DEFAULT_DIRECT_ALARM_SCRIPT_ENTITY_ID,
+        DEFAULT_DIRECT_ALARM_TTS_SERVICE,
+        DEFAULT_DIRECT_ALARM_TTS_TARGET,
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_ENABLE_CANCEL_HANDLER,
         DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION,
@@ -243,7 +266,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return enabled, max(30, interval), auto_repair
 
     managed_enabled, managed_interval_seconds, managed_auto_repair = _get_managed_alarm_config()
-    if managed_enabled:
+    alarm_execution_config = _get_alarm_execution_config(entry)
+    alarm_execution_mode = _alarm_execution_mode(alarm_execution_config)
+    hass.data[DOMAIN][entry.entry_id]["alarm_execution_config"] = alarm_execution_config
+
+    from .context.direct_alarm_engine import DirectAlarmEngine
+    direct_alarm_engine = DirectAlarmEngine(
+        hass=hass,
+        entry_id=entry.entry_id,
+        alarm_manager=persistent_alarm_manager,
+        config=alarm_execution_config,
+    )
+    hass.data[DOMAIN][entry.entry_id]["direct_alarm_engine"] = direct_alarm_engine
+
+    if managed_enabled and alarm_execution_mode != ALARM_EXECUTION_MODE_DIRECT_ONLY:
         from .context.managed_alarm_automation import ManagedAlarmAutomationService
         managed_alarm_service = ManagedAlarmAutomationService(
             hass=hass,
@@ -631,6 +667,10 @@ async def _process_due_persistent_alarms(
 
     from homeassistant.helpers.dispatcher import async_dispatcher_send
 
+    execution_config = entry_data.get("alarm_execution_config") or {}
+    execution_mode = _alarm_execution_mode(execution_config)
+    direct_engine = entry_data.get("direct_alarm_engine")
+
     for alarm in due_alarms:
         payload = {
             "entry_id": entry.entry_id,
@@ -674,9 +714,18 @@ async def _process_due_persistent_alarms(
         except Exception as err:
             _LOGGER.debug("Persistent alarm notification failed: %s", err)
 
+        if execution_mode in (ALARM_EXECUTION_MODE_DIRECT_ONLY, ALARM_EXECUTION_MODE_HYBRID) and direct_engine is not None:
+            try:
+                await direct_engine.execute_for_fired_alarm(alarm)
+            except Exception as err:
+                _LOGGER.warning("Direct alarm execution failed for %s: %s", alarm.get("id"), err)
+
         async_dispatcher_send(hass, f"{DOMAIN}_alarms_updated_{entry.entry_id}")
 
-    if entry_data.get("managed_alarm_automation") is not None:
+    if (
+        execution_mode in (ALARM_EXECUTION_MODE_MANAGED_ONLY, ALARM_EXECUTION_MODE_HYBRID)
+        and entry_data.get("managed_alarm_automation") is not None
+    ):
         for alarm in due_alarms:
             await _reconcile_single_managed_alarm(hass, entry, alarm)
 
@@ -696,7 +745,10 @@ async def _reconcile_single_managed_alarm(
         return
 
     try:
-        await managed_service.async_reconcile_alarm(alarm)
+        await managed_service.async_reconcile_alarm(
+            alarm,
+            execution_mode=_alarm_execution_mode(entry_data.get("alarm_execution_config") or {}),
+        )
     except Exception as err:
         _LOGGER.warning("Managed alarm reconcile failed for %s: %s", alarm.get("id"), err)
     finally:
@@ -713,11 +765,90 @@ async def _reconcile_managed_alarm_automation(hass: HomeAssistant, entry: Config
     if managed_service is None or alarm_manager is None:
         return
 
+    execution_mode = _alarm_execution_mode(entry_data.get("alarm_execution_config") or {})
+
     try:
-        await managed_service.async_reconcile_all()
+        await managed_service.async_reconcile_all(execution_mode=execution_mode)
     except Exception as err:
         _LOGGER.warning("Managed alarm reconcile-all failed: %s", err)
     finally:
         await alarm_manager.async_save()
         async_dispatcher_send(hass, f"{MANAGED_ALARM_DISPATCHER_RECONCILED}_{entry.entry_id}")
         async_dispatcher_send(hass, f"{DOMAIN}_alarms_updated_{entry.entry_id}")
+
+
+def _get_alarm_execution_config(entry: ConfigEntry) -> dict[str, Any]:
+    """Resolve direct alarm execution config from options/data/subentry fallback."""
+    config = {
+        CONF_ALARM_EXECUTION_MODE: entry.options.get(
+            CONF_ALARM_EXECUTION_MODE,
+            entry.data.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE),
+        ),
+        CONF_DIRECT_ALARM_ENABLE_NOTIFICATION: bool(entry.options.get(
+            CONF_DIRECT_ALARM_ENABLE_NOTIFICATION,
+            entry.data.get(CONF_DIRECT_ALARM_ENABLE_NOTIFICATION, DEFAULT_DIRECT_ALARM_ENABLE_NOTIFICATION),
+        )),
+        CONF_DIRECT_ALARM_ENABLE_NOTIFY: bool(entry.options.get(
+            CONF_DIRECT_ALARM_ENABLE_NOTIFY,
+            entry.data.get(CONF_DIRECT_ALARM_ENABLE_NOTIFY, DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY),
+        )),
+        CONF_DIRECT_ALARM_ENABLE_TTS: bool(entry.options.get(
+            CONF_DIRECT_ALARM_ENABLE_TTS,
+            entry.data.get(CONF_DIRECT_ALARM_ENABLE_TTS, DEFAULT_DIRECT_ALARM_ENABLE_TTS),
+        )),
+        CONF_DIRECT_ALARM_ENABLE_SCRIPT: bool(entry.options.get(
+            CONF_DIRECT_ALARM_ENABLE_SCRIPT,
+            entry.data.get(CONF_DIRECT_ALARM_ENABLE_SCRIPT, DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT),
+        )),
+        CONF_DIRECT_ALARM_NOTIFY_SERVICE: str(entry.options.get(
+            CONF_DIRECT_ALARM_NOTIFY_SERVICE,
+            entry.data.get(CONF_DIRECT_ALARM_NOTIFY_SERVICE, DEFAULT_DIRECT_ALARM_NOTIFY_SERVICE),
+        )),
+        CONF_DIRECT_ALARM_TTS_SERVICE: str(entry.options.get(
+            CONF_DIRECT_ALARM_TTS_SERVICE,
+            entry.data.get(CONF_DIRECT_ALARM_TTS_SERVICE, DEFAULT_DIRECT_ALARM_TTS_SERVICE),
+        )),
+        CONF_DIRECT_ALARM_TTS_TARGET: str(entry.options.get(
+            CONF_DIRECT_ALARM_TTS_TARGET,
+            entry.data.get(CONF_DIRECT_ALARM_TTS_TARGET, DEFAULT_DIRECT_ALARM_TTS_TARGET),
+        )),
+        CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID: str(entry.options.get(
+            CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID,
+            entry.data.get(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID, DEFAULT_DIRECT_ALARM_SCRIPT_ENTITY_ID),
+        )),
+        CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS: int(entry.options.get(
+            CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+            entry.data.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS),
+        )),
+    }
+
+    if config[CONF_ALARM_EXECUTION_MODE] == DEFAULT_ALARM_EXECUTION_MODE:
+        for subentry in entry.subentries.values():
+            if subentry.subentry_type != "conversation":
+                continue
+            if CONF_ALARM_EXECUTION_MODE in subentry.data:
+                config[CONF_ALARM_EXECUTION_MODE] = subentry.data[CONF_ALARM_EXECUTION_MODE]
+            for key in (
+                CONF_DIRECT_ALARM_ENABLE_NOTIFICATION,
+                CONF_DIRECT_ALARM_ENABLE_NOTIFY,
+                CONF_DIRECT_ALARM_ENABLE_TTS,
+                CONF_DIRECT_ALARM_ENABLE_SCRIPT,
+                CONF_DIRECT_ALARM_NOTIFY_SERVICE,
+                CONF_DIRECT_ALARM_TTS_SERVICE,
+                CONF_DIRECT_ALARM_TTS_TARGET,
+                CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID,
+                CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+            ):
+                if key in subentry.data:
+                    config[key] = subentry.data[key]
+            break
+
+    return config
+
+
+def _alarm_execution_mode(config: dict[str, Any]) -> str:
+    """Return normalized alarm execution mode."""
+    raw_mode = str(config.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE) or "")
+    if raw_mode in (ALARM_EXECUTION_MODE_MANAGED_ONLY, ALARM_EXECUTION_MODE_DIRECT_ONLY, ALARM_EXECUTION_MODE_HYBRID):
+        return raw_mode
+    return DEFAULT_ALARM_EXECUTION_MODE

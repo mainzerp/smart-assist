@@ -138,7 +138,17 @@
             "cancel_intent_agent": "Use as cancel intent handler",
             "enable_managed_alarm_automation": "Enable managed alarm automation",
             "managed_alarm_reconcile_interval": "Managed alarm reconcile interval (seconds)",
-            "managed_alarm_auto_repair": "Managed alarm auto-repair"
+            "managed_alarm_auto_repair": "Managed alarm auto-repair",
+            "alarm_execution_mode": "Alarm execution mode",
+            "direct_alarm_enable_notification": "Direct alarm: persistent notification backend",
+            "direct_alarm_enable_notify": "Direct alarm: notify service backend",
+            "direct_alarm_notify_service": "Direct alarm notify service (domain.service)",
+            "direct_alarm_enable_tts": "Direct alarm: TTS backend",
+            "direct_alarm_tts_service": "Direct alarm TTS service (domain.service)",
+            "direct_alarm_tts_target": "Direct alarm TTS target entity_id (optional)",
+            "direct_alarm_enable_script": "Direct alarm: script backend",
+            "direct_alarm_script_entity_id": "Direct alarm script entity_id (script.*)",
+            "direct_alarm_backend_timeout_seconds": "Direct alarm backend timeout (seconds)"
           },
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
@@ -163,7 +173,17 @@
             "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used.",
             "enable_managed_alarm_automation": "Opt-in feature: Smart Assist manages only its own owned alarm automations. User-created automations are never modified.",
             "managed_alarm_reconcile_interval": "How often managed alarm ownership and linkage are reconciled.",
-            "managed_alarm_auto_repair": "If enabled, Smart Assist attempts to recreate missing owned managed automations."
+            "managed_alarm_auto_repair": "If enabled, Smart Assist attempts to recreate missing owned managed automations.",
+            "alarm_execution_mode": "Choose alarm execution strategy: managed_only (existing managed automation behavior), direct_only (internal direct backends only), or hybrid (direct plus managed reconcile).",
+            "direct_alarm_enable_notification": "Enable direct backend for persistent notifications when alarms fire.",
+            "direct_alarm_enable_notify": "Enable direct backend to call a notify service when alarms fire.",
+            "direct_alarm_notify_service": "Notify service to call (for example: notify.notify).",
+            "direct_alarm_enable_tts": "Enable direct backend to call a TTS service when alarms fire.",
+            "direct_alarm_tts_service": "TTS service to call (for example: tts.speak).",
+            "direct_alarm_tts_target": "Optional target entity_id for the TTS service call.",
+            "direct_alarm_enable_script": "Enable direct backend to trigger a script when alarms fire.",
+            "direct_alarm_script_entity_id": "Script entity_id to call (must start with script.).",
+            "direct_alarm_backend_timeout_seconds": "Per-backend timeout in seconds (1-30)."
           }
         },
         "prompt": {
@@ -218,6 +238,16 @@
             "enable_managed_alarm_automation": "Enable managed alarm automation",
             "managed_alarm_reconcile_interval": "Managed alarm reconcile interval (seconds)",
             "managed_alarm_auto_repair": "Managed alarm auto-repair",
+            "alarm_execution_mode": "Alarm execution mode",
+            "direct_alarm_enable_notification": "Direct alarm: persistent notification backend",
+            "direct_alarm_enable_notify": "Direct alarm: notify service backend",
+            "direct_alarm_notify_service": "Direct alarm notify service (domain.service)",
+            "direct_alarm_enable_tts": "Direct alarm: TTS backend",
+            "direct_alarm_tts_service": "Direct alarm TTS service (domain.service)",
+            "direct_alarm_tts_target": "Direct alarm TTS target entity_id (optional)",
+            "direct_alarm_enable_script": "Direct alarm: script backend",
+            "direct_alarm_script_entity_id": "Direct alarm script entity_id (script.*)",
+            "direct_alarm_backend_timeout_seconds": "Direct alarm backend timeout (seconds)",
             "user_system_prompt": "System Prompt"
           },
           "data_description": {
@@ -244,7 +274,17 @@
             "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used.",
             "enable_managed_alarm_automation": "Opt-in feature: Smart Assist manages only its own owned alarm automations. User-created automations are never modified.",
             "managed_alarm_reconcile_interval": "How often managed alarm ownership and linkage are reconciled.",
-            "managed_alarm_auto_repair": "If enabled, Smart Assist attempts to recreate missing owned managed automations."
+            "managed_alarm_auto_repair": "If enabled, Smart Assist attempts to recreate missing owned managed automations.",
+            "alarm_execution_mode": "Choose alarm execution strategy: managed_only (existing managed automation behavior), direct_only (internal direct backends only), or hybrid (direct plus managed reconcile).",
+            "direct_alarm_enable_notification": "Enable direct backend for persistent notifications when alarms fire.",
+            "direct_alarm_enable_notify": "Enable direct backend to call a notify service when alarms fire.",
+            "direct_alarm_notify_service": "Notify service to call (for example: notify.notify).",
+            "direct_alarm_enable_tts": "Enable direct backend to call a TTS service when alarms fire.",
+            "direct_alarm_tts_service": "TTS service to call (for example: tts.speak).",
+            "direct_alarm_tts_target": "Optional target entity_id for the TTS service call.",
+            "direct_alarm_enable_script": "Enable direct backend to trigger a script when alarms fire.",
+            "direct_alarm_script_entity_id": "Script entity_id to call (must start with script.).",
+            "direct_alarm_backend_timeout_seconds": "Per-backend timeout in seconds (1-30)."
           }
         }
       },
@@ -256,7 +296,12 @@
         "groq_api_key_required": "Groq API key is required for Groq provider.",
         "openrouter_api_key_required": "OpenRouter API key is required for OpenRouter provider.",
         "ollama_not_configured": "Ollama is not configured. Please add Ollama configuration in the main integration settings.",
-        "invalid_managed_alarm_reconcile_interval": "Managed alarm reconcile interval must be between 30 and 3600 seconds."
+        "invalid_managed_alarm_reconcile_interval": "Managed alarm reconcile interval must be between 30 and 3600 seconds.",
+        "invalid_alarm_execution_mode": "Alarm execution mode is invalid.",
+        "invalid_direct_alarm_timeout": "Direct alarm backend timeout must be between 1 and 30 seconds.",
+        "invalid_direct_alarm_notify_service": "Direct alarm notify service must use domain.service format.",
+        "invalid_direct_alarm_tts_service": "Direct alarm TTS service must use domain.service format.",
+        "invalid_direct_alarm_script_entity_id": "Direct alarm script entity id must start with script."
       }
     },
     "ai_task": {
@@ -380,6 +425,13 @@
       "options": {
         "full_index": "Full Index (all entities in prompt)",
         "smart_discovery": "Smart Discovery (on-demand, saves tokens)"
+      }
+    },
+    "alarm_execution_mode": {
+      "options": {
+        "managed_only": "Managed only",
+        "direct_only": "Direct only",
+        "hybrid": "Hybrid"
       }
     }
   }

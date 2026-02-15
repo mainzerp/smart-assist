@@ -29,17 +29,32 @@ from .config_validators import (
     fetch_model_providers,
     fetch_ollama_models,
     fetch_openrouter_models,
+    validate_alarm_execution_mode,
+    validate_direct_alarm_timeout,
+    validate_script_entity_id,
+    validate_service_string,
     validate_managed_alarm_reconcile_interval,
     validate_groq_api_key,
 )
 from .const import (
+    ALARM_EXECUTION_MODES,
     CONF_API_KEY,
+    CONF_ALARM_EXECUTION_MODE,
     CONF_ASK_FOLLOWUP,
     CONF_CACHE_REFRESH_INTERVAL,
     CONF_CALENDAR_CONTEXT,
     CONF_CANCEL_INTENT_AGENT,
     CONF_CLEAN_RESPONSES,
     CONF_CONFIRM_CRITICAL,
+    CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+    CONF_DIRECT_ALARM_ENABLE_NOTIFICATION,
+    CONF_DIRECT_ALARM_ENABLE_NOTIFY,
+    CONF_DIRECT_ALARM_ENABLE_SCRIPT,
+    CONF_DIRECT_ALARM_ENABLE_TTS,
+    CONF_DIRECT_ALARM_NOTIFY_SERVICE,
+    CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID,
+    CONF_DIRECT_ALARM_TTS_SERVICE,
+    CONF_DIRECT_ALARM_TTS_TARGET,
     CONF_ENABLE_CACHE_WARMING,
     CONF_ENABLE_MEMORY,
     CONF_ENABLE_REQUEST_HISTORY_CONTENT,
@@ -74,11 +89,21 @@ from .const import (
     CONF_TEMPERATURE,
     CONF_USER_SYSTEM_PROMPT,
     DEFAULT_ASK_FOLLOWUP,
+    DEFAULT_ALARM_EXECUTION_MODE,
     DEFAULT_CACHE_REFRESH_INTERVAL,
     DEFAULT_CALENDAR_CONTEXT,
     DEFAULT_CANCEL_INTENT_AGENT,
     DEFAULT_CLEAN_RESPONSES,
     DEFAULT_CONFIRM_CRITICAL,
+    DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+    DEFAULT_DIRECT_ALARM_ENABLE_NOTIFICATION,
+    DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY,
+    DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT,
+    DEFAULT_DIRECT_ALARM_ENABLE_TTS,
+    DEFAULT_DIRECT_ALARM_NOTIFY_SERVICE,
+    DEFAULT_DIRECT_ALARM_SCRIPT_ENTITY_ID,
+    DEFAULT_DIRECT_ALARM_TTS_SERVICE,
+    DEFAULT_DIRECT_ALARM_TTS_TARGET,
     DEFAULT_ENABLE_CACHE_WARMING,
     DEFAULT_ENABLE_MEMORY,
     DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
@@ -116,6 +141,8 @@ from .const import (
     TOOL_LATENCY_BUDGET_MS_MIN,
     TOOL_MAX_RETRIES_MAX,
     TOOL_MAX_RETRIES_MIN,
+    DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
+    DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
     MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
     MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
 )
@@ -299,6 +326,22 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 errors["base"] = "invalid_managed_alarm_reconcile_interval"
             else:
                 user_input[CONF_MANAGED_ALARM_RECONCILE_INTERVAL] = interval
+            timeout_seconds = int(user_input.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS))
+            user_input[CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS] = timeout_seconds
+            execution_mode = str(user_input.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE))
+            if "base" not in errors and not validate_alarm_execution_mode(execution_mode):
+                errors["base"] = "invalid_alarm_execution_mode"
+            if "base" not in errors and not validate_direct_alarm_timeout(timeout_seconds):
+                errors["base"] = "invalid_direct_alarm_timeout"
+            notify_service = str(user_input.get(CONF_DIRECT_ALARM_NOTIFY_SERVICE, "") or "").strip()
+            if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_NOTIFY, DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY) and not validate_service_string(notify_service):
+                errors["base"] = "invalid_direct_alarm_notify_service"
+            tts_service = str(user_input.get(CONF_DIRECT_ALARM_TTS_SERVICE, "") or "").strip()
+            if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_TTS, DEFAULT_DIRECT_ALARM_ENABLE_TTS) and not validate_service_string(tts_service):
+                errors["base"] = "invalid_direct_alarm_tts_service"
+            script_entity_id = str(user_input.get(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID, "") or "").strip()
+            if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_SCRIPT, DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT) and not validate_script_entity_id(script_entity_id):
+                errors["base"] = "invalid_direct_alarm_script_entity_id"
         if user_input is not None and not errors:
             self._data.update(user_input)
             return await self.async_step_prompt()
@@ -404,6 +447,39 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 )
             ),
             vol.Required(CONF_MANAGED_ALARM_AUTO_REPAIR, default=DEFAULT_MANAGED_ALARM_AUTO_REPAIR): BooleanSelector(),
+            # Group: Direct Alarm Engine
+            vol.Required(CONF_ALARM_EXECUTION_MODE, default=DEFAULT_ALARM_EXECUTION_MODE): SelectSelector(
+                SelectSelectorConfig(
+                    options=list(ALARM_EXECUTION_MODES),
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key="alarm_execution_mode",
+                )
+            ),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFICATION, default=DEFAULT_DIRECT_ALARM_ENABLE_NOTIFICATION): BooleanSelector(),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFY, default=DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY): BooleanSelector(),
+            vol.Required(CONF_DIRECT_ALARM_NOTIFY_SERVICE, default=DEFAULT_DIRECT_ALARM_NOTIFY_SERVICE): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_TTS, default=DEFAULT_DIRECT_ALARM_ENABLE_TTS): BooleanSelector(),
+            vol.Required(CONF_DIRECT_ALARM_TTS_SERVICE, default=DEFAULT_DIRECT_ALARM_TTS_SERVICE): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Optional(CONF_DIRECT_ALARM_TTS_TARGET, default=DEFAULT_DIRECT_ALARM_TTS_TARGET): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_SCRIPT, default=DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT): BooleanSelector(),
+            vol.Optional(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID, default=DEFAULT_DIRECT_ALARM_SCRIPT_ENTITY_ID): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, default=DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS): NumberSelector(
+                NumberSelectorConfig(
+                    min=DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
+                    max=DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
+                    step=1,
+                    unit_of_measurement="s",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
         })
         
         return self.async_show_form(
@@ -570,6 +646,22 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 errors["base"] = "invalid_managed_alarm_reconcile_interval"
             else:
                 user_input[CONF_MANAGED_ALARM_RECONCILE_INTERVAL] = interval
+            timeout_seconds = int(user_input.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS))
+            user_input[CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS] = timeout_seconds
+            execution_mode = str(user_input.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE))
+            if "base" not in errors and not validate_alarm_execution_mode(execution_mode):
+                errors["base"] = "invalid_alarm_execution_mode"
+            if "base" not in errors and not validate_direct_alarm_timeout(timeout_seconds):
+                errors["base"] = "invalid_direct_alarm_timeout"
+            notify_service = str(user_input.get(CONF_DIRECT_ALARM_NOTIFY_SERVICE, "") or "").strip()
+            if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_NOTIFY, DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY) and not validate_service_string(notify_service):
+                errors["base"] = "invalid_direct_alarm_notify_service"
+            tts_service = str(user_input.get(CONF_DIRECT_ALARM_TTS_SERVICE, "") or "").strip()
+            if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_TTS, DEFAULT_DIRECT_ALARM_ENABLE_TTS) and not validate_service_string(tts_service):
+                errors["base"] = "invalid_direct_alarm_tts_service"
+            script_entity_id = str(user_input.get(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID, "") or "").strip()
+            if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_SCRIPT, DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT) and not validate_script_entity_id(script_entity_id):
+                errors["base"] = "invalid_direct_alarm_script_entity_id"
         if user_input is not None and not errors:
             self._data.update(user_input)
             return self.async_update_and_abort(
@@ -668,6 +760,39 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 )
             ),
             vol.Required(CONF_MANAGED_ALARM_AUTO_REPAIR): BooleanSelector(),
+            # Direct Alarm Engine
+            vol.Required(CONF_ALARM_EXECUTION_MODE): SelectSelector(
+                SelectSelectorConfig(
+                    options=list(ALARM_EXECUTION_MODES),
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key="alarm_execution_mode",
+                )
+            ),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFICATION): BooleanSelector(),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFY): BooleanSelector(),
+            vol.Required(CONF_DIRECT_ALARM_NOTIFY_SERVICE): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_TTS): BooleanSelector(),
+            vol.Required(CONF_DIRECT_ALARM_TTS_SERVICE): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Optional(CONF_DIRECT_ALARM_TTS_TARGET): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_DIRECT_ALARM_ENABLE_SCRIPT): BooleanSelector(),
+            vol.Optional(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT)
+            ),
+            vol.Required(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS): NumberSelector(
+                NumberSelectorConfig(
+                    min=DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
+                    max=DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
+                    step=1,
+                    unit_of_measurement="s",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             # System Prompt
             vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)

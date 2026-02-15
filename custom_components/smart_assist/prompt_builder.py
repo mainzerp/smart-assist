@@ -230,6 +230,9 @@ Language:
     parts.append(
         "Alarm policy: alarm intent behavior stays event-compatible; any managed alarm automation linkage is internal and must not change user-owned automations."
     )
+    parts.append(
+        "Alarm execution compatibility: fired alarms may execute through an internal direct engine depending on configured mode; this does not require automation create/edit APIs."
+    )
 
     # Global intent routing and entity discovery policy (single source of truth)
     discovery_mode = entity._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
