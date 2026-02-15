@@ -6,6 +6,8 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
+Latest patch release: **v1.15.1** (AI Task structured-output follow-up compatibility fixes).
+
 Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
 ## Features
