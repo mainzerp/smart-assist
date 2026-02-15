@@ -184,7 +184,7 @@ class AlarmTool(BaseTool):
                 if not alarm_datetime:
                     return ToolResult(
                         False,
-                        "For action=set provide datetime (ISO) or date+time.",
+                        "For action=set provide 'datetime' (full ISO string like 2026-02-16T07:30:00), or 'date' + 'time' together, or 'time' alone (today/tomorrow will be inferred).",
                     )
 
                 recurrence_payload = self._build_recurrence_payload(
@@ -463,6 +463,20 @@ class AlarmTool(BaseTool):
                 return None
             parsed = parsed.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
             return dt_util.as_local(parsed).isoformat()
+
+        if time_value and not date_value:
+            try:
+                now = dt_util.now()
+                parsed = datetime.fromisoformat(
+                    f"{now.date().isoformat()}T{time_value}"
+                )
+                parsed = parsed.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+                if parsed <= now:
+                    from datetime import timedelta
+                    parsed += timedelta(days=1)
+                return dt_util.as_local(parsed).isoformat()
+            except ValueError:
+                return None
 
         return None
 
