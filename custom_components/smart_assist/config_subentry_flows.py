@@ -33,7 +33,6 @@ from .config_validators import (
     validate_direct_alarm_timeout,
     validate_script_entity_id,
     validate_service_string,
-    validate_managed_alarm_reconcile_interval,
     validate_groq_api_key,
 )
 from .const import (
@@ -71,9 +70,6 @@ from .const import (
     CONF_LLM_PROVIDER,
     CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
-    CONF_ENABLE_MANAGED_ALARM_AUTOMATION,
-    CONF_MANAGED_ALARM_RECONCILE_INTERVAL,
-    CONF_MANAGED_ALARM_AUTO_REPAIR,
     CONF_MODEL,
     CONF_OLLAMA_KEEP_ALIVE,
     CONF_OLLAMA_MODEL,
@@ -117,9 +113,6 @@ from .const import (
     DEFAULT_HISTORY_RETENTION_DAYS,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
-    DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION,
-    DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL,
-    DEFAULT_MANAGED_ALARM_AUTO_REPAIR,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     DEFAULT_TASK_ALLOW_CONTROL,
@@ -145,8 +138,6 @@ from .const import (
     TOOL_MAX_RETRIES_MIN,
     DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
     DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
-    MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
-    MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -325,11 +316,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         if user_input is not None:
             advanced_enabled = bool(user_input.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
             if advanced_enabled:
-                interval = int(user_input.get(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL))
-                if not validate_managed_alarm_reconcile_interval(interval):
-                    errors["base"] = "invalid_managed_alarm_reconcile_interval"
-                else:
-                    user_input[CONF_MANAGED_ALARM_RECONCILE_INTERVAL] = interval
                 timeout_seconds = int(user_input.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS))
                 user_input[CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS] = timeout_seconds
                 execution_mode = str(user_input.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE))
@@ -446,18 +432,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         advanced_enabled = bool(self._data.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
         if advanced_enabled:
             schema_dict.update({
-            # Group: Managed Alarms
-            vol.Required(CONF_ENABLE_MANAGED_ALARM_AUTOMATION, default=DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION): BooleanSelector(),
-            vol.Required(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, default=DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL): NumberSelector(
-                NumberSelectorConfig(
-                    min=MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
-                    max=MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
-                    step=10,
-                    unit_of_measurement="s",
-                    mode=NumberSelectorMode.BOX,
-                )
-            ),
-            vol.Required(CONF_MANAGED_ALARM_AUTO_REPAIR, default=DEFAULT_MANAGED_ALARM_AUTO_REPAIR): BooleanSelector(),
             # Group: Direct Alarm Engine
             vol.Required(CONF_ALARM_EXECUTION_MODE, default=DEFAULT_ALARM_EXECUTION_MODE): SelectSelector(
                 SelectSelectorConfig(
@@ -654,11 +628,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         if user_input is not None:
             advanced_enabled = bool(user_input.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
             if advanced_enabled:
-                interval = int(user_input.get(CONF_MANAGED_ALARM_RECONCILE_INTERVAL, DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL))
-                if not validate_managed_alarm_reconcile_interval(interval):
-                    errors["base"] = "invalid_managed_alarm_reconcile_interval"
-                else:
-                    user_input[CONF_MANAGED_ALARM_RECONCILE_INTERVAL] = interval
                 timeout_seconds = int(user_input.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS))
                 user_input[CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS] = timeout_seconds
                 execution_mode = str(user_input.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE))
@@ -768,18 +737,6 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         advanced_enabled = bool(self._data.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
         if advanced_enabled:
             schema_dict.update({
-            # Managed Alarms
-            vol.Required(CONF_ENABLE_MANAGED_ALARM_AUTOMATION): BooleanSelector(),
-            vol.Required(CONF_MANAGED_ALARM_RECONCILE_INTERVAL): NumberSelector(
-                NumberSelectorConfig(
-                    min=MANAGED_ALARM_RECONCILE_INTERVAL_MIN,
-                    max=MANAGED_ALARM_RECONCILE_INTERVAL_MAX,
-                    step=10,
-                    unit_of_measurement="s",
-                    mode=NumberSelectorMode.BOX,
-                )
-            ),
-            vol.Required(CONF_MANAGED_ALARM_AUTO_REPAIR): BooleanSelector(),
             # Direct Alarm Engine
             vol.Required(CONF_ALARM_EXECUTION_MODE): SelectSelector(
                 SelectSelectorConfig(
