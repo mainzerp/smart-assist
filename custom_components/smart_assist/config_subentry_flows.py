@@ -29,16 +29,13 @@ from .config_validators import (
     fetch_model_providers,
     fetch_ollama_models,
     fetch_openrouter_models,
-    validate_alarm_execution_mode,
     validate_direct_alarm_timeout,
     validate_script_entity_id,
     validate_service_string,
     validate_groq_api_key,
 )
 from .const import (
-    ALARM_EXECUTION_MODES,
     CONF_API_KEY,
-    CONF_ALARM_EXECUTION_MODE,
     CONF_ASK_FOLLOWUP,
     CONF_CACHE_REFRESH_INTERVAL,
     CONF_CALENDAR_CONTEXT,
