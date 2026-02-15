@@ -205,6 +205,15 @@ class DirectAlarmEngine:
 
         if not targets:
             if domain == "tts" and service == "speak":
+                raw_delivery = alarm.get("delivery")
+                delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
+                _LOGGER.warning(
+                    "Direct alarm TTS target resolution failed for %s (tts.speak). source_device_id=%s, source_satellite_id=%s, configured_target=%s",
+                    alarm.get("id"),
+                    delivery.get("source_device_id"),
+                    delivery.get("source_satellite_id"),
+                    self._config.get(CONF_DIRECT_ALARM_TTS_TARGET, DEFAULT_DIRECT_ALARM_TTS_TARGET),
+                )
                 return self._failure_result(DIRECT_ALARM_ERROR_VALIDATION, "tts_target_required")
             payload: dict[str, Any] = {"message": message}
             await self._async_call_service(domain, service, payload)

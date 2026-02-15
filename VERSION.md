@@ -4,9 +4,24 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.5 | 2026-02-15 |
+| Smart Assist | 1.22.6 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.6 (2026-02-15) - Alarm TTS Target Diagnostics
+
+**Fixes:**
+- Added explicit warning log in direct alarm TTS `tts.speak` path when no target can be resolved
+- Log now includes alarm id plus `source_device_id`, `source_satellite_id`, and configured fallback target for faster field diagnostics
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py -q`: 18 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.5 (2026-02-15) - Alarm TTS Target Routing Fix
 
