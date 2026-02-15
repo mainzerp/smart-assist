@@ -4,9 +4,26 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.12 | 2026-02-15 |
+| Smart Assist | 1.22.13 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.13 (2026-02-15) - Multi-Satellite Alarm Announce
+
+**Fixes:**
+- Added multi-satellite alarm announce routing for `tts.speak` alarms: `tts_targets` media_player entries are resolved to matching `assist_satellite` entities
+- Direct alarm now executes one `assist_satellite.announce` call per resolved satellite target (deduplicated)
+- Keeps fallback behavior for non-satellite scenarios where announce targets cannot be resolved
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 62 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 75 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.12 (2026-02-15) - Preserve Satellite Voice/Provider on Alarm Fire
 

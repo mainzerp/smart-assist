@@ -210,11 +210,56 @@ class DirectAlarmEngine:
         if (
             domain == "tts"
             and service == "speak"
-            and self._should_use_satellite_announce(source_satellite_id, targets)
             and self._hass.services.has_service("assist_satellite", "announce")
         ):
+            satellite_targets = self._resolve_satellite_announce_targets(source_satellite_id, targets)
+            if satellite_targets:
+                _LOGGER.debug(
+                    "Direct alarm TTS using assist_satellite.announce for %s on satellites=%s",
+                    alarm.get("id"),
+                    satellite_targets,
+                )
+                successful = 0
+                failed = 0
+                for satellite_entity_id in satellite_targets:
+                    try:
+                        await self._async_call_service(
+                            "assist_satellite",
+                            "announce",
+                            {
+                                "entity_id": satellite_entity_id,
+                                "message": message,
+                            },
+                        )
+                        successful += 1
+                    except Exception as err:
+                        _LOGGER.warning(
+                            "Direct alarm satellite announce failed for %s on %s: %s",
+                            alarm.get("id"),
+                            satellite_entity_id,
+                            err,
+                        )
+                        failed += 1
+
+                if successful == 0:
+                    return self._failure_result(DIRECT_ALARM_ERROR_SERVICE_FAILED, "satellite_announce_all_failed")
+
+                result = self._ok_result("assist_satellite.announce")
+                result["targets"] = satellite_targets
+                result["target_success_count"] = successful
+                result["target_failure_count"] = failed
+                return result
+
+        if (
+            domain == "tts"
+            and service == "speak"
+            and self._hass.services.has_service("assist_satellite", "announce")
+            and source_satellite_id
+            and source_satellite_id.startswith("assist_satellite.")
+            and not targets
+        ):
             _LOGGER.debug(
-                "Direct alarm TTS using assist_satellite.announce for %s on %s",
+                "Direct alarm TTS using assist_satellite.announce for %s on source satellite=%s",
                 alarm.get("id"),
                 source_satellite_id,
             )
@@ -656,14 +701,51 @@ class DirectAlarmEngine:
         configured = str(self._config.get(CONF_DIRECT_ALARM_TTS_TARGET, DEFAULT_DIRECT_ALARM_TTS_TARGET) or "")
         return self._normalize_targets(configured)
 
-    def _should_use_satellite_announce(self, source_satellite_id: str, targets: list[str]) -> bool:
-        """Return True when delivery is source-satellite scoped and should use satellite announce."""
-        if not source_satellite_id or not source_satellite_id.startswith("assist_satellite."):
-            return False
-        if not targets:
-            return True
+    def _resolve_satellite_announce_targets(self, source_satellite_id: str, targets: list[str]) -> list[str]:
+        """Resolve unique assist_satellite announce targets from source satellite + media_player targets."""
+        resolved: list[str] = []
+        seen: set[str] = set()
 
-        return all(str(target).startswith("media_player.satellite_") for target in targets)
+        def _add(entity_id: str | None) -> None:
+            value = str(entity_id or "").strip().lower()
+            if not value or not value.startswith("assist_satellite."):
+                return
+            if value in seen:
+                return
+            seen.add(value)
+            resolved.append(value)
+
+        _add(source_satellite_id)
+
+        for media_player_entity_id in targets:
+            _add(self._resolve_satellite_by_media_player(media_player_entity_id))
+
+        return resolved
+
+    def _resolve_satellite_by_media_player(self, media_player_entity_id: str) -> str | None:
+        """Resolve assist_satellite entity for a media_player target via shared device mapping."""
+        media_player_entity_id = str(media_player_entity_id or "").strip().lower()
+        if not media_player_entity_id.startswith("media_player."):
+            return None
+
+        try:
+            entity_registry = er.async_get(self._hass)
+            player_entry = entity_registry.async_get(media_player_entity_id)
+            device_id = getattr(player_entry, "device_id", None)
+            if device_id:
+                entries = er.async_entries_for_device(entity_registry, device_id)
+                for entry in entries:
+                    if getattr(entry, "domain", "") != "assist_satellite":
+                        continue
+                    if getattr(entry, "disabled_by", None) is not None:
+                        continue
+                    entity_id = str(getattr(entry, "entity_id", "") or "").strip().lower()
+                    if entity_id.startswith("assist_satellite."):
+                        return entity_id
+        except Exception:
+            pass
+
+        return None
 
     def _normalize_targets(self, targets: Any) -> list[str]:
         """Normalize targets from list or comma-separated string."""
