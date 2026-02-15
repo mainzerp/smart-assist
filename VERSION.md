@@ -4,9 +4,30 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.18.1 | 2026-02-15 |
+| Smart Assist | 1.18.2 | 2026-02-15 |
 
 ## Version History
+
+### v1.18.2 (2026-02-15) - Managed Automation Unsupported-API Fallback
+
+**Fixes:**
+- Added explicit managed sync error category `unsupported_in_ha` when Home Assistant exposes no writable `automation.*` services
+- Prevented misleading `service_call_failed` classification for environments without automation write API support
+- Kept managed automation opt-in behavior unchanged and continued event-based alarm handling as compatibility fallback
+
+**Tests:**
+- Added managed automation regression test for runtimes without automation service registry support
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_managed_alarm_automation.py tests/test_websocket.py`: 11 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- tests/test_managed_alarm_automation.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.18.1 (2026-02-15) - Managed Automation Diagnostics Logging
 

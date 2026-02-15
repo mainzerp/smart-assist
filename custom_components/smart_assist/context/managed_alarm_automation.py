@@ -21,6 +21,7 @@ from ..const import (
     MANAGED_ALARM_ERROR_NOT_FOUND,
     MANAGED_ALARM_ERROR_OWNERSHIP_MISMATCH,
     MANAGED_ALARM_ERROR_SERVICE_FAILED,
+    MANAGED_ALARM_ERROR_UNSUPPORTED_IN_HA,
     MANAGED_ALARM_MANAGED_VERSION,
     MANAGED_ALARM_MARKER_ALARM_ID_KEY,
     MANAGED_ALARM_MARKER_ENTRY_ID_KEY,
@@ -89,6 +90,10 @@ class ManagedAlarmAutomationService:
         if not isinstance(services, dict):
             return []
         return sorted(str(name) for name in services.keys())
+
+    def _has_automation_write_api(self) -> bool:
+        """Return whether this HA runtime exposes automation write services."""
+        return len(self._list_automation_services()) > 0
 
     def _description_with_marker(self, alarm: dict[str, Any]) -> str:
         marker_json = json.dumps(self._marker(alarm), separators=(",", ":"), sort_keys=True)
@@ -269,6 +274,21 @@ class ManagedAlarmAutomationService:
                     message="Managed automation missing",
                 )
 
+            if not self._has_automation_write_api():
+                self._alarm_manager.mark_managed_sync_state(
+                    alarm_id,
+                    MANAGED_ALARM_SYNC_FAILED,
+                    MANAGED_ALARM_ERROR_UNSUPPORTED_IN_HA,
+                    now_iso,
+                )
+                return ManagedAlarmSyncResult(
+                    success=False,
+                    category=MANAGED_ALARM_ERROR_UNSUPPORTED_IN_HA,
+                    automation_entity_id=entity_id,
+                    ownership_verified=False,
+                    message="Automation write API is unavailable in this HA environment",
+                )
+
             try:
                 payload = self._desired_payload(alarm, entity_id)
             except ValueError:
@@ -335,6 +355,21 @@ class ManagedAlarmAutomationService:
                 automation_entity_id=managed_entity,
                 ownership_verified=False,
                 message="Ownership mismatch",
+            )
+
+        if not self._has_automation_write_api():
+            self._alarm_manager.mark_managed_sync_state(
+                alarm_id,
+                MANAGED_ALARM_SYNC_FAILED,
+                MANAGED_ALARM_ERROR_UNSUPPORTED_IN_HA,
+                now_iso,
+            )
+            return ManagedAlarmSyncResult(
+                success=False,
+                category=MANAGED_ALARM_ERROR_UNSUPPORTED_IN_HA,
+                automation_entity_id=managed_entity,
+                ownership_verified=True,
+                message="Automation write API is unavailable in this HA environment",
             )
 
         try:

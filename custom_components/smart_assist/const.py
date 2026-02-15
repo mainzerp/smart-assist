@@ -166,6 +166,7 @@ MANAGED_ALARM_SYNC_SKIPPED: Final = "skipped"
 MANAGED_ALARM_ERROR_OWNERSHIP_MISMATCH: Final = "ownership_mismatch"
 MANAGED_ALARM_ERROR_NOT_FOUND: Final = "automation_not_found"
 MANAGED_ALARM_ERROR_SERVICE_FAILED: Final = "service_call_failed"
+MANAGED_ALARM_ERROR_UNSUPPORTED_IN_HA: Final = "unsupported_in_ha"
 MANAGED_ALARM_ERROR_INVALID_PAYLOAD: Final = "invalid_payload"
 
 # Dispatcher signals
