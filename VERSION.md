@@ -4,9 +4,29 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.9 | 2026-02-15 |
+| Smart Assist | 1.22.10 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.10 (2026-02-15) - Alarm Voice + News Reliability
+
+**Fixes:**
+- Alarm delivery metadata now stores `source_tts_voice` from conversation runtime context (input/satellite attributes)
+- Direct alarm `tts.speak` payload now forwards voice via `options.voice` when source voice is known
+- News enrichment now uses DDGS fallback when `WebSearchTool` returns no results, improving dynamic wake text reliability
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 60 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 75 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.9 (2026-02-15) - Prefer Source Agent TTS Engine
 

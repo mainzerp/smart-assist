@@ -207,6 +207,7 @@ class AlarmTool(BaseTool):
                     source_device_id=getattr(self, "_device_id", None),
                     source_satellite_id=getattr(self, "_satellite_id", None),
                     source_conversation_agent_id=getattr(self, "_conversation_agent_id", None),
+                    source_tts_voice=getattr(self, "_source_tts_voice", None),
                     tts_targets=parsed_tts_targets,
                     wake_text=wake_text_options,
                 )

@@ -202,6 +202,9 @@ class DirectAlarmEngine:
 
         message = await self._resolve_tts_message(alarm)
         targets = self._resolve_tts_targets(alarm)
+        raw_delivery = alarm.get("delivery")
+        delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
+        source_tts_voice = str(delivery.get("source_tts_voice") or "").strip() or None
         tts_engine_entity_id = (
             self._resolve_tts_engine_entity_id(alarm)
             if (domain == "tts" and service == "speak")
@@ -240,6 +243,7 @@ class DirectAlarmEngine:
                 message,
                 target,
                 tts_engine_entity_id=tts_engine_entity_id,
+                tts_voice=source_tts_voice,
             )
             try:
                 await self._async_call_service(domain, service, payload)
@@ -341,6 +345,7 @@ class DirectAlarmEngine:
 
     async def _collect_news_context(self) -> str:
         """Return compact latest-news context using DDGS web search."""
+        entries: list[Any] = []
         try:
             from ..tools.search_tools import WebSearchTool
 
@@ -348,12 +353,13 @@ class DirectAlarmEngine:
                 query="latest news headlines",
                 max_results=3,
             )
-            if not result.success:
-                return ""
-
-            entries = result.data.get("results") if isinstance(result.data, dict) else []
+            if result.success:
+                entries = result.data.get("results") if isinstance(result.data, dict) else []
         except Exception:
-            return ""
+            entries = []
+
+        if not entries:
+            entries = await self._collect_news_context_ddgs_fallback()
 
         headlines: list[str] = []
         for item in entries if isinstance(entries, list) else []:
@@ -365,6 +371,23 @@ class DirectAlarmEngine:
         if not headlines:
             return ""
         return " | ".join(headlines[:3])
+
+    async def _collect_news_context_ddgs_fallback(self) -> list[dict[str, Any]]:
+        """Fallback DDGS query when WebSearchTool does not yield results."""
+        def _query() -> list[dict[str, Any]]:
+            try:
+                from ddgs import DDGS
+
+                with DDGS() as ddgs_client:
+                    return list(ddgs_client.text("latest news headlines", max_results=3))
+            except Exception:
+                return []
+
+        try:
+            result = await self._hass.async_add_executor_job(_query)
+            return result if isinstance(result, list) else []
+        except Exception:
+            return []
 
     def _get_llm_client(self):
         """Get preferred LLM client from entry agents for dynamic wake text."""
@@ -474,6 +497,7 @@ class DirectAlarmEngine:
         message: str,
         target: str,
         tts_engine_entity_id: str | None = None,
+        tts_voice: str | None = None,
     ) -> dict[str, Any]:
         """Build backend-specific TTS payload for one target."""
         payload: dict[str, Any] = {"message": message}
@@ -481,6 +505,8 @@ class DirectAlarmEngine:
             if tts_engine_entity_id:
                 payload["entity_id"] = tts_engine_entity_id
             payload["media_player_entity_id"] = target
+            if tts_voice:
+                payload["options"] = {"voice": tts_voice}
         else:
             payload["entity_id"] = target
         return payload

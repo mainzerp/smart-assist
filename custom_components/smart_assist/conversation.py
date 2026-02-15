@@ -249,6 +249,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             "entity": self,
         }
         self._last_tts_engine_entity_id: str | None = None
+        self._last_tts_voice: str | None = None
 
         # Entity manager for entity discovery
         self._entity_manager = EntityManager(
@@ -547,6 +548,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             alarm_tool._user_id = user_id
             alarm_tool._device_id = device_id
             alarm_tool._satellite_id = satellite_id
+            alarm_tool._source_tts_voice = self._last_tts_voice
             if self._persistent_alarm_manager is not None:
                 recent = self._persistent_alarm_manager.get_recent_fired_alarms(
                     window_minutes=POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
@@ -861,6 +863,12 @@ class SmartAssistConversationEntity(ConversationEntity):
         if candidate and self.hass.states.get(candidate) is not None:
             self._last_tts_engine_entity_id = candidate
 
+        voice_candidate = self._extract_tts_voice_candidate_from_input(user_input)
+        if voice_candidate is None:
+            voice_candidate = self._extract_tts_voice_candidate_from_satellite(satellite_id)
+        if voice_candidate:
+            self._last_tts_voice = voice_candidate
+
     def _extract_tts_engine_candidate_from_input(self, user_input: ConversationInput) -> str | None:
         """Extract potential tts.* entity id directly from ConversationInput fields."""
         for attr_name in ("tts_entity_id", "tts_engine", "tts_engine_id"):
@@ -900,6 +908,45 @@ class SmartAssistConversationEntity(ConversationEntity):
                     if isinstance(nested_value, str):
                         value = nested_value.strip().lower()
                         if value.startswith("tts."):
+                            return value
+
+        return None
+
+    def _extract_tts_voice_candidate_from_input(self, user_input: ConversationInput) -> str | None:
+        """Extract potential TTS voice id/name from ConversationInput fields."""
+        for attr_name in ("tts_voice", "voice", "tts_voice_id"):
+            raw_value = getattr(user_input, attr_name, None)
+            if isinstance(raw_value, str):
+                value = raw_value.strip()
+                if value:
+                    return value
+        return None
+
+    def _extract_tts_voice_candidate_from_satellite(self, satellite_id: str | None) -> str | None:
+        """Extract potential TTS voice from satellite state attributes."""
+        if not satellite_id:
+            return None
+
+        state = self.hass.states.get(satellite_id)
+        if state is None:
+            return None
+
+        attrs = state.attributes if isinstance(state.attributes, dict) else {}
+        direct_keys = ("tts_voice", "voice", "voice_id", "tts_voice_id")
+        for key in direct_keys:
+            raw_value = attrs.get(key)
+            if isinstance(raw_value, str):
+                value = raw_value.strip()
+                if value:
+                    return value
+
+        for raw_value in attrs.values():
+            if isinstance(raw_value, dict):
+                for nested_key in ("tts_voice", "voice", "voice_id", "tts_voice_id"):
+                    nested_value = raw_value.get(nested_key)
+                    if isinstance(nested_value, str):
+                        value = nested_value.strip()
+                        if value:
                             return value
 
         return None
