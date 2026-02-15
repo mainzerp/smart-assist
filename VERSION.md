@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.18.0 | 2026-02-15 |
+| Smart Assist | 1.18.1 | 2026-02-15 |
 
 ## Version History
+
+### v1.18.1 (2026-02-15) - Managed Automation Diagnostics Logging
+
+**Fixes:**
+- Added explicit warning logs when managed alarm automation tries unsupported service operations (`automation.upsert/create/edit/update/delete/remove` not available)
+- Added clear warning logs for failed upsert/remove capability detection so `service_call_failed` can be diagnosed directly in HA logs
+- Preserved existing managed automation safety behavior and event-based alarm fallback unchanged
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_managed_alarm_automation.py tests/test_websocket.py`: 10 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.18.0 (2026-02-15) - Managed Alarm Automation (Opt-In, Ownership-Safe)
 

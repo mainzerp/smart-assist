@@ -83,6 +83,13 @@ class ManagedAlarmAutomationService:
             MANAGED_ALARM_MARKER_VERSION_KEY: MANAGED_ALARM_MANAGED_VERSION,
         }
 
+    def _list_automation_services(self) -> list[str]:
+        """Return sorted list of currently available automation services."""
+        services = self._hass.services.async_services().get("automation", {})
+        if not isinstance(services, dict):
+            return []
+        return sorted(str(name) for name in services.keys())
+
     def _description_with_marker(self, alarm: dict[str, Any]) -> str:
         marker_json = json.dumps(self._marker(alarm), separators=(",", ":"), sort_keys=True)
         return (
@@ -169,6 +176,7 @@ class ManagedAlarmAutomationService:
         )
 
     async def _async_call_first(self, service_names: list[str], payload: dict[str, Any]) -> bool:
+        available_services = self._list_automation_services()
         for service_name in service_names:
             if not self._hass.services.has_service("automation", service_name):
                 continue
@@ -179,19 +187,36 @@ class ManagedAlarmAutomationService:
                 blocking=True,
             )
             return True
+        _LOGGER.warning(
+            "Managed alarm service call unavailable. Tried automation.%s but only these services exist: %s",
+            ", automation.".join(service_names),
+            ", ".join(available_services) if available_services else "<none>",
+        )
         return False
 
     async def _upsert(self, payload: dict[str, Any]) -> bool:
         create_payload = dict(payload)
         update_payload = dict(payload)
-        return (
+        changed = (
             await self._async_call_first(["upsert", "create", "edit"], create_payload)
             or await self._async_call_first(["update", "edit"], update_payload)
         )
+        if not changed:
+            _LOGGER.warning(
+                "Managed alarm upsert unsupported in this HA environment for %s.",
+                payload.get("entity_id"),
+            )
+        return changed
 
     async def _remove(self, entity_id: str) -> bool:
         payload = {"entity_id": entity_id}
-        return await self._async_call_first(["delete", "remove"], payload)
+        removed = await self._async_call_first(["delete", "remove"], payload)
+        if not removed:
+            _LOGGER.warning(
+                "Managed alarm remove unsupported in this HA environment for %s.",
+                entity_id,
+            )
+        return removed
 
     async def async_reconcile_alarm(self, alarm: dict[str, Any]) -> ManagedAlarmSyncResult:
         """Reconcile one alarm to managed automation state."""
