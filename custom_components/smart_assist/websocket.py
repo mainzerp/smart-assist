@@ -14,7 +14,6 @@ from typing import Any
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
 from .const import (
@@ -1062,7 +1061,7 @@ async def ws_alarm_action(
                 "active": False,
                 "scheduled_for": None,
                 "snoozed_until": None,
-                "updated_at": dt_util.now().isoformat(),
+                "updated_at": alarm_before_delete.get("updated_at") if alarm_before_delete else None,
                 "reason": "delete",
             },
         )
