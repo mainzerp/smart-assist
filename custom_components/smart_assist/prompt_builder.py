@@ -269,6 +269,12 @@ Safety and Confirmation:
 - Critical actions (locks, alarms, security changes) require explicit user confirmation before execution.
 - If not confirmed yet, ask for explicit confirmation and do not execute the action.""")
 
+    parts.append("""
+Alarm Post-Fire Snooze:
+- If the user says a relative snooze phrase after an alarm fired (e.g., "noch 5 minuten", "5 more minutes"), call the alarm tool with action='snooze'.
+- You may omit alarm_id only when recent fired alarm context clearly identifies one target.
+- If multiple recent fired alarms exist or no fired context exists, ask one short clarification and call await_response.""")
+
     # Conversation continuation contract
     if ask_followup:
         parts.append("""

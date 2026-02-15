@@ -7,7 +7,9 @@ so alarms survive restarts.
 from __future__ import annotations
 
 import logging
+import re
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timedelta
 from typing import Any
@@ -98,6 +100,7 @@ class PersistentAlarmManager:
         when_iso: str,
         label: str | None = None,
         message: str | None = None,
+        source: str | None = None,
     ) -> tuple[dict[str, Any] | None, str]:
         """Create a new alarm at an absolute datetime."""
         trigger_dt = self._parse_datetime(when_iso)
@@ -110,10 +113,17 @@ class PersistentAlarmManager:
 
         created_at = now.isoformat()
         alarm_id = self._generate_id()
+        normalized_label = (label or "Alarm").strip() or "Alarm"
+        display_id = self._generate_display_id(
+            label=normalized_label,
+            when_iso=trigger_dt.isoformat(),
+        )
         alarm = {
             "id": alarm_id,
-            "label": (label or "Alarm").strip() or "Alarm",
+            "display_id": display_id,
+            "label": normalized_label,
             "message": (message or "").strip(),
+            "source": (source or "smart_assist").strip() or "smart_assist",
             "created_at": created_at,
             "updated_at": created_at,
             "scheduled_for": trigger_dt.isoformat(),
@@ -166,22 +176,55 @@ class PersistentAlarmManager:
         alarm_id: str,
         minutes: int,
     ) -> tuple[dict[str, Any] | None, str]:
-        """Snooze an active alarm by N minutes from now."""
+        """Snooze an alarm by N minutes from now (supports fired reactivation)."""
         if minutes <= 0:
             return None, "Snooze minutes must be greater than zero"
 
         alarm = self._find_alarm(alarm_id)
         if alarm is None:
             return None, "Alarm not found"
-        if not alarm.get("active", False):
+        if alarm.get("dismissed", False):
+            return None, "Alarm is dismissed"
+        if not alarm.get("active", False) and alarm.get("status") != "fired":
             return None, "Alarm is not active"
 
         snooze_until = dt_util.now() + timedelta(minutes=minutes)
         alarm["snoozed_until"] = snooze_until.isoformat()
+        alarm["active"] = True
+        alarm["dismissed"] = False
+        alarm["fired"] = False
         alarm["status"] = "snoozed"
         alarm["updated_at"] = dt_util.now().isoformat()
         self._dirty = True
         return dict(alarm), "Alarm snoozed"
+
+    def get_recent_fired_alarms(
+        self,
+        window_minutes: int = 30,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Return recently fired alarms within a time window, newest first."""
+        now = dt_util.now()
+        window = timedelta(minutes=max(1, int(window_minutes)))
+        recent: list[dict[str, Any]] = []
+
+        for alarm in self._data.get("alarms", []):
+            if alarm.get("status") != "fired":
+                continue
+
+            last_fired_at = alarm.get("last_fired_at")
+            if not isinstance(last_fired_at, str):
+                continue
+
+            fired_dt = self._parse_datetime(last_fired_at)
+            if fired_dt is None:
+                continue
+
+            if (now - fired_dt) <= window:
+                recent.append(dict(alarm))
+
+        recent.sort(key=lambda item: item.get("last_fired_at") or "", reverse=True)
+        return recent[: max(1, int(limit))]
 
     def pop_due_alarms(self, now: datetime | None = None) -> list[dict[str, Any]]:
         """Mark and return alarms due at or before now."""
@@ -219,6 +262,7 @@ class PersistentAlarmManager:
             alarms = []
 
         normalized: list[dict[str, Any]] = []
+        used_display_ids: set[str] = set()
         for raw in alarms:
             if not isinstance(raw, dict):
                 continue
@@ -227,6 +271,7 @@ class PersistentAlarmManager:
             alarm.setdefault("id", self._generate_id())
             alarm.setdefault("label", "Alarm")
             alarm.setdefault("message", "")
+            alarm.setdefault("source", "smart_assist")
             now_iso = dt_util.now().isoformat()
             alarm.setdefault("created_at", now_iso)
             alarm.setdefault("updated_at", now_iso)
@@ -238,6 +283,17 @@ class PersistentAlarmManager:
             alarm.setdefault("snoozed_until", None)
             alarm.setdefault("last_fired_at", None)
             alarm.setdefault("fire_count", 0)
+            display_id = alarm.get("display_id")
+            if not isinstance(display_id, str) or not display_id.strip():
+                display_id = self._generate_display_id(
+                    label=str(alarm.get("label") or "Alarm"),
+                    when_iso=str(alarm.get("scheduled_for") or now_iso),
+                    existing_ids=used_display_ids,
+                )
+            else:
+                display_id = self._ensure_unique_display_id(display_id, used_display_ids)
+            alarm["display_id"] = display_id
+            used_display_ids.add(display_id)
             normalized.append(alarm)
 
         self._data = {
@@ -254,11 +310,84 @@ class PersistentAlarmManager:
         }
 
     def _find_alarm(self, alarm_id: str) -> dict[str, Any] | None:
-        """Find mutable alarm by id."""
+        """Find mutable alarm by machine id or display id."""
+        target = self._normalize_lookup_value(alarm_id)
+        if not target:
+            return None
+
         for alarm in self._data.get("alarms", []):
-            if alarm.get("id") == alarm_id:
+            if self._normalize_lookup_value(str(alarm.get("id") or "")) == target:
+                return alarm
+            if self._normalize_lookup_value(str(alarm.get("display_id") or "")) == target:
                 return alarm
         return None
+
+    def _normalize_lookup_value(self, value: str) -> str:
+        """Normalize alarm lookup values for tolerant matching."""
+        normalized = (value or "").strip().casefold()
+        normalized = normalized.replace("_", "-")
+        normalized = re.sub(r"\s+", "-", normalized)
+        normalized = re.sub(r"[^a-z0-9\-]", "", normalized)
+        normalized = re.sub(r"-+", "-", normalized)
+        return normalized.strip("-")
+
+    def _generate_display_id(
+        self,
+        label: str,
+        when_iso: str,
+        existing_ids: set[str] | None = None,
+    ) -> str:
+        """Generate a stable human-readable unique display id."""
+        used_ids = existing_ids if existing_ids is not None else {
+            str(alarm.get("display_id"))
+            for alarm in self._data.get("alarms", [])
+            if isinstance(alarm.get("display_id"), str)
+        }
+
+        label_slug = self._slugify(label) or "alarm"
+        trigger_dt = self._parse_datetime(when_iso)
+        hhmm = trigger_dt.strftime("%H%M") if trigger_dt else "0000"
+        base = f"{label_slug}-{hhmm}"
+
+        for _ in range(10):
+            suffix = uuid.uuid4().hex[:4]
+            candidate = f"{base}-{suffix}"
+            if candidate not in used_ids:
+                if existing_ids is not None:
+                    existing_ids.add(candidate)
+                return candidate
+
+        fallback = f"{base}-{uuid.uuid4().hex[:6]}"
+        if existing_ids is not None:
+            existing_ids.add(fallback)
+        return fallback
+
+    def _ensure_unique_display_id(self, display_id: str, used_ids: set[str]) -> str:
+        """Return unique display id preserving provided id where possible."""
+        normalized = self._normalize_lookup_value(display_id)
+        if not normalized:
+            return self._generate_display_id("alarm", dt_util.now().isoformat(), used_ids)
+        if normalized not in used_ids:
+            used_ids.add(normalized)
+            return normalized
+
+        for _ in range(10):
+            candidate = f"{normalized}-{uuid.uuid4().hex[:3]}"
+            if candidate not in used_ids:
+                used_ids.add(candidate)
+                return candidate
+
+        fallback = f"{normalized}-{uuid.uuid4().hex[:6]}"
+        used_ids.add(fallback)
+        return fallback
+
+    def _slugify(self, value: str) -> str:
+        """Convert text to lowercase ASCII slug."""
+        raw = unicodedata.normalize("NFKD", value or "")
+        ascii_value = raw.encode("ascii", "ignore").decode("ascii")
+        slug = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_value).strip("-").lower()
+        slug = re.sub(r"-+", "-", slug)
+        return slug
 
     def _next_trigger_datetime(self, alarm: dict[str, Any]) -> datetime | None:
         """Resolve next trigger datetime for alarm."""

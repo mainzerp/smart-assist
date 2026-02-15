@@ -537,6 +537,23 @@ class SmartAssistConversationEntity(ConversationEntity):
             # Set callback for switch_user action
             conv_id = user_input.conversation_id or ""
             memory_tool._switch_user_callback = lambda uid: self._conversation_manager.set_active_user(conv_id, uid)
+
+        alarm_tool = tool_registry.get("alarm")
+        if alarm_tool:
+            alarm_tool._conversation_id = user_input.conversation_id
+            alarm_tool._user_id = user_id
+            alarm_tool._device_id = device_id
+            alarm_tool._satellite_id = satellite_id
+            if self._persistent_alarm_manager is not None:
+                recent = self._persistent_alarm_manager.get_recent_fired_alarms(
+                    window_minutes=30,
+                    limit=3,
+                )
+                alarm_tool._recent_fired_alarm_ids = [
+                    str(alarm.get("id"))
+                    for alarm in recent
+                    if alarm.get("id")
+                ]
         
         # Log registered tools for debugging cache issues
         tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]

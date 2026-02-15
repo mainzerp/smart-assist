@@ -12,6 +12,7 @@ const STUCK_REQUEST_THRESHOLD_MS = 60000;
 const HISTORY_PAGE_SIZE = 50;
 const DASHBOARD_TABS = [
   { id: "overview", label: "Overview" },
+  { id: "alarms", label: "Alarms" },
   { id: "memory", label: "Memory" },
   { id: "calendar", label: "Calendar" },
   { id: "history", label: "History" },
@@ -48,6 +49,12 @@ class SmartAssistPanel extends HTMLElement {
     this._calendarLoading = false;
     this._calendarError = null;
     this._calendarLastLoaded = 0;
+    this._alarmsData = null;
+    this._alarmsLoading = false;
+    this._alarmsError = null;
+    this._alarmsFetchInProgress = false;
+    this._alarmsFetchStartedAt = 0;
+    this._alarmsLastLoaded = 0;
     this._warning = null;
     this._lastSubscriptionUpdate = 0;
     this._subscriptionHealthy = false;
@@ -151,6 +158,12 @@ class SmartAssistPanel extends HTMLElement {
       this._calendarLoading = false;
       hadStuckRequest = true;
     }
+    if (this._requestIsStuck(this._alarmsFetchInProgress, this._alarmsFetchStartedAt)) {
+      this._alarmsFetchInProgress = false;
+      this._alarmsFetchStartedAt = 0;
+      this._alarmsLoading = false;
+      hadStuckRequest = true;
+    }
 
     if (hadStuckRequest) {
       this._warning = "Recovered from a stalled dashboard request. Refreshing data...";
@@ -211,7 +224,16 @@ class SmartAssistPanel extends HTMLElement {
           try {
             this._lastSubscriptionUpdate = Date.now();
             this._subscriptionHealthy = true;
-            this._data = Object.assign(this._data || {}, data);
+            if (data && data.update_type === "alarms") {
+              this._data = Object.assign(this._data || {}, {
+                alarms_summary: data.alarms_summary || {},
+              });
+              if (this._activeTab === "alarms") {
+                this._loadAlarms(true);
+              }
+            } else {
+              this._data = Object.assign(this._data || {}, data);
+            }
             this._scheduleRender();
           } catch (err) {
             console.error("Smart Assist: Render error in subscription callback:", err);
@@ -257,6 +279,9 @@ class SmartAssistPanel extends HTMLElement {
       this._maybeFetchData(false);
       if (this._activeTab === "calendar") {
         this._loadCalendar(false);
+      }
+      if (this._activeTab === "alarms") {
+        this._loadAlarms(false);
       }
     }, this._autoRefreshInterval * 1000);
   }
@@ -307,6 +332,10 @@ class SmartAssistPanel extends HTMLElement {
     }
     if (this._activeTab === "calendar") {
       this._loadCalendar(force);
+      return;
+    }
+    if (this._activeTab === "alarms") {
+      this._loadAlarms(force);
       return;
     }
     if (this._activeTab === "prompt") {
@@ -545,6 +574,9 @@ class SmartAssistPanel extends HTMLElement {
     if (this._activeTab === "overview") {
       return this._renderOverviewTab(agents, tasks);
     }
+    if (this._activeTab === "alarms") {
+      return this._renderAlarmsTab();
+    }
     if (this._activeTab === "memory") {
       return this._renderMemoryTab();
     }
@@ -676,6 +708,88 @@ class SmartAssistPanel extends HTMLElement {
     }
 
     return html;
+  }
+
+  _renderAlarmsTab() {
+    if (this._alarmsLoading && !this._alarmsData) {
+      return '<div class="loading">Loading alarms...</div>';
+    }
+
+    if (this._alarmsError) {
+      return '<div class="warning-msg">' + this._esc(this._alarmsError) + '</div>';
+    }
+
+    const alarmsPayload = this._alarmsData || {};
+    const summary = alarmsPayload.summary
+      || (this._data ? this._data.alarms_summary : null)
+      || { total: 0, active: 0, snoozed: 0, fired: 0, dismissed: 0 };
+    const alarms = alarmsPayload.alarms || [];
+
+    let html = '<div class="overview-grid">'
+      + '<div class="metric-card"><div class="label">Total</div><div class="value">' + (summary.total || 0) + '</div></div>'
+      + '<div class="metric-card"><div class="label">Active</div><div class="value success">' + (summary.active || 0) + '</div></div>'
+      + '<div class="metric-card"><div class="label">Snoozed</div><div class="value warning">' + (summary.snoozed || 0) + '</div></div>'
+      + '<div class="metric-card"><div class="label">Fired</div><div class="value">' + (summary.fired || 0) + '</div></div>'
+      + '<div class="metric-card"><div class="label">Dismissed</div><div class="value">' + (summary.dismissed || 0) + '</div></div>'
+      + '</div>';
+
+    if (!alarms.length) {
+      html += '<div class="card"><h3>Alarms</h3><div style="color:var(--sa-text-secondary);font-size:14px;padding:20px 0;">No alarms available.</div></div>';
+      return html;
+    }
+
+    let rows = '';
+    for (const alarm of alarms) {
+      const trigger = this._getAlarmNextTrigger(alarm);
+      const fired = alarm.last_fired_at ? this._fmtDateTime(alarm.last_fired_at) : '-';
+      const status = this._esc(alarm.status || '-');
+      const statusCls = (alarm.status || 'upcoming');
+      const canSnooze = alarm.status === 'fired' || alarm.active;
+      const canCancel = alarm.active;
+
+      rows += '<tr>'
+        + '<td style="white-space:nowrap;">' + this._fmtDateTime(alarm.scheduled_for) + '</td>'
+        + '<td><strong>' + this._esc(alarm.label || 'Alarm') + '</strong></td>'
+        + '<td>' + this._esc(alarm.display_id || alarm.id || '-') + '</td>'
+        + '<td><span class="cal-status ' + statusCls + '">' + status + '</span></td>'
+        + '<td style="white-space:nowrap;">' + trigger + '</td>'
+        + '<td style="white-space:nowrap;color:var(--sa-text-secondary);">' + fired + '</td>'
+        + '<td style="white-space:nowrap;">'
+          + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="5" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 5m</button> '
+          + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="10" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 10m</button> '
+          + '<button class="refresh-btn alarm-action-btn" data-action="cancel" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canCancel ? '' : 'disabled') + '>Cancel</button>'
+        + '</td>'
+        + '</tr>';
+    }
+
+    html += '<div class="card"><h3>Alarms</h3>'
+      + '<table><thead><tr><th>Time</th><th>Label</th><th>Display ID</th><th>Status</th><th>Next Trigger</th><th>Last Fired</th><th>Actions</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
+    return html;
+  }
+
+  _getAlarmNextTrigger(alarm) {
+    if (alarm.snoozed_until) {
+      return this._fmtDateTime(alarm.snoozed_until);
+    }
+    if (alarm.status === 'fired') {
+      return 'Fired';
+    }
+    return this._fmtDateTime(alarm.scheduled_for);
+  }
+
+  _fmtDateTime(timeStr) {
+    if (!timeStr) return '-';
+    try {
+      return new Date(timeStr).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch (_) {
+      return timeStr;
+    }
   }
 
   _renderCalendarTab() {
@@ -958,6 +1072,56 @@ class SmartAssistPanel extends HTMLElement {
     }
   }
 
+  async _loadAlarms(force = false) {
+    if (this._alarmsFetchInProgress) return;
+    const now = Date.now();
+    if (!force && this._alarmsLastLoaded && (now - this._alarmsLastLoaded) < CALENDAR_CACHE_TTL_MS) {
+      return;
+    }
+    this._alarmsFetchInProgress = true;
+    this._alarmsFetchStartedAt = Date.now();
+    this._alarmsLoading = true;
+    this._alarmsError = null;
+    this._render();
+    try {
+      const result = await this._callWSWithTimeout(
+        { type: "smart_assist/alarms_data" },
+        WS_CALL_TIMEOUT_MS,
+        "alarms data"
+      );
+      this._alarmsData = result;
+      this._data = this._data || {};
+      this._data.alarms_summary = result.summary || {};
+      this._alarmsLastLoaded = Date.now();
+    } catch (err) {
+      this._alarmsError = err.message || "Failed to load alarms";
+    } finally {
+      this._alarmsLoading = false;
+      this._alarmsFetchInProgress = false;
+      this._alarmsFetchStartedAt = 0;
+      this._render();
+    }
+  }
+
+  async _runAlarmAction(action, alarmId, minutes) {
+    try {
+      await this._callWSWithTimeout(
+        {
+          type: "smart_assist/alarm_action",
+          action: action,
+          alarm_id: alarmId || undefined,
+          minutes: minutes || undefined,
+        },
+        WS_CALL_TIMEOUT_MS,
+        "alarm action"
+      );
+      await this._loadAlarms(true);
+    } catch (err) {
+      this._alarmsError = err.message || "Alarm action failed";
+      this._render();
+    }
+  }
+
   _renderPromptTab() {
     let html = '';
 
@@ -1211,6 +1375,15 @@ class SmartAssistPanel extends HTMLElement {
     this._bindNodeClick(root.getElementById("clear-history-btn"), () => this._clearHistory());
   }
 
+  _attachAlarmEvents() {
+    this._bindAllClick(".alarm-action-btn", (btn) => {
+      const action = btn.dataset.action;
+      const alarmId = btn.dataset.alarmId;
+      const minutes = btn.dataset.minutes ? parseInt(btn.dataset.minutes, 10) : undefined;
+      this._runAlarmAction(action, alarmId, minutes);
+    });
+  }
+
   _attachEvents() {
     const root = this.shadowRoot;
     if (!root) return;
@@ -1219,6 +1392,7 @@ class SmartAssistPanel extends HTMLElement {
     this._attachTabEvents();
     this._attachMemoryEvents();
     this._attachHistoryEvents(root);
+    this._attachAlarmEvents();
   }
 
   async _renameUser(userId) {

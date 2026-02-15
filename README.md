@@ -6,7 +6,7 @@
 
 **Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
 
-Latest release: **v1.16.0** (Persistent Alarms with restart-safe absolute-time scheduling).
+Latest release: **v1.17.0** (Alarm Governance: display IDs, post-fire snooze context, and alarms dashboard management).
 
 Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
@@ -57,7 +57,10 @@ Now when you say "Play some jazz" in the kitchen, the music will automatically p
 
 - **Absolute-Time Alarms**: Dedicated `alarm` tool for date/time alarms (alarm-clock behavior)
 - **Restart-Safe Storage**: Alarms are persisted and restored across Home Assistant restarts
-- **Automation-Compatible Events**: Fired alarms emit `smart_assist_alarm_fired` for automations
+- **Human-Readable IDs**: Every alarm now has stable machine `id` plus user-facing unique `display_id`
+- **Post-Fire Conversational Snooze**: Relative follow-ups like "noch 5 minuten" / "5 more minutes" can snooze recent fired alarms safely
+- **Automation-Compatible Events**: Fired alarms emit `smart_assist_alarm_fired`; lifecycle changes emit `smart_assist_alarm_updated`
+- **Safety Stance**: Event-driven automation integration only; Smart Assist does not mutate user-created Home Assistant automations
 - **Clear Separation**: Use `timer` for relative durations (native Assist), `alarm` for absolute persistent alarms
 
 ### Calendar Integration
@@ -115,6 +118,7 @@ Calendar Mappings:
 - **Custom Sidebar Panel**: Admin-only panel in HA sidebar with `mdi:brain` icon
 - **Overview Tab**: Total requests, success rate, response time, tokens, cache hit rate, registered tools
 - **Memory Tab**: Browse user profiles, view/manage individual memories, rename/merge/delete users
+- **Alarms Tab**: List all alarms (active/snoozed/fired/dismissed) with `Snooze 5m`, `Snooze 10m`, and `Cancel` row actions
 - **Calendar Tab**: Upcoming events with reminder status badges (upcoming/pending/announced/passed)
 - **History Tab**: Per-request history log with token usage, response times, tool calls, and success/error status; tool usage analytics with call frequency, success rates, and average execution times
 - **Prompt Tab**: View the full system prompt and user custom instructions for each agent; displays agent name, prompt lengths, and formatted sections
@@ -125,6 +129,7 @@ Calendar Mappings:
 
 - **Hot-path Metrics via Push**: Subscription updates focus on lightweight metrics refreshes
 - **Tab-Scoped Heavy Data**: Calendar data is fetched via dedicated endpoint when Calendar tab is active (with short cache TTL)
+- **Tab-Scoped Heavy Data**: Alarm and calendar data are fetched via dedicated endpoints when their tabs are active
 - **Push/Poll Coordination**: Auto-refresh polling backs off while subscription is healthy and resumes as fallback on degraded push/reconnect
 - **Stale-Data UX**: Last valid snapshot stays visible on refresh errors with a non-blocking warning banner
 - **History Analytics Caching**: Tool analytics and summary stats are cached server-side and invalidated on add/clear/prune

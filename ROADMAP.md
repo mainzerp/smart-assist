@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-15 (v1.16.0)
+> Last updated: 2026-02-15 (v1.17.0)
 
 ## Completed Milestones
 
@@ -56,6 +56,7 @@
 | Structured Output for `ai_task` | v1.15.0 | Added schema-constrained `ai_task.generate_data` output with local validation, native structured-mode fallback retry, localized concise failures, and automation examples. |
 | AI Task Structured Output Follow-up Fixes | v1.15.1 | Fixed tool-loop compatibility regressions, hardened async chat-call compatibility, and restored robust tool execution fallback behavior. |
 | Persistent Alarms | v1.16.0 | Added restart-safe absolute-time alarms via dedicated `alarm` tool, storage-backed alarm manager, lifecycle reconciliation, and fired-alarm event emission. |
+| Alarm Governance + Dashboard Management | v1.17.0 | Added human-readable alarm `display_id`, post-fire conversational snooze resolution, alarms dashboard tab/actions, lifecycle `smart_assist_alarm_updated` contracts, and explicit no-mutation safety stance for user automations. |
 
 ---
 
@@ -64,6 +65,8 @@
 ### Near-Term (P0/P1)
 
 Governance note: No autonomous critical control in MVP phases without explicit user confirmation.
+
+Alarm governance note: Smart Assist remains event-driven for alarms and does not modify user-created HA automations; a future opt-in managed-automation namespace remains out of scope for this release.
 
 | Feature | Priority | Why now | Dependencies | Acceptance Criteria |
 | ------- | -------- | ------- | ------------ | ------------------- |

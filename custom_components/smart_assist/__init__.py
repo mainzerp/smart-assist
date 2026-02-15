@@ -39,6 +39,7 @@ try:
         DEFAULT_ENABLE_CANCEL_HANDLER,
         DOMAIN,
         PERSISTENT_ALARM_EVENT_FIRED,
+        PERSISTENT_ALARM_EVENT_UPDATED,
     )
     from .utils import apply_debug_logging
 except ImportError as e:
@@ -574,22 +575,41 @@ async def _process_due_persistent_alarms(
     if not due_alarms:
         return
 
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
+
     for alarm in due_alarms:
         payload = {
             "entry_id": entry.entry_id,
             "alarm_id": alarm.get("id"),
+            "display_id": alarm.get("display_id"),
             "label": alarm.get("label"),
             "message": alarm.get("message"),
             "scheduled_for": alarm.get("scheduled_for"),
             "fired_at": alarm.get("last_fired_at"),
+            "status": alarm.get("status"),
+            "fire_count": alarm.get("fire_count"),
         }
         hass.bus.async_fire(event_name, payload)
+        hass.bus.async_fire(
+            PERSISTENT_ALARM_EVENT_UPDATED,
+            {
+                "entry_id": entry.entry_id,
+                "alarm_id": alarm.get("id"),
+                "display_id": alarm.get("display_id"),
+                "status": alarm.get("status"),
+                "active": alarm.get("active"),
+                "scheduled_for": alarm.get("scheduled_for"),
+                "snoozed_until": alarm.get("snoozed_until"),
+                "updated_at": alarm.get("updated_at"),
+                "reason": "fired",
+            },
+        )
 
         try:
             from homeassistant.components.persistent_notification import async_create
 
             notification_message = alarm.get("message") or (
-                f"Alarm '{alarm.get('label', 'Alarm')}' fired at {alarm.get('last_fired_at', '')}."
+                f"Alarm '{alarm.get('label', 'Alarm')}' ({alarm.get('display_id', alarm.get('id'))}) fired at {alarm.get('last_fired_at', '')}."
             )
             async_create(
                 hass,
@@ -599,5 +619,7 @@ async def _process_due_persistent_alarms(
             )
         except Exception as err:
             _LOGGER.debug("Persistent alarm notification failed: %s", err)
+
+        async_dispatcher_send(hass, f"{DOMAIN}_alarms_updated_{entry.entry_id}")
 
     await alarm_manager.async_force_save()

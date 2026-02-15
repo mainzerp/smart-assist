@@ -4,9 +4,50 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.16.0 | 2026-02-15 |
+| Smart Assist | 1.17.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.17.0 (2026-02-15) - Alarm Governance + Dashboard Alarm Management
+
+**New Features:**
+- Added human-readable unique `display_id` for persistent alarms while preserving immutable machine `id` compatibility
+- Added dual alarm lookup (`id` and `display_id`) across manager/tool/websocket paths with additive migration from storage v1 to v2
+- Added post-fire conversational snooze routing for relative follow-ups (e.g., "noch 5 minuten", "5 more minutes") with safe recent-fired disambiguation
+- Added alarm lifecycle event contract `smart_assist_alarm_updated` and expanded fired payload metadata (`display_id`, `status`, `fire_count`)
+- Added dashboard **Alarms** tab with alarm summary cards, full list view, and row actions (`Snooze 5m`, `Snooze 10m`, `Cancel`)
+- Added websocket contracts: `smart_assist/alarms_data`, `smart_assist/alarm_action`, dashboard `alarms_summary`, and subscription `update_type: "alarms"`
+- Enforced alarm automation safety stance in docs: event-driven integration only; no mutation of user-created HA automations
+
+**Tests:**
+- Extended persistent alarm tests for display ID uniqueness/migration, dual lookup, fired-snooze reactivation, and recent fired filtering
+- Added streaming heuristic tests for post-fire relative snooze context gating
+- Added websocket tests for alarms endpoints/actions and dashboard summary contracts
+- Extended prompt-builder tests for explicit post-fire snooze policy instructions
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_persistent_alarms.py tests/test_streaming.py tests/test_websocket.py tests/test_prompt_builder.py`: 36 passed
+- `tests/run_windows_quickcheck.ps1`: 65 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- tests/test_persistent_alarms.py
+- tests/test_streaming.py
+- tests/test_websocket.py
+- tests/test_prompt_builder.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.16.0 (2026-02-15) - Persistent Alarms (Restart-Safe Absolute-Time)
 

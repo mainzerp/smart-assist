@@ -45,9 +45,11 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DEFAULT_USER_SYSTEM_PROMPT,
     DOMAIN,
+    PERSISTENT_ALARM_EVENT_UPDATED,
 )
 from .context.calendar_reminder import CalendarReminderTracker
 from .context.memory import MemoryManager
+from .context.persistent_alarms import PersistentAlarmManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,7 +63,7 @@ _EMPTY_PROMPT_RESULT = {
 _EMPTY_MEMORY_DETAILS_RESULT = {"memories": [], "stats": {}}
 _EMPTY_CALENDAR_RESULT = {"enabled": False, "events": [], "calendars": 0}
 _EMPTY_REMOVED_RESULT = {"removed": 0}
-_DASHBOARD_UPDATE_SIGNAL_SUFFIXES = ("metrics_updated", "cache_warming_updated")
+_DASHBOARD_METRIC_UPDATE_SIGNAL_SUFFIXES = ("metrics_updated", "cache_warming_updated")
 
 
 def _build_empty_dashboard_result() -> dict[str, Any]:
@@ -71,6 +73,13 @@ def _build_empty_dashboard_result() -> dict[str, Any]:
         "tasks": {},
         "memory": {},
         "calendar": {},
+        "alarms_summary": {
+            "total": 0,
+            "active": 0,
+            "snoozed": 0,
+            "fired": 0,
+            "dismissed": 0,
+        },
     }
 
 
@@ -88,6 +97,8 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_request_history_clear)
     websocket_api.async_register_command(hass, ws_system_prompt)
     websocket_api.async_register_command(hass, ws_calendar_data)
+    websocket_api.async_register_command(hass, ws_alarms_data)
+    websocket_api.async_register_command(hass, ws_alarm_action)
     _LOGGER.debug("Registered Smart Assist WebSocket commands")
 
 
@@ -124,9 +135,65 @@ def _build_dashboard_update_signal_names(entry: Any) -> list[str]:
     """Build dispatcher signal names used by dashboard subscriptions."""
     signal_names: list[str] = []
     for subentry_id in entry.subentries:
-        for suffix in _DASHBOARD_UPDATE_SIGNAL_SUFFIXES:
+        for suffix in _DASHBOARD_METRIC_UPDATE_SIGNAL_SUFFIXES:
             signal_names.append(f"{DOMAIN}_{suffix}_{subentry_id}")
     return signal_names
+
+
+def _build_alarm_update_signal_name(entry: Any) -> str:
+    """Build alarm update dispatcher signal name used by dashboard subscriptions."""
+    return f"{DOMAIN}_alarms_updated_{entry.entry_id}"
+
+
+def _get_alarm_manager(hass: HomeAssistant, entry: Any) -> PersistentAlarmManager | None:
+    """Return persistent alarm manager from entry data."""
+    manager = _get_entry_data(hass, entry).get("persistent_alarm_manager")
+    if isinstance(manager, PersistentAlarmManager):
+        return manager
+    return None
+
+
+def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
+    """Return normalized alarm payload for websocket responses."""
+    return {
+        "id": alarm.get("id"),
+        "display_id": alarm.get("display_id"),
+        "label": alarm.get("label"),
+        "message": alarm.get("message"),
+        "source": alarm.get("source"),
+        "status": alarm.get("status"),
+        "active": alarm.get("active"),
+        "dismissed": alarm.get("dismissed"),
+        "fired": alarm.get("fired"),
+        "scheduled_for": alarm.get("scheduled_for"),
+        "snoozed_until": alarm.get("snoozed_until"),
+        "last_fired_at": alarm.get("last_fired_at"),
+        "fire_count": alarm.get("fire_count"),
+        "created_at": alarm.get("created_at"),
+        "updated_at": alarm.get("updated_at"),
+    }
+
+
+def _build_alarms_summary(alarms: list[dict[str, Any]]) -> dict[str, int]:
+    """Build lightweight alarm summary counts for dashboard snapshot."""
+    summary = {
+        "total": len(alarms),
+        "active": 0,
+        "snoozed": 0,
+        "fired": 0,
+        "dismissed": 0,
+    }
+    for alarm in alarms:
+        status = str(alarm.get("status") or "")
+        if alarm.get("active"):
+            summary["active"] += 1
+        if status == "snoozed":
+            summary["snoozed"] += 1
+        elif status == "fired":
+            summary["fired"] += 1
+        elif status == "dismissed":
+            summary["dismissed"] += 1
+    return summary
 
 
 def _get_request_history_store_or_send_default(
@@ -435,6 +502,10 @@ async def _build_dashboard_snapshot(
 
     result["memory"] = _build_memory_summary(hass, entry.entry_id)
 
+    manager = _get_alarm_manager(hass, entry)
+    alarms = manager.list_alarms(active_only=False) if manager else []
+    result["alarms_summary"] = _build_alarms_summary(alarms)
+
     if include_calendar:
         result["calendar"] = await _build_calendar_data(hass, entry.entry_id, entry)
 
@@ -650,21 +721,34 @@ async def ws_subscribe(
         return
 
     send_in_progress = False
-    send_pending = False
+    send_pending_types: set[str] = set()
 
     async def _flush_updates() -> None:
         """Send coalesced lightweight dashboard updates."""
-        nonlocal send_in_progress, send_pending
+        nonlocal send_in_progress, send_pending_types
         send_in_progress = True
         try:
-            while send_pending:
-                send_pending = False
-                result = await _build_dashboard_snapshot(
-                    hass,
-                    entry,
-                    include_calendar=False,
-                )
-                result["update_type"] = "metrics"
+            while send_pending_types:
+                if "metrics" in send_pending_types:
+                    update_type = "metrics"
+                    send_pending_types.remove("metrics")
+                else:
+                    update_type = send_pending_types.pop()
+
+                if update_type == "alarms":
+                    manager = _get_alarm_manager(hass, entry)
+                    alarms = manager.list_alarms(active_only=False) if manager else []
+                    result = {
+                        "update_type": "alarms",
+                        "alarms_summary": _build_alarms_summary(alarms),
+                    }
+                else:
+                    result = await _build_dashboard_snapshot(
+                        hass,
+                        entry,
+                        include_calendar=False,
+                    )
+                    result["update_type"] = "metrics"
                 try:
                     connection.send_message(websocket_api.event_message(msg["id"], result))
                 except Exception:  # noqa: BLE001
@@ -675,10 +759,10 @@ async def ws_subscribe(
             send_in_progress = False
 
     @callback
-    def forward_update(data: dict | None = None) -> None:
+    def forward_update(update_type: str = "metrics", data: dict | None = None) -> None:
         """Forward coalesced metric updates to WebSocket client."""
-        nonlocal send_pending
-        send_pending = True
+        nonlocal send_pending_types
+        send_pending_types.add(update_type)
         if not send_in_progress:
             hass.async_create_task(_flush_updates())
 
@@ -687,9 +771,17 @@ async def ws_subscribe(
         unsub = async_dispatcher_connect(
             hass,
             signal_name,
-            forward_update,
+            lambda data=None: forward_update("metrics", data),
         )
         unsub_callbacks.append(unsub)
+
+    unsub_callbacks.append(
+        async_dispatcher_connect(
+            hass,
+            _build_alarm_update_signal_name(entry),
+            lambda data=None: forward_update("alarms", data),
+        )
+    )
 
     @callback
     def unsub_all() -> None:
@@ -725,6 +817,193 @@ async def ws_calendar_data(
 
     calendar = await _get_cached_calendar_data(hass, entry)
     connection.send_result(msg["id"], calendar)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/alarms_data",
+        vol.Optional("active_only", default=False): bool,
+        vol.Optional("limit"): int,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_alarms_data(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return full alarm list and summary for alarms dashboard tab."""
+    entry = _get_primary_entry_or_send_default(
+        hass,
+        connection,
+        msg,
+        {"alarms": [], "summary": _build_alarms_summary([])},
+    )
+    if not entry:
+        return
+
+    manager = _get_alarm_manager(hass, entry)
+    if manager is None:
+        connection.send_result(msg["id"], {"alarms": [], "summary": _build_alarms_summary([])})
+        return
+
+    alarms = manager.list_alarms(active_only=bool(msg.get("active_only", False)))
+    summary = _build_alarms_summary(alarms)
+    limit = msg.get("limit")
+    if isinstance(limit, int) and limit > 0:
+        alarms = alarms[:limit]
+
+    connection.send_result(
+        msg["id"],
+        {
+            "alarms": [_serialize_alarm(alarm) for alarm in alarms],
+            "summary": summary,
+        },
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "smart_assist/alarm_action",
+        vol.Required("action"): vol.In(["snooze", "cancel", "status"]),
+        vol.Optional("alarm_id"): str,
+        vol.Optional("display_id"): str,
+        vol.Optional("minutes"): int,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_alarm_action(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Execute alarm management action for dashboard tab controls."""
+    entry = _get_primary_entry(hass)
+    if not entry:
+        connection.send_error(msg["id"], "not_found", "Smart Assist entry not found")
+        return
+
+    manager = _get_alarm_manager(hass, entry)
+    if manager is None:
+        connection.send_error(msg["id"], "not_found", "Persistent alarm manager unavailable")
+        return
+
+    action = msg["action"]
+    alarm_ref = msg.get("alarm_id") or msg.get("display_id")
+
+    if action == "status":
+        if not alarm_ref:
+            alarms = manager.list_alarms(active_only=False)
+            connection.send_result(
+                msg["id"],
+                {
+                    "success": True,
+                    "message": f"Alarm count: {len(alarms)}",
+                    "alarms": [_serialize_alarm(alarm) for alarm in alarms],
+                },
+            )
+            return
+
+        alarm = manager.get_alarm(str(alarm_ref))
+        if alarm is None:
+            connection.send_error(msg["id"], "not_found", f"Alarm not found: {alarm_ref}")
+            return
+        connection.send_result(
+            msg["id"],
+            {
+                "success": True,
+                "message": "Alarm status resolved",
+                "alarm": _serialize_alarm(alarm),
+            },
+        )
+        return
+
+    if action == "cancel":
+        if not alarm_ref:
+            connection.send_error(msg["id"], "invalid_format", "alarm_id or display_id is required")
+            return
+        if not manager.cancel_alarm(str(alarm_ref)):
+            connection.send_error(msg["id"], "not_found", f"Alarm not found or inactive: {alarm_ref}")
+            return
+        alarm = manager.get_alarm(str(alarm_ref))
+        await manager.async_force_save()
+        if alarm is not None:
+            hass.bus.async_fire(
+                PERSISTENT_ALARM_EVENT_UPDATED,
+                {
+                    "entry_id": entry.entry_id,
+                    "alarm_id": alarm.get("id"),
+                    "display_id": alarm.get("display_id"),
+                    "status": alarm.get("status"),
+                    "active": alarm.get("active"),
+                    "scheduled_for": alarm.get("scheduled_for"),
+                    "snoozed_until": alarm.get("snoozed_until"),
+                    "updated_at": alarm.get("updated_at"),
+                    "reason": "cancel",
+                },
+            )
+        from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+        async_dispatcher_send(hass, _build_alarm_update_signal_name(entry))
+        connection.send_result(
+            msg["id"],
+            {
+                "success": True,
+                "message": "Alarm cancelled",
+                "alarm": _serialize_alarm(alarm) if alarm else None,
+            },
+        )
+        return
+
+    minutes = int(msg.get("minutes") or 0)
+    if minutes <= 0:
+        connection.send_error(msg["id"], "invalid_format", "minutes must be > 0 for snooze")
+        return
+
+    if not alarm_ref:
+        recent = manager.get_recent_fired_alarms(window_minutes=30, limit=3)
+        if len(recent) == 1:
+            alarm_ref = str(recent[0].get("id"))
+        elif len(recent) > 1:
+            connection.send_error(msg["id"], "invalid_format", "Multiple recently fired alarms found; specify alarm_id or display_id")
+            return
+        else:
+            connection.send_error(msg["id"], "invalid_format", "No recent fired alarm found; specify alarm_id or display_id")
+            return
+
+    alarm, status = manager.snooze_alarm(str(alarm_ref), minutes)
+    if alarm is None:
+        connection.send_error(msg["id"], "not_found", status)
+        return
+
+    await manager.async_force_save()
+    hass.bus.async_fire(
+        PERSISTENT_ALARM_EVENT_UPDATED,
+        {
+            "entry_id": entry.entry_id,
+            "alarm_id": alarm.get("id"),
+            "display_id": alarm.get("display_id"),
+            "status": alarm.get("status"),
+            "active": alarm.get("active"),
+            "scheduled_for": alarm.get("scheduled_for"),
+            "snoozed_until": alarm.get("snoozed_until"),
+            "updated_at": alarm.get("updated_at"),
+            "reason": "snooze",
+        },
+    )
+    from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+    async_dispatcher_send(hass, _build_alarm_update_signal_name(entry))
+    connection.send_result(
+        msg["id"],
+        {
+            "success": True,
+            "message": "Alarm snoozed",
+            "alarm": _serialize_alarm(alarm),
+        },
+    )
 
 
 @websocket_api.websocket_command(

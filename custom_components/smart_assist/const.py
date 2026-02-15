@@ -132,8 +132,9 @@ MEMORY_AGENT_USER_ID: Final = "_agent"  # Reserved user ID for agent memory
 
 # Persistent alarm storage constants
 PERSISTENT_ALARM_STORAGE_KEY: Final = "smart_assist_persistent_alarms"
-PERSISTENT_ALARM_STORAGE_VERSION: Final = 1
+PERSISTENT_ALARM_STORAGE_VERSION: Final = 2
 PERSISTENT_ALARM_EVENT_FIRED: Final = "smart_assist_alarm_fired"
+PERSISTENT_ALARM_EVENT_UPDATED: Final = "smart_assist_alarm_updated"
 
 # Common Home Assistant locale to language name mapping for auto-detection
 # Used when language is empty/auto to show a readable language name in prompts

@@ -113,11 +113,67 @@ def _looks_like_alarm_request(user_text: str) -> bool:
     return has_clock_time or has_absolute_marker
 
 
-def _should_force_alarm_tool_retry(user_text: str, assistant_text: str) -> bool:
+def _looks_like_relative_alarm_snooze(user_text: str) -> bool:
+    """Heuristic: detect conversational post-fire snooze phrases (EN/DE)."""
+    text = (user_text or "").lower().strip()
+    if not text:
+        return False
+
+    if not re.search(r"\b\d+\b", text):
+        return False
+
+    duration_tokens = (
+        "min",
+        "mins",
+        "minute",
+        "minutes",
+        "sek",
+        "sekunde",
+        "sekunden",
+        "second",
+        "seconds",
+    )
+    if not any(token in text for token in duration_tokens):
+        return False
+
+    snooze_tokens = (
+        "snooze",
+        "noch",
+        "more",
+        "later",
+        "später",
+        "spater",
+    )
+    return any(token in text for token in snooze_tokens)
+
+
+def _has_recent_fired_alarm_context(entity: SmartAssistConversationEntity) -> bool:
+    """Return True when at least one recent fired alarm can be resolved safely."""
+    manager = getattr(entity, "_persistent_alarm_manager", None)
+    if manager is None:
+        return False
+    try:
+        return bool(manager.get_recent_fired_alarms(window_minutes=30, limit=3))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _should_force_alarm_tool_retry(
+    user_text: str,
+    assistant_text: str,
+    entity: SmartAssistConversationEntity | None = None,
+) -> bool:
     """Require an alarm tool call for clear alarm intent when assistant replied."""
     if not assistant_text.strip():
         return False
-    return _looks_like_alarm_request(user_text)
+
+    if _looks_like_alarm_request(user_text):
+        return True
+
+    if entity is not None and _looks_like_relative_alarm_snooze(user_text):
+        return _has_recent_fired_alarm_context(entity)
+
+    return False
 
 
 def _is_explicit_confirmation(user_text: str) -> bool:
@@ -356,7 +412,7 @@ async def call_llm_streaming_with_tools(
             # Guardrail: avoid false timer/alarm confirmations without actual tool execution.
             if iteration == 1:
                 latest_user_text = _get_latest_user_text(working_messages)
-                if _should_force_alarm_tool_retry(latest_user_text, final_content):
+                if _should_force_alarm_tool_retry(latest_user_text, final_content, entity):
                     _LOGGER.warning(
                         "[USER-REQUEST] Alarm-like request answered without tool call in first iteration. Retrying with alarm-tool nudge."
                     )
@@ -364,9 +420,10 @@ async def call_llm_streaming_with_tools(
                         ChatMessage(
                             role=MessageRole.SYSTEM,
                             content=(
-                                "The user requested an absolute-time alarm. You MUST call the alarm tool for set/list/cancel/snooze/status. "
+                                "The user requested alarm handling (absolute time or post-fire relative snooze). You MUST call the alarm tool for set/list/cancel/snooze/status. "
                                 "Do not claim alarm success unless alarm tool call succeeds. "
-                                "If absolute time details are missing, ask one concise clarification using await_response."
+                                "For relative snooze phrases like 'noch 5 minuten' or '5 more minutes', use action=snooze and omit alarm_id only when recent fired alarm context exists. "
+                                "If target alarm is ambiguous or missing, ask one concise clarification using await_response."
                             ),
                         )
                     )
