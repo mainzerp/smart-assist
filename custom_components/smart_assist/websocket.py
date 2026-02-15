@@ -162,6 +162,8 @@ def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
     """Return normalized alarm payload for websocket responses."""
     managed = alarm.get("managed_automation") if isinstance(alarm.get("managed_automation"), dict) else {}
     direct = alarm.get("direct_execution") if isinstance(alarm.get("direct_execution"), dict) else {}
+    status = str(alarm.get("status") or "")
+    can_edit = bool(alarm.get("active")) or status in {"fired", "dismissed"}
     return {
         "id": alarm.get("id"),
         "display_id": alarm.get("display_id"),
@@ -173,6 +175,8 @@ def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
         "dismissed": alarm.get("dismissed"),
         "fired": alarm.get("fired"),
         "scheduled_for": alarm.get("scheduled_for"),
+        "next_scheduled_for": alarm.get("next_scheduled_for") or alarm.get("scheduled_for"),
+        "recurrence": alarm.get("recurrence") if isinstance(alarm.get("recurrence"), dict) else None,
         "snoozed_until": alarm.get("snoozed_until"),
         "last_fired_at": alarm.get("last_fired_at"),
         "fire_count": alarm.get("fire_count"),
@@ -188,6 +192,7 @@ def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
         "direct_last_executed_at": direct.get("last_executed_at"),
         "direct_last_error": direct.get("last_error"),
         "direct_backend_results": direct.get("last_backend_results", {}),
+        "can_edit": can_edit,
     }
 
 
@@ -898,10 +903,15 @@ async def ws_alarms_data(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "smart_assist/alarm_action",
-        vol.Required("action"): vol.In(["snooze", "cancel", "status", "managed_reconcile_now"]),
+        vol.Required("action"): vol.In(["snooze", "cancel", "status", "managed_reconcile_now", "edit"]),
         vol.Optional("alarm_id"): str,
         vol.Optional("display_id"): str,
         vol.Optional("minutes"): int,
+        vol.Optional("label"): str,
+        vol.Optional("message"): str,
+        vol.Optional("scheduled_for"): str,
+        vol.Optional("recurrence"): vol.Any(dict, None),
+        vol.Optional("reactivate", default=False): bool,
     }
 )
 @websocket_api.require_admin
@@ -1016,6 +1026,66 @@ async def ws_alarm_action(
                 "success": True,
                 "message": "Alarm cancelled",
                 "alarm": _serialize_alarm({**alarm, "execution_mode": execution_mode}) if alarm else None,
+            },
+        )
+        return
+
+    if action == "edit":
+        if not alarm_ref:
+            connection.send_error(msg["id"], "invalid_format", "alarm_id or display_id is required")
+            return
+
+        updates: dict[str, Any] = {}
+        if "label" in msg:
+            updates["label"] = msg.get("label")
+        if "message" in msg:
+            updates["message"] = msg.get("message")
+        if "scheduled_for" in msg:
+            updates["scheduled_for"] = msg.get("scheduled_for")
+        if "recurrence" in msg:
+            updates["recurrence"] = msg.get("recurrence")
+
+        alarm, status = manager.update_alarm(
+            str(alarm_ref),
+            updates,
+            reactivate=bool(msg.get("reactivate", False)),
+        )
+        if alarm is None:
+            connection.send_error(msg["id"], "invalid_format", status)
+            return
+
+        await manager.async_force_save()
+        managed_service = _get_entry_data(hass, entry).get("managed_alarm_automation")
+        if managed_service is not None:
+            try:
+                await managed_service.async_reconcile_alarm(alarm, execution_mode=execution_mode)
+                await manager.async_save()
+            except Exception as err:
+                _LOGGER.warning("Managed alarm reconcile failed on websocket edit: %s", err)
+
+        hass.bus.async_fire(
+            PERSISTENT_ALARM_EVENT_UPDATED,
+            {
+                "entry_id": entry.entry_id,
+                "alarm_id": alarm.get("id"),
+                "display_id": alarm.get("display_id"),
+                "status": alarm.get("status"),
+                "active": alarm.get("active"),
+                "scheduled_for": alarm.get("scheduled_for"),
+                "snoozed_until": alarm.get("snoozed_until"),
+                "updated_at": alarm.get("updated_at"),
+                "reason": "edit",
+            },
+        )
+        from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+        async_dispatcher_send(hass, _build_alarm_update_signal_name(entry))
+        connection.send_result(
+            msg["id"],
+            {
+                "success": True,
+                "message": "Alarm updated",
+                "alarm": _serialize_alarm({**alarm, "execution_mode": execution_mode}),
             },
         )
         return

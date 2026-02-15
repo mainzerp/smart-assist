@@ -132,7 +132,7 @@ MEMORY_AGENT_USER_ID: Final = "_agent"  # Reserved user ID for agent memory
 
 # Persistent alarm storage constants
 PERSISTENT_ALARM_STORAGE_KEY: Final = "smart_assist_persistent_alarms"
-PERSISTENT_ALARM_STORAGE_VERSION: Final = 2
+PERSISTENT_ALARM_STORAGE_VERSION: Final = 3
 PERSISTENT_ALARM_EVENT_FIRED: Final = "smart_assist_alarm_fired"
 PERSISTENT_ALARM_EVENT_UPDATED: Final = "smart_assist_alarm_updated"
 
@@ -140,6 +140,7 @@ PERSISTENT_ALARM_EVENT_UPDATED: Final = "smart_assist_alarm_updated"
 CONF_ENABLE_MANAGED_ALARM_AUTOMATION: Final = "enable_managed_alarm_automation"
 CONF_MANAGED_ALARM_RECONCILE_INTERVAL: Final = "managed_alarm_reconcile_interval"
 CONF_MANAGED_ALARM_AUTO_REPAIR: Final = "managed_alarm_auto_repair"
+CONF_ENABLE_ADVANCED_ALARM_BACKENDS: Final = "enable_advanced_alarm_backends"
 CONF_ALARM_EXECUTION_MODE: Final = "alarm_execution_mode"
 CONF_DIRECT_ALARM_ENABLE_NOTIFICATION: Final = "direct_alarm_enable_notification"
 CONF_DIRECT_ALARM_ENABLE_NOTIFY: Final = "direct_alarm_enable_notify"
@@ -153,6 +154,7 @@ CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS: Final = "direct_alarm_backend_timeout
 DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION: Final = False
 DEFAULT_MANAGED_ALARM_RECONCILE_INTERVAL: Final = 120
 DEFAULT_MANAGED_ALARM_AUTO_REPAIR: Final = True
+DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS: Final = False
 MANAGED_ALARM_RECONCILE_INTERVAL_MIN: Final = 30
 MANAGED_ALARM_RECONCILE_INTERVAL_MAX: Final = 3600
 ALARM_EXECUTION_MODE_MANAGED_ONLY: Final = "managed_only"

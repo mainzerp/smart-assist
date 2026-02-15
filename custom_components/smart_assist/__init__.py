@@ -43,6 +43,7 @@ try:
         CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID,
         CONF_DIRECT_ALARM_TTS_SERVICE,
         CONF_DIRECT_ALARM_TTS_TARGET,
+        CONF_ENABLE_ADVANCED_ALARM_BACKENDS,
         CONF_ENABLE_CACHE_WARMING,
         CONF_ENABLE_CANCEL_HANDLER,
         CONF_ENABLE_MANAGED_ALARM_AUTOMATION,
@@ -61,6 +62,7 @@ try:
         DEFAULT_DIRECT_ALARM_SCRIPT_ENTITY_ID,
         DEFAULT_DIRECT_ALARM_TTS_SERVICE,
         DEFAULT_DIRECT_ALARM_TTS_TARGET,
+        DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS,
         DEFAULT_ENABLE_CACHE_WARMING,
         DEFAULT_ENABLE_CANCEL_HANDLER,
         DEFAULT_ENABLE_MANAGED_ALARM_AUTOMATION,
@@ -780,6 +782,10 @@ async def _reconcile_managed_alarm_automation(hass: HomeAssistant, entry: Config
 def _get_alarm_execution_config(entry: ConfigEntry) -> dict[str, Any]:
     """Resolve direct alarm execution config from options/data/subentry fallback."""
     config = {
+        CONF_ENABLE_ADVANCED_ALARM_BACKENDS: bool(entry.options.get(
+            CONF_ENABLE_ADVANCED_ALARM_BACKENDS,
+            entry.data.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS),
+        )),
         CONF_ALARM_EXECUTION_MODE: entry.options.get(
             CONF_ALARM_EXECUTION_MODE,
             entry.data.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE),
@@ -826,6 +832,10 @@ def _get_alarm_execution_config(entry: ConfigEntry) -> dict[str, Any]:
         for subentry in entry.subentries.values():
             if subentry.subentry_type != "conversation":
                 continue
+            if CONF_ENABLE_ADVANCED_ALARM_BACKENDS in subentry.data:
+                config[CONF_ENABLE_ADVANCED_ALARM_BACKENDS] = bool(
+                    subentry.data[CONF_ENABLE_ADVANCED_ALARM_BACKENDS]
+                )
             if CONF_ALARM_EXECUTION_MODE in subentry.data:
                 config[CONF_ALARM_EXECUTION_MODE] = subentry.data[CONF_ALARM_EXECUTION_MODE]
             for key in (
@@ -842,6 +852,13 @@ def _get_alarm_execution_config(entry: ConfigEntry) -> dict[str, Any]:
                 if key in subentry.data:
                     config[key] = subentry.data[key]
             break
+
+    if not bool(config.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, False)):
+        config[CONF_ALARM_EXECUTION_MODE] = ALARM_EXECUTION_MODE_DIRECT_ONLY
+        config[CONF_DIRECT_ALARM_ENABLE_NOTIFICATION] = True
+        config[CONF_DIRECT_ALARM_ENABLE_NOTIFY] = False
+        config[CONF_DIRECT_ALARM_ENABLE_TTS] = False
+        config[CONF_DIRECT_ALARM_ENABLE_SCRIPT] = False
 
     return config
 

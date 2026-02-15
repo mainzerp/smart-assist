@@ -4,9 +4,41 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.19.0 | 2026-02-15 |
+| Smart Assist | 1.20.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.20.0 (2026-02-15) - Alarm V2 Simplification (Simple Default + Edit + Recurrence)
+
+**New Features:**
+- Added Alarm V2 recurrence support with persisted recurrence metadata and next-occurrence scheduling
+- Added dashboard alarm editing via websocket `alarm_action=edit` and panel row `Edit` action
+- Added alarm tool support for recurrence set/edit parameters and explicit edit action
+- Added simple default alarm backend UX with explicit advanced opt-in toggle for managed/direct/hybrid backend controls
+
+**Compatibility:**
+- Preserved one-shot alarm behavior and lifecycle events (`smart_assist_alarm_fired`, `smart_assist_alarm_updated`)
+- Kept existing advanced backend settings backward-compatible for existing entries
+- Added storage migration-safe defaults for legacy alarms without recurrence metadata
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_persistent_alarms.py
+- tests/test_websocket.py
+- tests/test_tools.py
+- tests/test_direct_alarm_engine.py
+- tests/test_config_flow.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.19.0 (2026-02-15) - Direct Alarm Engine (Internal Execution Mode)
 

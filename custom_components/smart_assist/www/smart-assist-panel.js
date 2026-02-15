@@ -762,6 +762,7 @@ class SmartAssistPanel extends HTMLElement {
         : '';
       const canSnooze = alarm.status === 'fired' || alarm.active;
       const canCancel = alarm.active;
+      const recurrence = this._formatRecurrence(alarm.recurrence);
       const directStatus = this._esc(alarm.direct_last_state || '-');
       const directHint = alarm.direct_last_error
         ? '<div style="font-size:11px;color:var(--sa-text-secondary);">' + this._esc(alarm.direct_last_error) + '</div>'
@@ -776,9 +777,11 @@ class SmartAssistPanel extends HTMLElement {
         + '<td><span class="cal-status ' + statusCls + '">' + status + '</span></td>'
         + '<td><span class="cal-status ' + (alarm.direct_last_state === 'ok' ? 'announced' : (alarm.direct_last_state === 'failed' ? 'pending' : 'upcoming')) + '">' + directStatus + '</span>' + directHint + '</td>'
         + '<td><span class="cal-status ' + (alarm.ownership_verified ? 'announced' : 'pending') + '">' + managedStatus + '</span>' + managedHint + '</td>'
+        + '<td style="white-space:nowrap;">' + recurrence + '</td>'
         + '<td style="white-space:nowrap;">' + trigger + '</td>'
         + '<td style="white-space:nowrap;color:var(--sa-text-secondary);">' + fired + '</td>'
         + '<td style="white-space:nowrap;">'
+          + '<button class="refresh-btn alarm-edit-btn" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (alarm.can_edit ? '' : 'disabled') + '>Edit</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="5" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 5m</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="10" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 10m</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="cancel" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canCancel ? '' : 'disabled') + '>Cancel</button>'
@@ -787,7 +790,7 @@ class SmartAssistPanel extends HTMLElement {
     }
 
     html += '<div class="card"><h3>Alarms</h3>'
-      + '<table><thead><tr><th>Time</th><th>Label</th><th>Display ID</th><th>Status</th><th>Direct</th><th>Managed</th><th>Next Trigger</th><th>Last Fired</th><th>Actions</th></tr></thead>'
+      + '<table><thead><tr><th>Time</th><th>Label</th><th>Display ID</th><th>Status</th><th>Direct</th><th>Managed</th><th>Recurrence</th><th>Next Trigger</th><th>Last Fired</th><th>Actions</th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
     if (!managedEnabled) {
       html += '<div class="sub" style="margin-top:-8px;margin-bottom:12px;">Managed alarm automation is currently disabled.</div>';
@@ -817,6 +820,17 @@ class SmartAssistPanel extends HTMLElement {
     } catch (_) {
       return timeStr;
     }
+  }
+
+  _formatRecurrence(recurrence) {
+    if (!recurrence || typeof recurrence !== 'object') return '-';
+    const frequency = String(recurrence.frequency || '').toLowerCase();
+    const interval = parseInt(recurrence.interval || 1, 10) || 1;
+    if (!frequency) return '-';
+    if (frequency === 'weekly' && Array.isArray(recurrence.byweekday) && recurrence.byweekday.length) {
+      return this._esc('weekly (' + recurrence.byweekday.join(',') + '), every ' + interval);
+    }
+    return this._esc(frequency + ', every ' + interval);
   }
 
   _renderCalendarTab() {
@@ -1166,6 +1180,75 @@ class SmartAssistPanel extends HTMLElement {
     }
   }
 
+  async _editAlarm(alarmId) {
+    const alarms = (this._alarmsData && this._alarmsData.alarms) ? this._alarmsData.alarms : [];
+    const alarm = alarms.find((item) => item.id === alarmId);
+    if (!alarm) {
+      this._alarmsError = "Alarm not found";
+      this._render();
+      return;
+    }
+
+    const label = prompt("Alarm label:", alarm.label || "Alarm");
+    if (label === null) return;
+
+    const message = prompt("Alarm message:", alarm.message || "");
+    if (message === null) return;
+
+    const scheduleInput = prompt("Scheduled time (ISO datetime):", alarm.scheduled_for || "");
+    if (scheduleInput === null) return;
+
+    const currentRecurrence = alarm.recurrence || {};
+    const recurrenceFrequency = prompt("Recurrence frequency (empty, daily, weekly):", currentRecurrence.frequency || "");
+    if (recurrenceFrequency === null) return;
+
+    const recurrenceIntervalRaw = prompt("Recurrence interval (default 1):", String(currentRecurrence.interval || 1));
+    if (recurrenceIntervalRaw === null) return;
+
+    let recurrence = null;
+    const normalizedFrequency = String(recurrenceFrequency || "").trim().toLowerCase();
+    if (normalizedFrequency) {
+      const recurrenceInterval = parseInt(recurrenceIntervalRaw || "1", 10);
+      if (isNaN(recurrenceInterval) || recurrenceInterval <= 0) {
+        this._alarmsError = "Recurrence interval must be a positive number";
+        this._render();
+        return;
+      }
+      recurrence = {
+        frequency: normalizedFrequency,
+        interval: recurrenceInterval,
+      };
+      if (normalizedFrequency === "weekly" && Array.isArray(currentRecurrence.byweekday) && currentRecurrence.byweekday.length) {
+        recurrence.byweekday = currentRecurrence.byweekday;
+      }
+    }
+
+    const reactivate = (alarm.status === "fired" || alarm.status === "dismissed")
+      ? confirm("This alarm is not active. Reactivate with this edit?")
+      : false;
+
+    try {
+      await this._callWSWithTimeout(
+        {
+          type: "smart_assist/alarm_action",
+          action: "edit",
+          alarm_id: alarmId,
+          label: label,
+          message: message,
+          scheduled_for: scheduleInput,
+          recurrence: recurrence,
+          reactivate: reactivate,
+        },
+        WS_CALL_TIMEOUT_MS,
+        "alarm edit"
+      );
+      await this._loadAlarms(true);
+    } catch (err) {
+      this._alarmsError = err.message || "Alarm edit failed";
+      this._render();
+    }
+  }
+
   _renderPromptTab() {
     let html = '';
 
@@ -1431,6 +1514,9 @@ class SmartAssistPanel extends HTMLElement {
       const alarmId = btn.dataset.alarmId;
       const minutes = btn.dataset.minutes ? parseInt(btn.dataset.minutes, 10) : undefined;
       this._runAlarmAction(action, alarmId, minutes);
+    });
+    this._bindAllClick(".alarm-edit-btn", (btn) => {
+      this._editAlarm(btn.dataset.alarmId);
     });
   }
 

@@ -11,6 +11,7 @@ import re
 import time
 import unicodedata
 import uuid
+import calendar
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -126,11 +127,16 @@ class PersistentAlarmManager:
         label: str | None = None,
         message: str | None = None,
         source: str | None = None,
+        recurrence: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any] | None, str]:
         """Create a new alarm at an absolute datetime."""
         trigger_dt = self._parse_datetime(when_iso)
         if trigger_dt is None:
             return None, "Invalid datetime format"
+
+        normalized_recurrence = self._normalize_recurrence(recurrence, trigger_dt)
+        if recurrence is not None and normalized_recurrence is None:
+            return None, "Invalid recurrence configuration"
 
         now = dt_util.now()
         if trigger_dt <= now:
@@ -152,6 +158,8 @@ class PersistentAlarmManager:
             "created_at": created_at,
             "updated_at": created_at,
             "scheduled_for": trigger_dt.isoformat(),
+            "next_scheduled_for": trigger_dt.isoformat(),
+            "recurrence": normalized_recurrence,
             "active": True,
             "status": "active",
             "dismissed": False,
@@ -267,13 +275,37 @@ class PersistentAlarmManager:
                 continue
 
             if trigger <= reference:
+                scheduled_before_fire = alarm.get("scheduled_for")
+                recurrence = alarm.get("recurrence") if isinstance(alarm.get("recurrence"), dict) else None
+
                 alarm["active"] = False
                 alarm["fired"] = True
                 alarm["status"] = "fired"
                 alarm["last_fired_at"] = reference.isoformat()
                 alarm["fire_count"] = int(alarm.get("fire_count", 0)) + 1
                 alarm["updated_at"] = reference.isoformat()
-                due.append(dict(alarm))
+
+                fired_occurrence = dict(alarm)
+
+                if recurrence is not None and isinstance(scheduled_before_fire, str):
+                    base_dt = self._parse_datetime(scheduled_before_fire)
+                    next_dt = self._compute_next_occurrence(
+                        base_dt,
+                        recurrence,
+                        reference,
+                    )
+                    if next_dt is not None:
+                        alarm["scheduled_for"] = next_dt.isoformat()
+                        alarm["next_scheduled_for"] = next_dt.isoformat()
+                        alarm["snoozed_until"] = None
+                        alarm["active"] = True
+                        alarm["fired"] = False
+                        alarm["dismissed"] = False
+                        alarm["status"] = "active"
+                        alarm["updated_at"] = reference.isoformat()
+                        fired_occurrence["next_scheduled_for"] = next_dt.isoformat()
+
+                due.append(fired_occurrence)
 
         if due:
             self._dirty = True
@@ -303,6 +335,13 @@ class PersistentAlarmManager:
             alarm.setdefault("created_at", now_iso)
             alarm.setdefault("updated_at", now_iso)
             alarm.setdefault("scheduled_for", now_iso)
+            alarm.setdefault("next_scheduled_for", alarm.get("scheduled_for", now_iso))
+            recurrence_raw = alarm.get("recurrence") if isinstance(alarm.get("recurrence"), dict) else None
+            normalized_recurrence = self._normalize_recurrence(
+                recurrence_raw,
+                self._parse_datetime(str(alarm.get("scheduled_for") or now_iso)),
+            )
+            alarm["recurrence"] = normalized_recurrence
             alarm.setdefault("active", True)
             alarm.setdefault("status", "active")
             alarm.setdefault("dismissed", False)
@@ -355,6 +394,78 @@ class PersistentAlarmManager:
             "alarms": normalized,
         }
         self._dirty = False
+
+    def update_alarm(
+        self,
+        alarm_id: str,
+        updates: dict[str, Any],
+        *,
+        reactivate: bool = False,
+    ) -> tuple[dict[str, Any] | None, str]:
+        """Update editable alarm fields with lifecycle guards."""
+        alarm = self._find_alarm(alarm_id)
+        if alarm is None:
+            return None, "Alarm not found"
+
+        status = str(alarm.get("status") or "")
+        active = bool(alarm.get("active", False))
+        if not active and status in {"fired", "dismissed"} and not reactivate:
+            return None, "Alarm can only be edited when reactivated"
+
+        changed = False
+
+        if "label" in updates:
+            label_value = str(updates.get("label") or "Alarm").strip() or "Alarm"
+            if label_value != alarm.get("label"):
+                alarm["label"] = label_value
+                changed = True
+
+        if "message" in updates:
+            message_value = str(updates.get("message") or "").strip()
+            if message_value != alarm.get("message"):
+                alarm["message"] = message_value
+                changed = True
+
+        if "scheduled_for" in updates:
+            when_iso = str(updates.get("scheduled_for") or "")
+            trigger_dt = self._parse_datetime(when_iso)
+            if trigger_dt is None:
+                return None, "Invalid datetime format"
+            if trigger_dt <= dt_util.now():
+                return None, "Alarm time must be in the future"
+            alarm["scheduled_for"] = trigger_dt.isoformat()
+            alarm["next_scheduled_for"] = trigger_dt.isoformat()
+            alarm["snoozed_until"] = None
+            changed = True
+
+        if "recurrence" in updates:
+            recurrence_payload = updates.get("recurrence")
+            normalized_recurrence = self._normalize_recurrence(
+                recurrence_payload if isinstance(recurrence_payload, dict) else None,
+                self._parse_datetime(str(alarm.get("scheduled_for") or "")),
+            )
+            if recurrence_payload is not None and normalized_recurrence is None:
+                return None, "Invalid recurrence configuration"
+            if recurrence_payload is None:
+                normalized_recurrence = None
+            if normalized_recurrence != alarm.get("recurrence"):
+                alarm["recurrence"] = normalized_recurrence
+                changed = True
+
+        if reactivate:
+            alarm["active"] = True
+            alarm["dismissed"] = False
+            alarm["fired"] = False
+            alarm["status"] = "active"
+            alarm["snoozed_until"] = None
+            changed = True
+
+        if not changed:
+            return dict(alarm), "No changes"
+
+        alarm["updated_at"] = dt_util.now().isoformat()
+        self._dirty = True
+        return dict(alarm), "Alarm updated"
 
     def export_state(self) -> dict[str, Any]:
         """Return a copy of persisted state (for diagnostics/tests)."""
@@ -563,6 +674,116 @@ class PersistentAlarmManager:
         if not isinstance(trigger_value, str):
             return None
         return self._parse_datetime(trigger_value)
+
+    def _normalize_recurrence(
+        self,
+        recurrence: dict[str, Any] | None,
+        scheduled_for: datetime | None,
+    ) -> dict[str, Any] | None:
+        """Normalize recurrence payload into canonical representation."""
+        if recurrence is None:
+            return None
+
+        frequency = str(recurrence.get("frequency") or "").strip().lower()
+        if frequency not in {"daily", "weekly"}:
+            return None
+
+        interval_raw = recurrence.get("interval", 1)
+        try:
+            interval = int(interval_raw)
+        except (TypeError, ValueError):
+            return None
+        if interval <= 0:
+            return None
+
+        timezone = str(recurrence.get("timezone") or dt_util.DEFAULT_TIME_ZONE)
+        normalized: dict[str, Any] = {
+            "frequency": frequency,
+            "interval": interval,
+            "timezone": timezone,
+        }
+
+        if frequency == "weekly":
+            weekdays = recurrence.get("byweekday")
+            normalized_weekdays = self._normalize_weekdays(weekdays, scheduled_for)
+            if not normalized_weekdays:
+                return None
+            normalized["byweekday"] = normalized_weekdays
+
+        return normalized
+
+    def _normalize_weekdays(
+        self,
+        weekdays: Any,
+        scheduled_for: datetime | None,
+    ) -> list[int]:
+        """Normalize weekday values into sorted unique list of ints (0=Mon)."""
+        if weekdays is None:
+            if scheduled_for is None:
+                return []
+            return [int(scheduled_for.weekday())]
+
+        values = weekdays if isinstance(weekdays, list) else [weekdays]
+        result: set[int] = set()
+        full_weekdays = {name.lower(): idx for idx, name in enumerate(calendar.day_name)}
+        for item in values:
+            if isinstance(item, int):
+                weekday = item
+            else:
+                raw = str(item or "").strip().lower()
+                if raw in full_weekdays:
+                    weekday = full_weekdays[raw]
+                elif raw in {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}:
+                    weekday = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].index(raw)
+                else:
+                    try:
+                        weekday = int(raw)
+                    except ValueError:
+                        return []
+            if weekday < 0 or weekday > 6:
+                return []
+            result.add(weekday)
+        return sorted(result)
+
+    def _compute_next_occurrence(
+        self,
+        scheduled_for: datetime | None,
+        recurrence: dict[str, Any],
+        reference: datetime,
+    ) -> datetime | None:
+        """Compute next occurrence after reference for a recurring alarm."""
+        if scheduled_for is None:
+            return None
+
+        frequency = str(recurrence.get("frequency") or "")
+        interval = int(recurrence.get("interval") or 1)
+
+        if frequency == "daily":
+            next_dt = scheduled_for
+            for _ in range(2048):
+                next_dt = next_dt + timedelta(days=interval)
+                if next_dt > reference:
+                    return next_dt
+            return None
+
+        if frequency == "weekly":
+            weekdays = recurrence.get("byweekday") if isinstance(recurrence.get("byweekday"), list) else []
+            weekday_set = {int(day) for day in weekdays if isinstance(day, int)}
+            if not weekday_set:
+                weekday_set = {int(scheduled_for.weekday())}
+
+            candidate = scheduled_for + timedelta(days=1)
+            base_week_start = scheduled_for - timedelta(days=scheduled_for.weekday())
+            for _ in range(4096):
+                candidate_week_start = candidate - timedelta(days=candidate.weekday())
+                weeks_since_base = int((candidate_week_start - base_week_start).days // 7)
+                if weeks_since_base >= 0 and weeks_since_base % interval == 0:
+                    if candidate.weekday() in weekday_set and candidate > reference:
+                        return candidate
+                candidate = candidate + timedelta(days=1)
+            return None
+
+        return None
 
     def _parse_datetime(self, value: str) -> datetime | None:
         """Parse datetime string to timezone-aware local datetime."""

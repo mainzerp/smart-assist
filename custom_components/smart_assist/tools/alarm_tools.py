@@ -27,7 +27,7 @@ class AlarmTool(BaseTool):
 
     name = "alarm"
     description = (
-        "Manage persistent alarms (set/list/cancel/snooze/status) with absolute times. "
+        "Manage persistent alarms (set/list/cancel/snooze/status/edit) with absolute times. "
         "Use this for alarm-clock behavior that survives restart; use timer for relative durations."
     )
 
@@ -37,7 +37,7 @@ class AlarmTool(BaseTool):
             type="string",
             description="Alarm action",
             required=True,
-            enum=["set", "list", "cancel", "snooze", "status"],
+            enum=["set", "list", "cancel", "snooze", "status", "edit"],
         ),
         ToolParameter(
             name="datetime",
@@ -93,6 +93,31 @@ class AlarmTool(BaseTool):
             description="For action=list: when true, only active alarms are returned (default true).",
             required=False,
         ),
+        ToolParameter(
+            name="reactivate",
+            type="boolean",
+            description="For action=edit on fired/dismissed alarms: reactivate the alarm.",
+            required=False,
+        ),
+        ToolParameter(
+            name="recurrence_frequency",
+            type="string",
+            description="Optional recurrence frequency for set/edit: daily or weekly.",
+            required=False,
+            enum=["daily", "weekly"],
+        ),
+        ToolParameter(
+            name="recurrence_interval",
+            type="number",
+            description="Optional recurrence interval (default 1).",
+            required=False,
+        ),
+        ToolParameter(
+            name="recurrence_byweekday",
+            type="string",
+            description="Optional weekly recurrence weekdays as comma-separated values (e.g. mon,wed,fri).",
+            required=False,
+        ),
     ]
 
     def __init__(self, hass: HomeAssistant, entry_id: str | None = None) -> None:
@@ -112,6 +137,10 @@ class AlarmTool(BaseTool):
         display_id: str | None = None,
         minutes: int | None = None,
         active_only: bool | None = None,
+        reactivate: bool | None = None,
+        recurrence_frequency: str | None = None,
+        recurrence_interval: int | None = None,
+        recurrence_byweekday: str | None = None,
     ) -> ToolResult:
         """Execute persistent alarm actions."""
         manager = self._get_manager()
@@ -127,7 +156,17 @@ class AlarmTool(BaseTool):
                         "For action=set provide datetime (ISO) or date+time.",
                     )
 
-                alarm, status = manager.create_alarm(alarm_datetime, label, message)
+                recurrence_payload = self._build_recurrence_payload(
+                    recurrence_frequency,
+                    recurrence_interval,
+                    recurrence_byweekday,
+                )
+                alarm, status = manager.create_alarm(
+                    alarm_datetime,
+                    label,
+                    message,
+                    recurrence=recurrence_payload,
+                )
                 if alarm is None:
                     return ToolResult(False, status)
 
@@ -226,6 +265,49 @@ class AlarmTool(BaseTool):
                     True,
                     f"Active alarm count: {len(alarms)}",
                     data={"alarms": alarms},
+                )
+
+            if action == "edit":
+                alarm_ref = alarm_id or display_id
+                if not alarm_ref:
+                    return ToolResult(False, "alarm_id or display_id is required for action=edit")
+
+                updates: dict[str, Any] = {}
+                if label is not None:
+                    updates["label"] = label
+                if message is not None:
+                    updates["message"] = message
+
+                alarm_datetime = self._resolve_datetime(datetime, date, time)
+                if alarm_datetime:
+                    updates["scheduled_for"] = alarm_datetime
+
+                recurrence_payload = self._build_recurrence_payload(
+                    recurrence_frequency,
+                    recurrence_interval,
+                    recurrence_byweekday,
+                )
+                if recurrence_payload is not None:
+                    updates["recurrence"] = recurrence_payload
+
+                updated_alarm, status = manager.update_alarm(
+                    alarm_ref,
+                    updates,
+                    reactivate=bool(reactivate),
+                )
+                if updated_alarm is None:
+                    return ToolResult(False, status)
+
+                await manager.async_force_save()
+                await self._reconcile_managed_alarm(updated_alarm)
+                self._emit_alarm_update(updated_alarm, "edit")
+                return ToolResult(
+                    True,
+                    (
+                        f"Alarm updated: {updated_alarm.get('display_id', updated_alarm.get('id'))} "
+                        f"at {updated_alarm.get('scheduled_for')}"
+                    ),
+                    data={"alarm": updated_alarm},
                 )
 
             return ToolResult(False, f"Unknown action: {action}")
@@ -344,6 +426,24 @@ class AlarmTool(BaseTool):
             await manager.async_save()
         except Exception as err:
             _LOGGER.warning("Managed alarm reconcile failed after tool action: %s", err)
+
+    def _build_recurrence_payload(
+        self,
+        frequency: str | None,
+        interval: int | None,
+        byweekday: str | None,
+    ) -> dict[str, Any] | None:
+        """Build recurrence payload from flat tool args."""
+        if not frequency:
+            return None
+
+        payload: dict[str, Any] = {
+            "frequency": str(frequency).strip().lower(),
+            "interval": int(interval or 1),
+        }
+        if byweekday:
+            payload["byweekday"] = [part.strip().lower() for part in str(byweekday).split(",") if part.strip()]
+        return payload
 
     def _get_execution_mode(self) -> str:
         """Return configured alarm execution mode from runtime entry data."""
