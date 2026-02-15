@@ -27,6 +27,11 @@ _LOGGER = logging.getLogger(__name__)
 class OpenRouterClient(BaseLLMClient):
     """Client for OpenRouter API."""
 
+    @property
+    def supports_native_structured_output(self) -> bool:
+        """OpenRouter can support json_schema mode on compatible routes/models."""
+        return True
+
     def __init__(
         self,
         api_key: str,
@@ -139,6 +144,9 @@ class OpenRouterClient(BaseLLMClient):
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
         cached_prefix_length: int = 0,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
     ) -> ChatResponse:
         """Send a chat request to the API."""
         session = await self._get_session()
@@ -153,6 +161,19 @@ class OpenRouterClient(BaseLLMClient):
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
+
+        if self._supports_native_schema_mode(
+            use_native_structured_output=use_native_structured_output,
+            response_schema=response_schema,
+        ):
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": response_schema_name or "smart_assist_task",
+                    "strict": True,
+                    "schema": response_schema,
+                },
+            }
         
         # Add provider routing if a specific provider is selected
         if self._provider and self._provider != "auto":
@@ -209,6 +230,20 @@ class OpenRouterClient(BaseLLMClient):
             raise OpenRouterError(
                 sanitize_user_facing_error(err, fallback="Unexpected provider error")
             ) from err
+
+    def _supports_native_schema_mode(
+        self,
+        use_native_structured_output: bool,
+        response_schema: dict[str, Any] | None,
+    ) -> bool:
+        """Return True when native OpenRouter json_schema mode should be used."""
+        if not use_native_structured_output or not response_schema:
+            return False
+
+        if self._provider not in ("auto", "openai"):
+            return False
+
+        return self._model.startswith("openai/")
 
     async def _stream_request(
         self,

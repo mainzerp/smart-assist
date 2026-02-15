@@ -56,6 +56,8 @@
       "groq_api_key_required": "Groq API Key wird fuer den Groq Provider benoetigt.",
       "openrouter_api_key_required": "OpenRouter API Key wird fuer den OpenRouter Provider benoetigt.",
       "ollama_not_configured": "Ollama ist nicht konfiguriert. Bitte fuege Ollama in den Haupteinstellungen hinzu.",
+      "structured_output_invalid_json": "Entschuldigung, ich konnte keine gueltige strukturierte Ausgabe fuer diese Aufgabe erzeugen.",
+      "structured_output_schema_mismatch": "Entschuldigung, das strukturierte Ergebnis entspricht nicht dem erforderlichen Format.",
       "no_api_key": "Mindestens ein API Key (OpenRouter oder Groq) ist erforderlich.",
       "cannot_connect": "Verbindung zur API nicht moeglich.",
       "unknown": "Ein unerwarteter Fehler ist aufgetreten."

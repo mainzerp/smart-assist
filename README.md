@@ -301,6 +301,55 @@ data:
   instructions: "Summarize all lights that are currently on"
 ```
 
+### Structured Output (`task.structure`)
+
+`ai_task.generate_data` supports schema-constrained structured output for automation-safe data contracts.
+When `task.structure` is present, Smart Assist validates the generated JSON locally before returning it.
+
+Example: return a weather decision object
+
+```yaml
+service: ai_task.generate_data
+target:
+  entity_id: ai_task.smart_assist_task
+data:
+  task_type: generate_data
+  instructions: "Check weather and decide if windows should stay open"
+  task:
+    structure:
+      type: object
+      properties:
+        keep_windows_open:
+          type: boolean
+        reason:
+          type: string
+      required: [keep_windows_open, reason]
+      additionalProperties: false
+```
+
+Example: return an array of entities to switch off
+
+```yaml
+service: ai_task.generate_data
+target:
+  entity_id: ai_task.smart_assist_task
+data:
+  task_type: generate_data
+  instructions: "List only currently-on lights in the house"
+  task:
+    structure:
+      type: object
+      properties:
+        entities:
+          type: array
+          items:
+            type: string
+      required: [entities]
+      additionalProperties: false
+```
+
+If the model returns invalid JSON or schema-mismatched data, Smart Assist returns a concise localized error string in `data`.
+
 **Configuration:**
 
 - **Task System Prompt**: Custom instructions for background tasks

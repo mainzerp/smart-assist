@@ -83,6 +83,10 @@ DEFAULT_TASK_ENABLE_PROMPT_CACHING: Final = False  # Tasks are not time-critical
 DEFAULT_TASK_ENABLE_CACHE_WARMING: Final = False   # Tasks are not time-critical
 DEFAULT_TASK_ALLOW_CONTROL: Final = False  # Explicit opt-in required for control tool use
 DEFAULT_TASK_ALLOW_LOCK_CONTROL: Final = False  # Separate explicit opt-in for lock domain control
+TASK_STRUCTURED_OUTPUT_INVALID_JSON_EN: Final = "Sorry, I could not generate valid structured output for this task."
+TASK_STRUCTURED_OUTPUT_INVALID_JSON_DE: Final = "Entschuldigung, ich konnte keine gueltige strukturierte Ausgabe fuer diese Aufgabe erzeugen."
+TASK_STRUCTURED_OUTPUT_SCHEMA_MISMATCH_EN: Final = "Sorry, the structured result did not match the required format."
+TASK_STRUCTURED_OUTPUT_SCHEMA_MISMATCH_DE: Final = "Entschuldigung, das strukturierte Ergebnis entspricht nicht dem erforderlichen Format."
 
 # Conversation engine constants
 TTS_STREAM_MIN_CHARS: Final = 65  # Minimum chars to trigger TTS streaming in Companion App

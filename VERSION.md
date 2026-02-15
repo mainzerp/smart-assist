@@ -4,9 +4,39 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.10 | 2026-02-15 |
+| Smart Assist | 1.15.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.15.0 (2026-02-15) - AI Task Structured Output Contracts
+
+**New Features:**
+- Added schema-constrained structured output for `ai_task.generate_data` when `task.structure` is provided
+- Added deterministic local JSON extraction + constrained schema validation before returning automation data
+- Added native structured-output provider attempt with single fallback retry to non-native mode
+- Added localized concise structured-output failure messages (EN/DE)
+
+**Tests:**
+- Added AI Task tests for structured success, fenced JSON extraction, invalid JSON, schema mismatch, unchanged unstructured path, and native fallback retry
+
+**Docs:**
+- Added structured output usage section with two automation examples in README
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/llm/base_client.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/llm/ollama_client.py
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_ai_task.py
+- README.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.10 (2026-02-15) - Dashboard Idle Blank Resilience Hardening
 

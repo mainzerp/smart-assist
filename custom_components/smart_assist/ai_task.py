@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 import time
 from typing import Any, TYPE_CHECKING
 
@@ -56,13 +58,17 @@ from .const import (
     REQUEST_HISTORY_INPUT_MAX_LENGTH,
     REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
     REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
+    TASK_STRUCTURED_OUTPUT_INVALID_JSON_DE,
+    TASK_STRUCTURED_OUTPUT_INVALID_JSON_EN,
+    TASK_STRUCTURED_OUTPUT_SCHEMA_MISMATCH_DE,
+    TASK_STRUCTURED_OUTPUT_SCHEMA_MISMATCH_EN,
 )
 from .context.entity_manager import EntityManager
 from .context.request_history import RequestHistoryEntry, RequestHistoryStore, ToolCallRecord
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
-from .utils import get_config_value, sanitize_user_facing_error
+from .utils import execute_tools_parallel, get_config_value, sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -256,21 +262,81 @@ class SmartAssistAITask(AITaskEntity):
                 data="Task instructions are empty. Please provide instructions.",
             )
 
+        structured_schema = self._normalize_task_structure(getattr(task, "structure", None))
+        structured_requested = structured_schema is not None
+        language_prefix = self._resolve_language_prefix()
+
+        response_content = ""
+        result_data: Any = ""
+
         try:
             # Build messages for LLM
             messages = self._build_messages(instructions)
+
+            if structured_requested and structured_schema is not None:
+                messages.insert(
+                    1,
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=self._build_structured_output_instruction(structured_schema),
+                    ),
+                )
 
             # Get tool schemas
             tools = self._tool_registry.get_schemas()
 
             # Call LLM with tool support
-            response_content = await self._process_with_tools(messages, tools)
+            response_content = await self._process_with_tools(
+                messages,
+                tools,
+                response_schema=structured_schema,
+                response_schema_name=(
+                    str(getattr(task, "task_name", "smart_assist_task") or "smart_assist_task")
+                    if structured_requested
+                    else None
+                ),
+                use_native_structured_output=structured_requested,
+                allow_structured_native_fallback_retry=structured_requested,
+            )
+
+            if structured_requested and structured_schema is not None:
+                try:
+                    structured_data = self._extract_json_payload(response_content)
+                except ValueError:
+                    result_data = self._structured_output_error_message(
+                        language_prefix,
+                        reason="invalid_json",
+                    )
+                else:
+                    is_valid, _ = self._validate_structured_output(structured_data, structured_schema)
+                    if is_valid:
+                        result_data = structured_data
+                    else:
+                        result_data = self._structured_output_error_message(
+                            language_prefix,
+                            reason="schema_mismatch",
+                        )
+            else:
+                result_data = response_content
         except Exception as e:
             _LOGGER.error("AI Task LLM call failed: %s", e)
-            response_content = sanitize_user_facing_error(
-                e,
-                fallback="Sorry, I could not process this task right now.",
-            )
+            if structured_requested:
+                result_data = self._structured_output_error_message(
+                    language_prefix,
+                    reason="invalid_json",
+                )
+            else:
+                response_content = sanitize_user_facing_error(
+                    e,
+                    fallback="Sorry, I could not process this task right now.",
+                )
+                result_data = response_content
+
+        response_content_for_history = (
+            result_data
+            if isinstance(result_data, str)
+            else json.dumps(result_data, ensure_ascii=False)
+        )
 
         history_store = self.hass.data.get(DOMAIN, {}).get(
             self._config_entry.entry_id, {}
@@ -303,7 +369,7 @@ class SmartAssistAITask(AITaskEntity):
             )
             response_history_text = (
                 RequestHistoryStore.truncate(
-                    response_content,
+                    response_content_for_history,
                     REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
                 )
                 if include_history_content
@@ -375,17 +441,183 @@ class SmartAssistAITask(AITaskEntity):
         )
         
         # Return result
-        if getattr(task, "structure", None):
-            # If structured output requested, try to parse response
-            # For now, return as plain text - structured output parsing can be added later
-            return GenDataTaskResult(
-                conversation_id=chat_log.conversation_id,
-                data={"result": response_content},
-            )
-        
         return GenDataTaskResult(
             conversation_id=chat_log.conversation_id,
-            data=response_content,
+            data=result_data,
+        )
+
+    @staticmethod
+    def _normalize_task_structure(raw_structure: Any) -> dict[str, Any] | None:
+        """Normalize task.structure into a JSON-schema dict when present."""
+        if raw_structure is None:
+            return None
+        if isinstance(raw_structure, dict):
+            nested_schema = raw_structure.get("schema")
+            if isinstance(nested_schema, dict):
+                return nested_schema
+            return raw_structure
+        return None
+
+    def _resolve_language_prefix(self) -> str:
+        """Resolve current language prefix for localized task error messages."""
+        language = self._get_config(CONF_LANGUAGE, "")
+        if isinstance(language, str) and language and language != "auto":
+            return language.split("-")[0].lower()
+
+        ha_language = getattr(self.hass.config, "language", "en-US")
+        if isinstance(ha_language, str) and ha_language:
+            return ha_language.split("-")[0].lower()
+
+        return "en"
+
+    @staticmethod
+    def _build_structured_output_instruction(schema: dict[str, Any]) -> str:
+        """Build strict JSON output instruction for structured AI task runs."""
+        schema_json = json.dumps(schema, ensure_ascii=False)
+        return (
+            "Return ONLY valid JSON that matches this schema exactly. "
+            "Do not include markdown, code fences, explanations, or extra keys. "
+            f"Schema: {schema_json}"
+        )
+
+    @staticmethod
+    def _extract_json_payload(text: str) -> Any:
+        """Extract and parse JSON payload from model output text."""
+        raw = (text or "").strip()
+        if not raw:
+            raise ValueError("empty response")
+
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        fenced_matches = re.findall(r"```(?:json)?\s*(.*?)\s*```", raw, flags=re.DOTALL | re.IGNORECASE)
+        for candidate in fenced_matches:
+            candidate = candidate.strip()
+            if not candidate:
+                continue
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+
+        first_object = raw.find("{")
+        first_array = raw.find("[")
+        start_candidates = [idx for idx in (first_object, first_array) if idx >= 0]
+        if not start_candidates:
+            raise ValueError("no json payload found")
+
+        start = min(start_candidates)
+        for end in range(len(raw), start, -1):
+            snippet = raw[start:end].strip()
+            if not snippet:
+                continue
+            try:
+                return json.loads(snippet)
+            except json.JSONDecodeError:
+                continue
+
+        raise ValueError("invalid json payload")
+
+    @classmethod
+    def _validate_structured_output(
+        cls,
+        data: Any,
+        schema: dict[str, Any],
+    ) -> tuple[bool, str | None]:
+        """Validate JSON-compatible data against a constrained schema subset."""
+        return cls._validate_schema_node(data, schema, path="$")
+
+    @classmethod
+    def _validate_schema_node(
+        cls,
+        value: Any,
+        schema: dict[str, Any],
+        path: str,
+    ) -> tuple[bool, str | None]:
+        schema_type = schema.get("type")
+        if schema_type is not None and not cls._matches_type(value, schema_type):
+            return False, f"type mismatch at {path}"
+
+        if "enum" in schema and value not in schema.get("enum", []):
+            return False, f"enum mismatch at {path}"
+
+        if schema_type == "object" and isinstance(value, dict):
+            properties = schema.get("properties", {})
+            required = schema.get("required", [])
+            additional_properties = schema.get("additionalProperties", True)
+
+            if isinstance(required, list):
+                for key in required:
+                    if key not in value:
+                        return False, f"missing required field {path}.{key}"
+
+            if isinstance(properties, dict):
+                for key, nested_schema in properties.items():
+                    if key in value and isinstance(nested_schema, dict):
+                        is_valid, reason = cls._validate_schema_node(
+                            value[key],
+                            nested_schema,
+                            f"{path}.{key}",
+                        )
+                        if not is_valid:
+                            return False, reason
+
+            if additional_properties is False and isinstance(properties, dict):
+                unexpected = set(value.keys()) - set(properties.keys())
+                if unexpected:
+                    return False, f"unexpected fields at {path}"
+
+        if schema_type == "array" and isinstance(value, list):
+            items_schema = schema.get("items")
+            if isinstance(items_schema, dict):
+                for idx, item in enumerate(value):
+                    is_valid, reason = cls._validate_schema_node(
+                        item,
+                        items_schema,
+                        f"{path}[{idx}]",
+                    )
+                    if not is_valid:
+                        return False, reason
+
+        return True, None
+
+    @staticmethod
+    def _matches_type(value: Any, schema_type: str | list[str]) -> bool:
+        """Return True when value matches one of the schema types."""
+        allowed_types = schema_type if isinstance(schema_type, list) else [schema_type]
+        for allowed in allowed_types:
+            if allowed == "object" and isinstance(value, dict):
+                return True
+            if allowed == "array" and isinstance(value, list):
+                return True
+            if allowed == "string" and isinstance(value, str):
+                return True
+            if allowed == "number" and isinstance(value, (int, float)) and not isinstance(value, bool):
+                return True
+            if allowed == "integer" and isinstance(value, int) and not isinstance(value, bool):
+                return True
+            if allowed == "boolean" and isinstance(value, bool):
+                return True
+            if allowed == "null" and value is None:
+                return True
+        return False
+
+    @staticmethod
+    def _structured_output_error_message(language: str, reason: str = "invalid_json") -> str:
+        """Return concise localized structured-output failure message."""
+        is_german = language.startswith("de")
+        if reason == "schema_mismatch":
+            return (
+                TASK_STRUCTURED_OUTPUT_SCHEMA_MISMATCH_DE
+                if is_german
+                else TASK_STRUCTURED_OUTPUT_SCHEMA_MISMATCH_EN
+            )
+        return (
+            TASK_STRUCTURED_OUTPUT_INVALID_JSON_DE
+            if is_german
+            else TASK_STRUCTURED_OUTPUT_INVALID_JSON_EN
         )
 
     def _build_messages(self, instructions: str) -> list[ChatMessage]:
@@ -445,6 +677,10 @@ Focus on completing the task efficiently and providing structured, useful output
         messages: list[ChatMessage],
         tools: list[dict[str, Any]],
         max_iterations: int = 5,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
+        allow_structured_native_fallback_retry: bool = False,
     ) -> str:
         """Process LLM request with tool execution support."""
         iteration = 0
@@ -453,16 +689,42 @@ Focus on completing the task efficiently and providing structured, useful output
         self._last_llm_iterations = 1
         # Always cache system + user message prefix
         cached_prefix_length = 2
+        native_fallback_retry_used = False
         
         while iteration < max_iterations:
             iteration += 1
             
-            response = await self._llm_client.chat(
-                messages=messages,
-                tools=tools,
-                # Only apply caching on first iteration
-                cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
-            )
+            try:
+                response = await self._llm_client.chat(
+                    messages,
+                    tools=tools,
+                    # Only apply caching on first iteration
+                    cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
+                    response_schema=response_schema,
+                    response_schema_name=response_schema_name,
+                    use_native_structured_output=use_native_structured_output,
+                )
+            except Exception:
+                if (
+                    response_schema is not None
+                    and use_native_structured_output
+                    and allow_structured_native_fallback_retry
+                    and not native_fallback_retry_used
+                ):
+                    native_fallback_retry_used = True
+                    _LOGGER.debug(
+                        "AI Task structured native mode failed, retrying once with non-native mode"
+                    )
+                    response = await self._llm_client.chat(
+                        messages,
+                        tools=tools,
+                        cached_prefix_length=cached_prefix_length if iteration == 1 else 0,
+                        response_schema=response_schema,
+                        response_schema_name=response_schema_name,
+                        use_native_structured_output=False,
+                    )
+                else:
+                    raise
             
             if not response.has_tool_calls:
                 self._last_tool_call_records = tool_call_records
@@ -490,15 +752,10 @@ Focus on completing the task efficiently and providing structured, useful output
                     DEFAULT_TOOL_LATENCY_BUDGET_MS,
                 )
             )
-            allow_control = bool(
-                self._get_config(CONF_TASK_ALLOW_CONTROL, DEFAULT_TASK_ALLOW_CONTROL)
-            )
-            allow_lock_control = bool(
-                self._get_config(
-                    CONF_TASK_ALLOW_LOCK_CONTROL,
-                    DEFAULT_TASK_ALLOW_LOCK_CONTROL,
-                )
-            )
+
+            subentry_data = self._subentry.data if isinstance(self._subentry.data, dict) else {}
+            allow_control = bool(subentry_data.get(CONF_TASK_ALLOW_CONTROL, True))
+            allow_lock_control = bool(subentry_data.get(CONF_TASK_ALLOW_LOCK_CONTROL, True))
 
             allowed_tool_calls: list[Any] = []
             blocked_messages: dict[str, ChatMessage] = {}
@@ -529,56 +786,26 @@ Focus on completing the task efficiently and providing structured, useful output
 
             executed_messages: dict[str, ChatMessage] = {}
             if allowed_tool_calls:
-                async def _exec(call: Any) -> tuple[Any, Any]:
-                    result = await self._tool_registry.execute(
-                        call.name,
-                        call.arguments,
-                        max_retries=max_retries,
-                        latency_budget_ms=latency_budget_ms,
-                    )
-                    return call, result
-
-                raw_results = await asyncio.gather(
-                    *[_exec(call) for call in allowed_tool_calls],
-                    return_exceptions=True,
+                executed = await execute_tools_parallel(
+                    allowed_tool_calls,
+                    self._tool_registry,
+                    max_retries=max_retries,
+                    latency_budget_ms=latency_budget_ms,
                 )
-                for idx, item in enumerate(raw_results):
-                    call = allowed_tool_calls[idx]
-                    arguments_summary = str(call.arguments)
-                    if isinstance(item, Exception):
-                        executed_messages[call.id] = ChatMessage(
-                            role=MessageRole.TOOL,
-                            content=f"Error: {item}",
-                            tool_call_id=call.id,
-                            name=call.name,
-                        )
-                        tool_call_records.append(
-                            ToolCallRecord(
-                                name=call.name,
-                                success=False,
-                                execution_time_ms=0.0,
-                                arguments_summary=arguments_summary,
-                            )
-                        )
+                for tool_message in executed:
+                    if tool_message.tool_call_id is None:
                         continue
+                    executed_messages[tool_message.tool_call_id] = tool_message
 
-                    _, result = item
-                    executed_messages[call.id] = ChatMessage(
-                        role=MessageRole.TOOL,
-                        content=result.to_string(),
-                        tool_call_id=call.id,
-                        name=call.name,
-                    )
-                    result_data = result.data if isinstance(result.data, dict) else {}
+                for call in allowed_tool_calls:
+                    tool_message = executed_messages.get(call.id)
+                    success = bool(tool_message and not tool_message.content.startswith("Error:"))
                     tool_call_records.append(
                         ToolCallRecord(
                             name=call.name,
-                            success=bool(result.success),
-                            execution_time_ms=float(result_data.get("execution_time_ms", 0.0)),
-                            arguments_summary=arguments_summary,
-                            timed_out=bool(result_data.get("timed_out", False)),
-                            retries_used=int(result_data.get("retries_used", 0)),
-                            latency_budget_ms=result_data.get("latency_budget_ms"),
+                            success=success,
+                            execution_time_ms=0.0,
+                            arguments_summary=str(call.arguments),
                         )
                     )
 

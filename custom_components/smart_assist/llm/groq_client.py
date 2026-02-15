@@ -239,6 +239,9 @@ class GroqClient(BaseLLMClient):
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
         cached_prefix_length: int = 0,  # Unused for Groq but kept for API compatibility
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Send a streaming chat request to Groq API.
 
@@ -272,6 +275,9 @@ class GroqClient(BaseLLMClient):
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
         cached_prefix_length: int = 0,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
     ) -> ChatResponse:
         """Send a non-streaming chat request to Groq API."""
         session = await self._get_session()

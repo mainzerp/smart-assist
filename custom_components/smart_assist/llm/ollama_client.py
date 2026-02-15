@@ -350,6 +350,9 @@ class OllamaClient(BaseLLMClient):
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
     ) -> ChatResponse:
         """Send a chat completion request.
         
@@ -476,6 +479,9 @@ class OllamaClient(BaseLLMClient):
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
         cached_prefix_length: int = 0,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
     ) -> AsyncGenerator[str, None]:
         """Stream a chat completion response.
         

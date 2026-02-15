@@ -162,12 +162,20 @@ class BaseLLMClient(ABC):
         Override in subclasses for custom timeout behavior.
         """
         return aiohttp.ClientTimeout(total=60)
+
+    @property
+    def supports_native_structured_output(self) -> bool:
+        """Whether this provider/client can send native structured-output hints."""
+        return False
     
     @abstractmethod
     async def chat(
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
         **kwargs: Any,
     ) -> ChatResponse:
         """Send a non-streaming chat completion request."""
@@ -178,6 +186,9 @@ class BaseLLMClient(ABC):
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]] | None = None,
+        response_schema: dict[str, Any] | None = None,
+        response_schema_name: str | None = None,
+        use_native_structured_output: bool = False,
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
         """Send a streaming chat completion request."""

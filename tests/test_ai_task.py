@@ -717,3 +717,189 @@ class TestGenerateDataErrorSanitization:
         assert isinstance(result.data, str)
         assert result.data == "OK"
         history_store.add_entry.assert_called_once()
+
+
+class TestStructuredGenerateData:
+    """Structured output behavior for AI Task generate-data."""
+
+    def _create_task_entity(self, language: str = "en"):
+        from custom_components.smart_assist.ai_task import SmartAssistAITask
+
+        hass = MagicMock()
+        hass.config.language = "de-DE" if language == "de" else "en-US"
+        hass.data = {"smart_assist": {"test_entry": {"tasks": {}}}}
+
+        config_entry = MagicMock()
+        config_entry.entry_id = "test_entry"
+        config_entry.data = {"api_key": "test_key"}
+        config_entry.options = {}
+
+        subentry = MagicMock()
+        subentry.subentry_id = "test_sub"
+        subentry.title = "Test Task"
+        subentry.data = {
+            "model": "openai/gpt-4o-mini",
+            "temperature": 0.5,
+            "max_tokens": 500,
+            "llm_provider": "openrouter",
+        }
+
+        with patch(
+            "custom_components.smart_assist.ai_task.create_llm_client"
+        ) as mock_create, patch(
+            "custom_components.smart_assist.ai_task.EntityManager"
+        ) as mock_em, patch(
+            "custom_components.smart_assist.ai_task.create_tool_registry"
+        ) as mock_tr:
+            mock_create.return_value = MagicMock()
+            mock_em.return_value = MagicMock()
+            mock_em.return_value.get_entity_index.return_value = ("entities", "hash")
+            mock_registry = MagicMock()
+            mock_registry.get_schemas.return_value = []
+            mock_tr.return_value = mock_registry
+
+            return SmartAssistAITask(hass, config_entry, subentry)
+
+    @pytest.mark.asyncio
+    async def test_generate_data_structured_success_returns_validated_object(self):
+        entity = self._create_task_entity()
+        entity._process_with_tools = AsyncMock(
+            return_value='{"summary": "ok", "count": 2}'
+        )
+
+        task = MagicMock()
+        task.task_name = "summary"
+        task.instructions = "Summarize"
+        task.structure = {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string"},
+                "count": {"type": "integer"},
+            },
+            "required": ["summary", "count"],
+            "additionalProperties": False,
+        }
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        result = await entity._async_generate_data(task, chat_log)
+
+        assert isinstance(result.data, dict)
+        assert result.data["summary"] == "ok"
+        assert result.data["count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_generate_data_structured_extracts_json_from_fenced_block(self):
+        entity = self._create_task_entity()
+        entity._process_with_tools = AsyncMock(
+            return_value='```json\n{"state": "on", "confidence": 0.92}\n```'
+        )
+
+        task = MagicMock()
+        task.task_name = "state"
+        task.instructions = "Analyze"
+        task.structure = {
+            "type": "object",
+            "properties": {
+                "state": {"type": "string"},
+                "confidence": {"type": "number"},
+            },
+            "required": ["state", "confidence"],
+        }
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        result = await entity._async_generate_data(task, chat_log)
+
+        assert isinstance(result.data, dict)
+        assert result.data["state"] == "on"
+
+    @pytest.mark.asyncio
+    async def test_generate_data_structured_invalid_json_returns_localized_error(self):
+        entity = self._create_task_entity(language="de")
+        entity._process_with_tools = AsyncMock(return_value="not json")
+
+        task = MagicMock()
+        task.task_name = "summary"
+        task.instructions = "Summarize"
+        task.structure = {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        }
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        result = await entity._async_generate_data(task, chat_log)
+
+        assert isinstance(result.data, str)
+        assert "strukturierte" in result.data.lower()
+
+    @pytest.mark.asyncio
+    async def test_generate_data_structured_schema_mismatch_returns_localized_error(self):
+        entity = self._create_task_entity()
+        entity._process_with_tools = AsyncMock(return_value='{"summary": 42}')
+
+        task = MagicMock()
+        task.task_name = "summary"
+        task.instructions = "Summarize"
+        task.structure = {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+            "additionalProperties": False,
+        }
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        result = await entity._async_generate_data(task, chat_log)
+
+        assert isinstance(result.data, str)
+        assert "required format" in result.data.lower()
+
+    @pytest.mark.asyncio
+    async def test_generate_data_unstructured_path_unchanged(self):
+        entity = self._create_task_entity()
+        entity._process_with_tools = AsyncMock(return_value="plain text result")
+
+        task = MagicMock()
+        task.task_name = "summary"
+        task.instructions = "Summarize"
+        task.structure = None
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        result = await entity._async_generate_data(task, chat_log)
+
+        assert result.data == "plain text result"
+
+    @pytest.mark.asyncio
+    async def test_generate_data_structured_provider_native_failure_falls_back_and_succeeds(self):
+        entity = self._create_task_entity()
+        entity._llm_client.chat = AsyncMock(
+            side_effect=[
+                RuntimeError("native structured unsupported"),
+                ChatResponse(content='{"ok": true}', tool_calls=[]),
+            ]
+        )
+
+        messages = [
+            ChatMessage(role=MessageRole.SYSTEM, content="System"),
+            ChatMessage(role=MessageRole.USER, content="Do it"),
+        ]
+
+        result = await entity._process_with_tools(
+            messages=messages,
+            tools=[],
+            response_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
+            response_schema_name="native_retry",
+            use_native_structured_output=True,
+            allow_structured_native_fallback_retry=True,
+        )
+
+        assert result == '{"ok": true}'
+        assert entity._llm_client.chat.call_count == 2
+        first_kwargs = entity._llm_client.chat.call_args_list[0].kwargs
+        second_kwargs = entity._llm_client.chat.call_args_list[1].kwargs
+        assert first_kwargs["use_native_structured_output"] is True
+        assert second_kwargs["use_native_structured_output"] is False
