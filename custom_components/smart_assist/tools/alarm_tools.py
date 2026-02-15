@@ -118,6 +118,12 @@ class AlarmTool(BaseTool):
             description="Optional weekly recurrence weekdays as comma-separated values (e.g. mon,wed,fri).",
             required=False,
         ),
+        ToolParameter(
+            name="tts_targets",
+            type="string",
+            description="Optional comma-separated media_player targets for this alarm (e.g. media_player.kitchen,media_player.bedroom).",
+            required=False,
+        ),
     ]
 
     def __init__(self, hass: HomeAssistant, entry_id: str | None = None) -> None:
@@ -141,6 +147,7 @@ class AlarmTool(BaseTool):
         recurrence_frequency: str | None = None,
         recurrence_interval: int | None = None,
         recurrence_byweekday: str | None = None,
+        tts_targets: str | None = None,
     ) -> ToolResult:
         """Execute persistent alarm actions."""
         manager = self._get_manager()
@@ -161,11 +168,15 @@ class AlarmTool(BaseTool):
                     recurrence_interval,
                     recurrence_byweekday,
                 )
+                parsed_tts_targets = self._parse_tts_targets(tts_targets)
                 alarm, status = manager.create_alarm(
                     alarm_datetime,
                     label,
                     message,
                     recurrence=recurrence_payload,
+                    source_device_id=getattr(self, "_device_id", None),
+                    source_satellite_id=getattr(self, "_satellite_id", None),
+                    tts_targets=parsed_tts_targets,
                 )
                 if alarm is None:
                     return ToolResult(False, status)
@@ -289,6 +300,10 @@ class AlarmTool(BaseTool):
                 )
                 if recurrence_payload is not None:
                     updates["recurrence"] = recurrence_payload
+                if tts_targets is not None:
+                    updates["delivery"] = {
+                        "tts_targets": self._parse_tts_targets(tts_targets),
+                    }
 
                 updated_alarm, status = manager.update_alarm(
                     alarm_ref,
@@ -406,6 +421,23 @@ class AlarmTool(BaseTool):
             return dt_util.as_local(parsed).isoformat()
 
         return None
+
+    def _parse_tts_targets(self, raw_targets: str | None) -> list[str]:
+        """Parse comma-separated media_player entity ids into normalized unique list."""
+        if raw_targets is None:
+            return []
+
+        seen: set[str] = set()
+        targets: list[str] = []
+        for part in str(raw_targets).split(","):
+            entity_id = part.strip().lower()
+            if not entity_id or not entity_id.startswith("media_player."):
+                continue
+            if entity_id in seen:
+                continue
+            seen.add(entity_id)
+            targets.append(entity_id)
+        return targets
 
     async def _reconcile_managed_alarm(self, alarm: dict[str, Any]) -> None:
         """Best-effort managed automation sync; never block alarm command success."""

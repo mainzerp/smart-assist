@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from ..const import (
@@ -196,12 +197,35 @@ class DirectAlarmEngine:
             return self._failure_result(DIRECT_ALARM_ERROR_UNSUPPORTED, "tts_service_unavailable")
 
         message = str(alarm.get("message") or "").strip() or f"Alarm {alarm.get('label', 'Alarm')} fired"
-        target = str(self._config.get(CONF_DIRECT_ALARM_TTS_TARGET, DEFAULT_DIRECT_ALARM_TTS_TARGET) or "").strip()
-        payload: dict[str, Any] = {"message": message}
-        if target:
-            payload["entity_id"] = target
-        await self._async_call_service(domain, service, payload)
-        return self._ok_result(f"{domain}.{service}")
+        targets = self._resolve_tts_targets(alarm)
+
+        if not targets:
+            payload: dict[str, Any] = {"message": message}
+            await self._async_call_service(domain, service, payload)
+            return self._ok_result(f"{domain}.{service}")
+
+        successful = 0
+        failed = 0
+        for target in targets:
+            payload = {
+                "message": message,
+                "entity_id": target,
+            }
+            try:
+                await self._async_call_service(domain, service, payload)
+                successful += 1
+            except Exception as err:
+                _LOGGER.warning("Direct alarm TTS target failed for %s on %s: %s", alarm.get("id"), target, err)
+                failed += 1
+
+        if successful == 0:
+            return self._failure_result(DIRECT_ALARM_ERROR_SERVICE_FAILED, "tts_all_targets_failed")
+
+        result = self._ok_result(f"{domain}.{service}")
+        result["targets"] = targets
+        result["target_success_count"] = successful
+        result["target_failure_count"] = failed
+        return result
 
     async def _run_script_backend(self, alarm: dict[str, Any]) -> dict[str, Any]:
         script_entity_id = str(
@@ -281,6 +305,85 @@ class DirectAlarmEngine:
         if not domain or not service:
             return "", "", False
         return domain, service, True
+
+    def _resolve_tts_targets(self, alarm: dict[str, Any]) -> list[str]:
+        """Resolve TTS targets with per-alarm override and source-aware defaults."""
+        delivery = alarm.get("delivery") if isinstance(alarm.get("delivery"), dict) else {}
+        explicit_targets = self._normalize_targets(delivery.get("tts_targets"))
+        if explicit_targets:
+            return explicit_targets
+
+        source_device_id = str(delivery.get("source_device_id") or "").strip()
+        source_satellite_id = str(delivery.get("source_satellite_id") or "").strip()
+
+        by_device = self._resolve_media_players_by_device(source_device_id)
+        if by_device:
+            return by_device
+
+        by_satellite = self._resolve_media_players_by_satellite(source_satellite_id)
+        if by_satellite:
+            return by_satellite
+
+        configured = str(self._config.get(CONF_DIRECT_ALARM_TTS_TARGET, DEFAULT_DIRECT_ALARM_TTS_TARGET) or "")
+        return self._normalize_targets(configured)
+
+    def _normalize_targets(self, targets: Any) -> list[str]:
+        """Normalize targets from list or comma-separated string."""
+        if targets is None:
+            return []
+        if isinstance(targets, list):
+            raw_values = [str(item or "") for item in targets]
+        else:
+            raw_values = str(targets).split(",")
+
+        result: list[str] = []
+        seen: set[str] = set()
+        for value in raw_values:
+            entity_id = value.strip().lower()
+            if not entity_id or not entity_id.startswith("media_player."):
+                continue
+            if entity_id in seen:
+                continue
+            seen.add(entity_id)
+            result.append(entity_id)
+        return result
+
+    def _resolve_media_players_by_device(self, device_id: str) -> list[str]:
+        """Resolve media_player entity ids linked to the source device."""
+        if not device_id:
+            return []
+        try:
+            entity_registry = er.async_get(self._hass)
+            entries = er.async_entries_for_device(entity_registry, device_id)
+        except Exception:
+            return []
+
+        players = [
+            entry.entity_id
+            for entry in entries
+            if isinstance(entry.entity_id, str)
+            and entry.entity_id.startswith("media_player.")
+            and self._hass.states.get(entry.entity_id) is not None
+        ]
+        return self._normalize_targets(players)
+
+    def _resolve_media_players_by_satellite(self, satellite_id: str) -> list[str]:
+        """Best-effort match from satellite id to media_player entities."""
+        if not satellite_id:
+            return []
+
+        sat_name = satellite_id.lower().replace("assist_satellite.", "")
+        sat_parts = sat_name.replace("satellite_", "").replace("_assist_satellit", "").split("_")
+        candidates: list[str] = []
+
+        for state in self._hass.states.async_all("media_player"):
+            player_id = state.entity_id.lower()
+            for part in sat_parts:
+                if len(part) >= 3 and part in player_id:
+                    candidates.append(state.entity_id)
+                    break
+
+        return self._normalize_targets(candidates)
 
     def _ok_result(self, message: str) -> dict[str, Any]:
         return {

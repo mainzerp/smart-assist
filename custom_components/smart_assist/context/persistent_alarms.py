@@ -60,6 +60,15 @@ def _direct_defaults() -> dict[str, Any]:
     }
 
 
+def _delivery_defaults() -> dict[str, Any]:
+    """Return default delivery metadata block."""
+    return {
+        "source_device_id": None,
+        "source_satellite_id": None,
+        "tts_targets": [],
+    }
+
+
 class PersistentAlarmManager:
     """Manage restart-safe, absolute-time alarms."""
 
@@ -162,6 +171,9 @@ class PersistentAlarmManager:
         message: str | None = None,
         source: str | None = None,
         recurrence: dict[str, Any] | None = None,
+        source_device_id: str | None = None,
+        source_satellite_id: str | None = None,
+        tts_targets: list[str] | None = None,
     ) -> tuple[dict[str, Any] | None, str]:
         """Create a new alarm at an absolute datetime."""
         trigger_dt = self._parse_datetime(when_iso)
@@ -203,6 +215,11 @@ class PersistentAlarmManager:
             "fire_count": 0,
             "managed_automation": _managed_defaults(),
             "direct_execution": _direct_defaults(),
+            "delivery": {
+                "source_device_id": str(source_device_id or "").strip() or None,
+                "source_satellite_id": str(source_satellite_id or "").strip() or None,
+                "tts_targets": self._normalize_tts_targets(tts_targets),
+            },
         }
 
         self._data.setdefault("alarms", []).append(alarm)
@@ -410,6 +427,16 @@ class PersistentAlarmManager:
             if not isinstance(merged_direct.get("last_backend_results"), dict):
                 merged_direct["last_backend_results"] = {}
             alarm["direct_execution"] = merged_direct
+            delivery = alarm.get("delivery")
+            if not isinstance(delivery, dict):
+                delivery = {}
+            merged_delivery = _delivery_defaults()
+            merged_delivery.update({
+                "source_device_id": str(delivery.get("source_device_id") or "").strip() or None,
+                "source_satellite_id": str(delivery.get("source_satellite_id") or "").strip() or None,
+                "tts_targets": self._normalize_tts_targets(delivery.get("tts_targets")),
+            })
+            alarm["delivery"] = merged_delivery
             display_id = alarm.get("display_id")
             if not isinstance(display_id, str) or not display_id.strip():
                 display_id = self._generate_display_id(
@@ -485,6 +512,25 @@ class PersistentAlarmManager:
             if normalized_recurrence != alarm.get("recurrence"):
                 alarm["recurrence"] = normalized_recurrence
                 changed = True
+
+        if "delivery" in updates:
+            delivery_updates = updates.get("delivery")
+            if isinstance(delivery_updates, dict):
+                current_delivery = alarm.get("delivery")
+                if not isinstance(current_delivery, dict):
+                    current_delivery = _delivery_defaults()
+
+                next_delivery = dict(current_delivery)
+                if "tts_targets" in delivery_updates:
+                    next_delivery["tts_targets"] = self._normalize_tts_targets(delivery_updates.get("tts_targets"))
+                if "source_device_id" in delivery_updates:
+                    next_delivery["source_device_id"] = str(delivery_updates.get("source_device_id") or "").strip() or None
+                if "source_satellite_id" in delivery_updates:
+                    next_delivery["source_satellite_id"] = str(delivery_updates.get("source_satellite_id") or "").strip() or None
+
+                if next_delivery != current_delivery:
+                    alarm["delivery"] = next_delivery
+                    changed = True
 
         if reactivate:
             alarm["active"] = True
@@ -778,6 +824,24 @@ class PersistentAlarmManager:
                 return []
             result.add(weekday)
         return sorted(result)
+
+    def _normalize_tts_targets(self, targets: Any) -> list[str]:
+        """Normalize TTS targets into unique ordered media_player entity ids."""
+        if targets is None:
+            return []
+
+        values = targets if isinstance(targets, list) else [targets]
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            entity_id = str(value or "").strip().lower()
+            if not entity_id or not entity_id.startswith("media_player."):
+                continue
+            if entity_id in seen:
+                continue
+            seen.add(entity_id)
+            normalized.append(entity_id)
+        return normalized
 
     def _compute_next_occurrence(
         self,

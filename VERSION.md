@@ -4,9 +4,30 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.20.6 | 2026-02-15 |
+| Smart Assist | 1.21.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.21.0 (2026-02-15) - Per-Alarm TTS Target Routing
+
+**New Features:**
+- Added per-alarm TTS target support in `alarm` tool via optional `tts_targets` parameter (comma-separated `media_player.*` entity ids)
+- Added per-alarm delivery metadata persistence (`source_device_id`, `source_satellite_id`, `tts_targets`)
+- Added automatic default TTS routing for alarms to the originating request device/satellite when no explicit per-alarm target is provided
+- Added multi-target TTS dispatch per alarm when multiple targets are configured
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_direct_alarm_engine.py tests/test_persistent_alarms.py -q`: 24 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- tests/test_direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.20.6 (2026-02-15) - Store API Compatibility Fix
 
