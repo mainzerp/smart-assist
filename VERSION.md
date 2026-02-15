@@ -4,9 +4,28 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.1 | 2026-02-15 |
+| Smart Assist | 1.22.2 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.2 (2026-02-15) - Alarm Dashboard: Delete Obsolete Alarms
+
+**Fixes:**
+- Added permanent alarm deletion support in persistent alarm storage (`delete_alarm`) by alarm id/display id
+- Extended websocket alarm action handling with `delete` action, persistence save, and update signaling for dashboard refresh
+- Added `Delete` button in alarm dashboard table with confirmation prompt for removing obsolete alarms
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py tests/test_persistent_alarms.py -q`: 26 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.1 (2026-02-15) - Alarm Dashboard: Wake Options + No Managed Column
 

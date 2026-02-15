@@ -909,7 +909,7 @@ async def ws_alarms_data(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "smart_assist/alarm_action",
-        vol.Required("action"): vol.In(["snooze", "cancel", "status", "managed_reconcile_now", "edit"]),
+        vol.Required("action"): vol.In(["snooze", "cancel", "delete", "status", "managed_reconcile_now", "edit"]),
         vol.Optional("alarm_id"): str,
         vol.Optional("display_id"): str,
         vol.Optional("minutes"): int,
@@ -1036,6 +1036,45 @@ async def ws_alarm_action(
                 "success": True,
                 "message": "Alarm cancelled",
                 "alarm": _serialize_alarm({**alarm, "execution_mode": execution_mode}) if alarm else None,
+            },
+        )
+        return
+
+    if action == "delete":
+        if not alarm_ref:
+            connection.send_error(msg["id"], "invalid_format", "alarm_id or display_id is required")
+            return
+
+        alarm_before_delete = manager.get_alarm(str(alarm_ref))
+        if not manager.delete_alarm(str(alarm_ref)):
+            connection.send_error(msg["id"], "not_found", f"Alarm not found: {alarm_ref}")
+            return
+
+        await manager.async_force_save()
+        hass.bus.async_fire(
+            PERSISTENT_ALARM_EVENT_UPDATED,
+            {
+                "entry_id": entry.entry_id,
+                "alarm_id": alarm_before_delete.get("id") if alarm_before_delete else str(alarm_ref),
+                "display_id": alarm_before_delete.get("display_id") if alarm_before_delete else None,
+                "status": "deleted",
+                "active": False,
+                "scheduled_for": None,
+                "snoozed_until": None,
+                "updated_at": dt_util.now().isoformat(),
+                "reason": "delete",
+            },
+        )
+
+        from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+        async_dispatcher_send(hass, _build_alarm_update_signal_name(entry))
+        connection.send_result(
+            msg["id"],
+            {
+                "success": True,
+                "message": "Alarm deleted",
+                "deleted_alarm_id": alarm_before_delete.get("id") if alarm_before_delete else str(alarm_ref),
             },
         )
         return

@@ -756,6 +756,7 @@ class SmartAssistPanel extends HTMLElement {
       const statusCls = (alarm.status || 'upcoming');
       const canSnooze = alarm.status === 'fired' || alarm.active;
       const canCancel = alarm.active;
+      const canDelete = true;
       const recurrence = this._formatRecurrence(alarm.recurrence);
       const directStatus = this._esc(alarm.direct_last_state || '-');
       const directHint = alarm.direct_last_error
@@ -777,7 +778,8 @@ class SmartAssistPanel extends HTMLElement {
           + '<button class="refresh-btn alarm-edit-start-btn" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (alarm.can_edit ? '' : 'disabled') + '>Edit</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="5" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 5m</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="10" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 10m</button> '
-          + '<button class="refresh-btn alarm-action-btn" data-action="cancel" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canCancel ? '' : 'disabled') + '>Cancel</button>'
+          + '<button class="refresh-btn alarm-action-btn" data-action="cancel" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canCancel ? '' : 'disabled') + '>Cancel</button> '
+          + '<button class="refresh-btn alarm-action-btn alarm-delete-btn" data-action="delete" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canDelete ? '' : 'disabled') + '>Delete</button>'
         + '</td>'
         + '</tr>';
 
@@ -1585,6 +1587,10 @@ class SmartAssistPanel extends HTMLElement {
       const action = btn.dataset.action;
       const alarmId = btn.dataset.alarmId;
       const minutes = btn.dataset.minutes ? parseInt(btn.dataset.minutes, 10) : undefined;
+      if (action === 'delete') {
+        const confirmed = confirm('Delete this alarm permanently? This cannot be undone.');
+        if (!confirmed) return;
+      }
       this._runAlarmAction(action, alarmId, minutes);
     });
     this._bindAllClick(".alarm-edit-start-btn", (btn) => {

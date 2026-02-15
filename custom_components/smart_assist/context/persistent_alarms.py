@@ -264,6 +264,26 @@ class PersistentAlarmManager:
         self._dirty = True
         return True
 
+    def delete_alarm(self, alarm_id: str) -> bool:
+        """Delete alarm permanently by machine id or display id."""
+        target = self._normalize_lookup_value(alarm_id)
+        if not target:
+            return False
+
+        alarms = self._data.get("alarms", [])
+        if not isinstance(alarms, list):
+            return False
+
+        for index, alarm in enumerate(alarms):
+            alarm_id_value = self._normalize_lookup_value(str(alarm.get("id") or ""))
+            display_id_value = self._normalize_lookup_value(str(alarm.get("display_id") or ""))
+            if target in {alarm_id_value, display_id_value}:
+                del alarms[index]
+                self._dirty = True
+                return True
+
+        return False
+
     def snooze_alarm(
         self,
         alarm_id: str,
