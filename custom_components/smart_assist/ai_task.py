@@ -69,7 +69,7 @@ from .context.request_history import RequestHistoryEntry, RequestHistoryStore, T
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
-from .utils import execute_tools_parallel, get_config_value, sanitize_user_facing_error
+from .utils import get_config_value, sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -222,6 +222,8 @@ class SmartAssistAITask(AITaskEntity):
 
         self._last_tool_call_records: list[ToolCallRecord] = []
         self._last_llm_iterations: int = 1
+        self._last_history_prune_monotonic: float = 0.0
+        self._history_prune_interval_seconds: float = 300.0
 
     async def async_added_to_hass(self) -> None:
         """Set a deterministic initial state when the entity is first added."""
@@ -269,6 +271,8 @@ class SmartAssistAITask(AITaskEntity):
 
         response_content = ""
         result_data: Any = ""
+        request_success = True
+        request_error: str | None = None
 
         try:
             # Build messages for LLM
@@ -304,6 +308,8 @@ class SmartAssistAITask(AITaskEntity):
                 try:
                     structured_data = self._extract_json_payload(response_content)
                 except ValueError:
+                    request_success = False
+                    request_error = "structured_output_invalid_json"
                     result_data = self._structured_output_error_message(
                         language_prefix,
                         reason="invalid_json",
@@ -313,6 +319,8 @@ class SmartAssistAITask(AITaskEntity):
                     if is_valid:
                         result_data = structured_data
                     else:
+                        request_success = False
+                        request_error = "structured_output_schema_mismatch"
                         result_data = self._structured_output_error_message(
                             language_prefix,
                             reason="schema_mismatch",
@@ -321,6 +329,18 @@ class SmartAssistAITask(AITaskEntity):
                 result_data = response_content
         except Exception as e:
             _LOGGER.error("AI Task LLM call failed: %s", e)
+            request_success = False
+            sanitized_error = sanitize_user_facing_error(
+                e,
+                fallback="Task processing failed.",
+            )
+            request_error = json.dumps(
+                {
+                    "type": type(e).__name__,
+                    "message": sanitized_error,
+                },
+                ensure_ascii=False,
+            )
             if structured_requested:
                 result_data = self._structured_output_error_message(
                     language_prefix,
@@ -408,7 +428,10 @@ class SmartAssistAITask(AITaskEntity):
                 completion_tokens = getattr(metrics, "_last_completion_tokens", 0)
                 cached_tokens = getattr(metrics, "_last_cached_tokens", 0)
 
-            history_store.prune_older_than_days(retention_days)
+            now_mono = time.monotonic()
+            if now_mono - self._last_history_prune_monotonic >= self._history_prune_interval_seconds:
+                history_store.prune_older_than_days(retention_days)
+                self._last_history_prune_monotonic = now_mono
             history_store.add_entry(
                 RequestHistoryEntry(
                     id=RequestHistoryStore.generate_id(),
@@ -427,8 +450,8 @@ class SmartAssistAITask(AITaskEntity):
                     model=self._get_config(CONF_MODEL, DEFAULT_MODEL),
                     llm_iterations=self._last_llm_iterations,
                     tools_used=sanitized_tool_calls,
-                    success=True,
-                    error=None,
+                    success=request_success,
+                    error=request_error,
                     is_nevermind=False,
                     is_system_call=True,
                 )
@@ -785,28 +808,79 @@ Focus on completing the task efficiently and providing structured, useful output
 
             executed_messages: dict[str, ChatMessage] = {}
             if allowed_tool_calls:
-                executed = await execute_tools_parallel(
-                    allowed_tool_calls,
-                    self._tool_registry,
-                    max_retries=max_retries,
-                    latency_budget_ms=latency_budget_ms,
-                )
-                for tool_message in executed:
-                    if tool_message.tool_call_id is None:
-                        continue
-                    executed_messages[tool_message.tool_call_id] = tool_message
+                async def _execute_single_tool_call(tool_call: Any) -> tuple[ChatMessage, ToolCallRecord]:
+                    started = time.monotonic()
+                    try:
+                        try:
+                            tool_result = await self._tool_registry.execute(
+                                tool_call.name,
+                                tool_call.arguments,
+                                max_retries=max_retries,
+                                latency_budget_ms=latency_budget_ms,
+                            )
+                        except TypeError:
+                            tool_result = await self._tool_registry.execute(
+                                tool_call.name,
+                                tool_call.arguments,
+                            )
 
-                for call in allowed_tool_calls:
-                    tool_message = executed_messages.get(call.id)
-                    success = bool(tool_message and not tool_message.content.startswith("Error:"))
-                    tool_call_records.append(
-                        ToolCallRecord(
-                            name=call.name,
-                            success=success,
-                            execution_time_ms=0.0,
-                            arguments_summary=str(call.arguments),
+                        result_data = tool_result.data if isinstance(tool_result.data, dict) else {}
+                        execution_time_ms = float(
+                            result_data.get(
+                                "execution_time_ms",
+                                (time.monotonic() - started) * 1000,
+                            )
                         )
-                    )
+                        timed_out = bool(result_data.get("timed_out", False))
+                        retries_used = int(result_data.get("retries_used", 0))
+                        latency_budget_used = result_data.get("latency_budget_ms", latency_budget_ms)
+
+                        tool_message = ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=tool_result.to_string(),
+                            tool_call_id=tool_call.id,
+                            name=tool_call.name,
+                        )
+                        record = ToolCallRecord(
+                            name=tool_call.name,
+                            success=bool(tool_result.success),
+                            execution_time_ms=execution_time_ms,
+                            arguments_summary=str(tool_call.arguments),
+                            timed_out=timed_out,
+                            retries_used=retries_used,
+                            latency_budget_ms=(
+                                int(latency_budget_used)
+                                if isinstance(latency_budget_used, (int, float))
+                                else latency_budget_ms
+                            ),
+                        )
+                        return tool_message, record
+                    except Exception as err:
+                        execution_time_ms = (time.monotonic() - started) * 1000
+                        tool_message = ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=f"Error: {err}",
+                            tool_call_id=tool_call.id,
+                            name=tool_call.name,
+                        )
+                        record = ToolCallRecord(
+                            name=tool_call.name,
+                            success=False,
+                            execution_time_ms=execution_time_ms,
+                            arguments_summary=str(tool_call.arguments),
+                            timed_out=isinstance(err, asyncio.TimeoutError),
+                            retries_used=max_retries,
+                            latency_budget_ms=latency_budget_ms,
+                        )
+                        return tool_message, record
+
+                executed_pairs = await asyncio.gather(
+                    *[_execute_single_tool_call(call) for call in allowed_tool_calls],
+                )
+                for tool_message, record in executed_pairs:
+                    if tool_message.tool_call_id is not None:
+                        executed_messages[tool_message.tool_call_id] = tool_message
+                    tool_call_records.append(record)
 
             tool_messages: list[ChatMessage] = []
             for tool_call in response.tool_calls:
@@ -819,6 +893,9 @@ Focus on completing the task efficiently and providing structured, useful output
                             success=False,
                             execution_time_ms=0.0,
                             arguments_summary=str(tool_call.arguments),
+                            timed_out=False,
+                            retries_used=0,
+                            latency_budget_ms=latency_budget_ms,
                         )
                     )
                     continue

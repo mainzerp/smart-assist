@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-15 (v1.19.0)
+> Last updated: 2026-02-15 (v1.23.2)
 
 ## Completed Milestones
 

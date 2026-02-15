@@ -15,6 +15,7 @@ import uuid
 import calendar
 from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -837,29 +838,58 @@ class PersistentAlarmManager:
 
         frequency = str(recurrence.get("frequency") or "")
         interval = int(recurrence.get("interval") or 1)
+        recurrence_timezone = str(recurrence.get("timezone") or dt_util.DEFAULT_TIME_ZONE)
+
+        try:
+            tzinfo = ZoneInfo(recurrence_timezone)
+        except Exception:
+            tzinfo = dt_util.DEFAULT_TIME_ZONE
+
+        if scheduled_for.tzinfo is None:
+            scheduled_for = scheduled_for.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+
+        scheduled_local = scheduled_for.astimezone(tzinfo)
+        reference_local = reference.astimezone(tzinfo)
+
+        def _local_candidate_for_date(day: datetime) -> datetime:
+            return datetime(
+                year=day.year,
+                month=day.month,
+                day=day.day,
+                hour=scheduled_local.hour,
+                minute=scheduled_local.minute,
+                second=scheduled_local.second,
+                microsecond=scheduled_local.microsecond,
+                tzinfo=tzinfo,
+                fold=scheduled_local.fold,
+            )
 
         if frequency == "daily":
-            next_dt = scheduled_for
+            next_dt = scheduled_local
             for _ in range(2048):
-                next_dt = next_dt + timedelta(days=interval)
-                if next_dt > reference:
-                    return next_dt
+                next_day = next_dt + timedelta(days=interval)
+                next_dt = _local_candidate_for_date(next_day)
+                if next_dt > reference_local:
+                    return next_dt.astimezone(dt_util.DEFAULT_TIME_ZONE)
             return None
 
         if frequency == "weekly":
             weekdays = recurrence.get("byweekday") if isinstance(recurrence.get("byweekday"), list) else []
             weekday_set = {int(day) for day in weekdays if isinstance(day, int)}
             if not weekday_set:
-                weekday_set = {int(scheduled_for.weekday())}
+                weekday_set = {int(scheduled_local.weekday())}
 
-            candidate = scheduled_for + timedelta(days=1)
-            base_week_start = scheduled_for - timedelta(days=scheduled_for.weekday())
+            candidate = scheduled_local + timedelta(days=1)
+            base_week_start = scheduled_local - timedelta(days=scheduled_local.weekday())
             for _ in range(4096):
+                candidate = _local_candidate_for_date(candidate)
                 candidate_week_start = candidate - timedelta(days=candidate.weekday())
                 weeks_since_base = int((candidate_week_start - base_week_start).days // 7)
                 if weeks_since_base >= 0 and weeks_since_base % interval == 0:
-                    if candidate.weekday() in weekday_set and candidate > reference:
-                        return candidate
+                    if candidate.weekday() in weekday_set and candidate > reference_local:
+                        return candidate.astimezone(dt_util.DEFAULT_TIME_ZONE)
                 candidate = candidate + timedelta(days=1)
             return None
 

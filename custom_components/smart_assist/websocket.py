@@ -19,7 +19,6 @@ import voluptuous as vol
 
 from .const import (
     CONF_ASK_FOLLOWUP,
-    CONF_ALARM_EXECUTION_MODE,
     CONF_CALENDAR_CONTEXT,
     CONF_CLEAN_RESPONSES,
     CONF_ENABLE_CACHE_WARMING,
@@ -254,11 +253,11 @@ def _serialize_alarm(hass: HomeAssistant, alarm: dict[str, Any]) -> dict[str, An
 
 
 def _get_alarm_execution_mode_for_entry(hass: HomeAssistant, entry: Any) -> str:
-    """Return normalized alarm execution mode for entry runtime data."""
-    config = _get_entry_data(hass, entry).get("alarm_execution_config") or {}
-    mode = str(config.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE) or "")
-    if mode in {"managed_only", "direct_only", "hybrid"}:
-        return mode
+    """Return normalized alarm execution mode for entry runtime data.
+
+    Smart Assist now supports only direct alarm execution mode.
+    """
+    _ = (hass, entry)
     return DEFAULT_ALARM_EXECUTION_MODE
 
 

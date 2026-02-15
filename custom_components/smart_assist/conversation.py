@@ -98,6 +98,9 @@ try:
         DEFAULT_PROVIDER,
         DEFAULT_TEMPERATURE,
         DOMAIN,
+        HISTORY_REDACTION_MAX_PATTERNS,
+        HISTORY_REDACTION_MAX_PATTERN_LENGTH,
+        HISTORY_REDACTION_MAX_REGEX_TEXT_LENGTH,
         LLM_PROVIDER_GROQ,
         LLM_PROVIDER_OLLAMA,
         MAX_TOOL_ITERATIONS,
@@ -284,6 +287,8 @@ class SmartAssistConversationEntity(ConversationEntity):
         self._persistent_alarm_manager: PersistentAlarmManager | None = entry_data.get(
             "persistent_alarm_manager"
         )
+        self._last_history_prune_monotonic: float = 0.0
+        self._history_prune_interval_seconds: float = 300.0
 
         # User resolver for multi-user support
         user_mappings = entry.options.get(
@@ -347,7 +352,23 @@ class SmartAssistConversationEntity(ConversationEntity):
                 item.strip()
                 for item in str(raw).replace("\n", ",").split(",")
             ]
-        return [pattern for pattern in patterns if pattern]
+        filtered = [
+            pattern
+            for pattern in patterns
+            if pattern and len(pattern) <= HISTORY_REDACTION_MAX_PATTERN_LENGTH
+        ]
+        return filtered[:HISTORY_REDACTION_MAX_PATTERNS]
+
+    @staticmethod
+    def _is_safe_redaction_regex(pattern: str) -> bool:
+        """Return True when a regex pattern is safe enough for runtime substitution."""
+        if not pattern or len(pattern) > HISTORY_REDACTION_MAX_PATTERN_LENGTH:
+            return False
+        if "(?" in pattern or "\\1" in pattern or "\\g<" in pattern:
+            return False
+        if re.search(r"\([^)]*[+*][^)]*\)[+*{]", pattern):
+            return False
+        return True
 
     def _apply_history_redaction(self, text: str, patterns: list[str]) -> str:
         """Redact configured patterns from text for request history persistence."""
@@ -355,11 +376,15 @@ class SmartAssistConversationEntity(ConversationEntity):
             return text
 
         redacted = text
+        apply_regex = len(redacted) <= HISTORY_REDACTION_MAX_REGEX_TEXT_LENGTH
         for pattern in patterns:
             try:
-                redacted = re.sub(pattern, "[REDACTED]", redacted, flags=re.IGNORECASE)
+                if apply_regex and self._is_safe_redaction_regex(pattern):
+                    redacted = re.sub(pattern, "[REDACTED]", redacted, flags=re.IGNORECASE)
+                else:
+                    redacted = re.sub(re.escape(pattern), "[REDACTED]", redacted, flags=re.IGNORECASE)
             except re.error:
-                redacted = redacted.replace(pattern, "[REDACTED]")
+                redacted = re.sub(re.escape(pattern), "[REDACTED]", redacted, flags=re.IGNORECASE)
         return redacted
 
     def _sanitize_tool_call_records(
@@ -1054,7 +1079,10 @@ class SmartAssistConversationEntity(ConversationEntity):
                     redact_patterns,
                 )
 
-                history_store.prune_older_than_days(retention_days)
+                now_mono = time.monotonic()
+                if now_mono - self._last_history_prune_monotonic >= self._history_prune_interval_seconds:
+                    history_store.prune_older_than_days(retention_days)
+                    self._last_history_prune_monotonic = now_mono
 
                 entry = RequestHistoryEntry(
                     id=RequestHistoryStore.generate_id(),

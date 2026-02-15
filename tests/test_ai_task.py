@@ -37,6 +37,8 @@ class TestBuildMessages:
         hass = MagicMock()
         hass.config.language = "en-US"
         hass.data = {"smart_assist": {"test_entry": {"tasks": {}}}}
+        hass.async_create_task = lambda coro: coro.close()
+        hass.async_create_task = lambda coro: coro.close()
 
         config_entry = MagicMock()
         config_entry.entry_id = "test_entry"
@@ -131,6 +133,7 @@ class TestProcessWithTools:
         hass = MagicMock()
         hass.config.language = "en-US"
         hass.data = {"smart_assist": {"test_entry": {"tasks": {}}}}
+        hass.async_create_task = lambda coro: coro.close()
 
         config_entry = MagicMock()
         config_entry.entry_id = "test_entry"
@@ -338,17 +341,16 @@ class TestProcessWithTools:
             ]
         )
 
-        with patch("custom_components.smart_assist.ai_task.execute_tools_parallel", new=AsyncMock()) as mock_execute:
-            result = await entity._process_with_tools(
-                [
-                    ChatMessage(role=MessageRole.SYSTEM, content="System"),
-                    ChatMessage(role=MessageRole.USER, content="Turn on kitchen light"),
-                ],
-                [],
-            )
+        result = await entity._process_with_tools(
+            [
+                ChatMessage(role=MessageRole.SYSTEM, content="System"),
+                ChatMessage(role=MessageRole.USER, content="Turn on kitchen light"),
+            ],
+            [],
+        )
 
         assert result == "Control blocked."
-        mock_execute.assert_not_called()
+        entity._tool_registry.execute.assert_not_called()
         second_messages = entity._llm_client.chat.call_args_list[1].kwargs["messages"]
         tool_messages = [m for m in second_messages if m.role == MessageRole.TOOL]
         assert any("disabled" in m.content.lower() for m in tool_messages)
@@ -373,17 +375,16 @@ class TestProcessWithTools:
             ]
         )
 
-        with patch("custom_components.smart_assist.ai_task.execute_tools_parallel", new=AsyncMock()) as mock_execute:
-            result = await entity._process_with_tools(
-                [
-                    ChatMessage(role=MessageRole.SYSTEM, content="System"),
-                    ChatMessage(role=MessageRole.USER, content="Unlock front door"),
-                ],
-                [],
-            )
+        result = await entity._process_with_tools(
+            [
+                ChatMessage(role=MessageRole.SYSTEM, content="System"),
+                ChatMessage(role=MessageRole.USER, content="Unlock front door"),
+            ],
+            [],
+        )
 
         assert result == "Lock blocked."
-        mock_execute.assert_not_called()
+        entity._tool_registry.execute.assert_not_called()
         second_messages = entity._llm_client.chat.call_args_list[1].kwargs["messages"]
         tool_messages = [m for m in second_messages if m.role == MessageRole.TOOL]
         assert any("lock" in m.content.lower() and "disabled" in m.content.lower() for m in tool_messages)
@@ -407,31 +408,20 @@ class TestProcessWithTools:
                 ChatResponse(content="Light updated.", tool_calls=[]),
             ]
         )
-
-        mocked_tool_messages = [
-            ChatMessage(
-                role=MessageRole.TOOL,
-                content="OK",
-                tool_call_id="tc1",
-                name="control",
-            )
-        ]
-        with patch(
-            "custom_components.smart_assist.ai_task.execute_tools_parallel",
-            new=AsyncMock(return_value=mocked_tool_messages),
-        ) as mock_execute:
-            result = await entity._process_with_tools(
-                [
-                    ChatMessage(role=MessageRole.SYSTEM, content="System"),
-                    ChatMessage(role=MessageRole.USER, content="Turn on kitchen light"),
-                ],
-                [],
-            )
+        entity._tool_registry.execute = AsyncMock(
+            return_value=ToolResult(success=True, message="OK")
+        )
+        result = await entity._process_with_tools(
+            [
+                ChatMessage(role=MessageRole.SYSTEM, content="System"),
+                ChatMessage(role=MessageRole.USER, content="Turn on kitchen light"),
+            ],
+            [],
+        )
 
         assert result == "Light updated."
-        mock_execute.assert_awaited_once()
-        assert len(mock_execute.await_args.args[0]) == 1
-        assert mock_execute.await_args.args[0][0].name == "control"
+        entity._tool_registry.execute.assert_awaited_once()
+        assert entity._tool_registry.execute.await_args.args[0] == "control"
 
     @pytest.mark.asyncio
     async def test_ai_task_allows_lock_control_when_both_toggles_enabled(self):
@@ -452,31 +442,20 @@ class TestProcessWithTools:
                 ChatResponse(content="Door unlocked.", tool_calls=[]),
             ]
         )
-
-        mocked_tool_messages = [
-            ChatMessage(
-                role=MessageRole.TOOL,
-                content="Unlocked",
-                tool_call_id="tc1",
-                name="control",
-            )
-        ]
-        with patch(
-            "custom_components.smart_assist.ai_task.execute_tools_parallel",
-            new=AsyncMock(return_value=mocked_tool_messages),
-        ) as mock_execute:
-            result = await entity._process_with_tools(
-                [
-                    ChatMessage(role=MessageRole.SYSTEM, content="System"),
-                    ChatMessage(role=MessageRole.USER, content="Unlock front door"),
-                ],
-                [],
-            )
+        entity._tool_registry.execute = AsyncMock(
+            return_value=ToolResult(success=True, message="Unlocked")
+        )
+        result = await entity._process_with_tools(
+            [
+                ChatMessage(role=MessageRole.SYSTEM, content="System"),
+                ChatMessage(role=MessageRole.USER, content="Unlock front door"),
+            ],
+            [],
+        )
 
         assert result == "Door unlocked."
-        mock_execute.assert_awaited_once()
-        assert len(mock_execute.await_args.args[0]) == 1
-        assert mock_execute.await_args.args[0][0].arguments["entity_id"] == "lock.front_door"
+        entity._tool_registry.execute.assert_awaited_once()
+        assert entity._tool_registry.execute.await_args.args[1]["entity_id"] == "lock.front_door"
 
 
 class TestTaskToolRegistryInitialization:
@@ -718,6 +697,93 @@ class TestGenerateDataErrorSanitization:
         assert result.data == "OK"
         history_store.add_entry.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_async_generate_data_records_failed_history_entry_on_exception(self):
+        entity = self._create_task_entity()
+        entity._process_with_tools = AsyncMock(side_effect=RuntimeError("provider failed"))
+
+        history_store = MagicMock()
+        history_store.prune_older_than_days = MagicMock()
+        history_store.add_entry = MagicMock()
+        history_store.async_save = AsyncMock()
+        entity.hass.data["smart_assist"]["test_entry"]["request_history"] = history_store
+
+        task = MagicMock()
+        task.task_name = "test"
+        task.instructions = "run task"
+        task.structure = None
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        result = await entity._async_generate_data(task, chat_log)
+
+        assert isinstance(result.data, str)
+        history_store.add_entry.assert_called_once()
+        added_entry = history_store.add_entry.call_args.args[0]
+        assert added_entry.success is False
+        assert isinstance(added_entry.error, str)
+        assert added_entry.error
+
+    @pytest.mark.asyncio
+    async def test_async_generate_data_records_success_history_entry_on_success(self):
+        entity = self._create_task_entity()
+        entity._process_with_tools = AsyncMock(return_value="done")
+
+        history_store = MagicMock()
+        history_store.prune_older_than_days = MagicMock()
+        history_store.add_entry = MagicMock()
+        history_store.async_save = AsyncMock()
+        entity.hass.data["smart_assist"]["test_entry"]["request_history"] = history_store
+
+        task = MagicMock()
+        task.task_name = "test"
+        task.instructions = "run task"
+        task.structure = None
+        chat_log = MagicMock()
+        chat_log.conversation_id = "conv1"
+
+        await entity._async_generate_data(task, chat_log)
+
+        added_entry = history_store.add_entry.call_args.args[0]
+        assert added_entry.success is True
+        assert added_entry.error is None
+
+    @pytest.mark.asyncio
+    async def test_process_with_tools_records_execution_time_metadata(self):
+        entity = self._create_task_entity()
+        entity._subentry.data["task_allow_control"] = True
+
+        tool_call = ToolCall(
+            id="tc1",
+            name="control",
+            arguments={"entity_id": "light.kitchen", "action": "turn_on"},
+        )
+        entity._llm_client.chat = AsyncMock(
+            side_effect=[
+                ChatResponse(content="", tool_calls=[tool_call]),
+                ChatResponse(content="done", tool_calls=[]),
+            ]
+        )
+        entity._tool_registry.execute = AsyncMock(
+            return_value=ToolResult(
+                success=True,
+                message="OK",
+                data={"execution_time_ms": 12.5, "timed_out": False, "retries_used": 0},
+            )
+        )
+
+        result = await entity._process_with_tools(
+            [
+                ChatMessage(role=MessageRole.SYSTEM, content="System"),
+                ChatMessage(role=MessageRole.USER, content="Turn on kitchen light"),
+            ],
+            [],
+        )
+
+        assert result == "done"
+        assert len(entity._last_tool_call_records) == 1
+        assert entity._last_tool_call_records[0].execution_time_ms > 0
+
 
 class TestStructuredGenerateData:
     """Structured output behavior for AI Task generate-data."""
@@ -728,6 +794,7 @@ class TestStructuredGenerateData:
         hass = MagicMock()
         hass.config.language = "de-DE" if language == "de" else "en-US"
         hass.data = {"smart_assist": {"test_entry": {"tasks": {}}}}
+        hass.async_create_task = lambda coro: coro.close()
 
         config_entry = MagicMock()
         config_entry.entry_id = "test_entry"

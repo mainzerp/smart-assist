@@ -4,9 +4,43 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.1  | 2026-02-15 |
+| Smart Assist | 1.23.2  | 2026-02-15 |
 
 ## Version History
+
+### v1.23.2 (2026-02-15) - Full Project Code Review Remediation
+
+**Fixes:**
+- AI Task request history now records truthful `success`/`error` outcomes and keeps failure metadata structured
+- AI Task tool telemetry now records real execution timing and timeout/retry metadata
+- Added timeout guard for `HassNevermind` LLM handling with deterministic fallback to `OK`
+- Recurring alarm next-occurrence now honors recurrence timezone semantics with DST-stable local-time advancement
+- Request-history pruning now uses timezone-aware comparisons and debounced deferred save scheduling
+- Privacy-safe default for request-history content storage changed to disabled by default (`false`)
+- Conversation history redaction now enforces bounded pattern/text safeguards and bounded prune cadence
+- WebSocket alarm execution mode normalization simplified to direct-only
+
+**Validation:**
+- Targeted tests executed for AI task, request history, persistent alarms, websocket, cancel handler, and conversation redaction (see test summary in implementation output)
+
+**Files modified:**
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/request_history.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/websocket.py
+- tests/test_ai_task.py
+- tests/test_persistent_alarms.py
+- tests/test_request_history.py
+- tests/test_websocket.py
+- tests/test_init_cancel_handler.py
+- tests/test_conversation_history_redaction.py
+- README.md
+- ROADMAP.md
+- .github/instructions/project-definition.md
+- VERSION.md
 
 ### v1.23.1 (2026-02-15) - Alarm Wake Text: Inject User System Prompt
 

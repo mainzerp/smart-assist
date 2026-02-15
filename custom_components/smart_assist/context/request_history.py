@@ -16,6 +16,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from ..const import (
     REQUEST_HISTORY_STORAGE_KEY,
@@ -181,8 +182,11 @@ class RequestHistoryStore:
         self._dirty = False
         self._last_save: float = 0.0
         self._save_debounce_seconds = 30.0
+        self._pending_save_handle = None
         self._tool_analytics_cache: dict[str, list[dict[str, Any]]] = {}
         self._summary_stats_cache: dict[str, dict[str, Any]] = {}
+        self._last_prune_monotonic: float = 0.0
+        self._prune_interval_seconds: float = 300.0
 
     @staticmethod
     def _analytics_cache_key(agent_id: str | None) -> str:
@@ -220,11 +224,26 @@ class RequestHistoryStore:
             return
         now = time.monotonic()
         if now - self._last_save < self._save_debounce_seconds:
+            if self._pending_save_handle is None and hasattr(self._hass, "loop"):
+                remaining = self._save_debounce_seconds - (now - self._last_save)
+                self._pending_save_handle = self._hass.loop.call_later(
+                    max(0.1, remaining + 0.1),
+                    lambda: self._hass.async_create_task(self._deferred_save()),
+                )
             return
         await self._force_save()
 
+    async def _deferred_save(self) -> None:
+        """Execute deferred save once debounce window expires."""
+        self._pending_save_handle = None
+        if self._dirty:
+            await self._force_save()
+
     async def _force_save(self) -> None:
         """Force save immediately."""
+        if self._pending_save_handle is not None:
+            self._pending_save_handle.cancel()
+            self._pending_save_handle = None
         try:
             await self._store.async_save({
                 "version": REQUEST_HISTORY_STORAGE_VERSION,
@@ -243,6 +262,9 @@ class RequestHistoryStore:
 
     async def async_shutdown(self) -> None:
         """Save pending changes on shutdown."""
+        if self._pending_save_handle is not None:
+            self._pending_save_handle.cancel()
+            self._pending_save_handle = None
         if self._dirty:
             await self._force_save()
 
@@ -407,7 +429,12 @@ class RequestHistoryStore:
         if retention_days < 1:
             return 0
 
-        cutoff = datetime.now() - timedelta(days=retention_days)
+        now_monotonic = time.monotonic()
+        if now_monotonic - self._last_prune_monotonic < self._prune_interval_seconds:
+            return 0
+        self._last_prune_monotonic = now_monotonic
+
+        cutoff = dt_util.now() - timedelta(days=retention_days)
         before = len(self._entries)
         kept: list[dict[str, Any]] = []
 
@@ -418,9 +445,12 @@ class RequestHistoryStore:
                 continue
 
             try:
-                entry_dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-                if entry_dt.tzinfo is not None:
-                    entry_dt = entry_dt.replace(tzinfo=None)
+                entry_dt = dt_util.parse_datetime(str(ts))
+                if entry_dt is None:
+                    entry_dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                if entry_dt.tzinfo is None:
+                    entry_dt = entry_dt.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+                entry_dt = dt_util.as_local(entry_dt)
             except ValueError:
                 kept.append(entry)
                 continue

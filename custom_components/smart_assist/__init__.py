@@ -74,6 +74,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # Platforms are set up from subentries (conversation and ai_task)
 PLATFORMS: list[Platform] = [Platform.AI_TASK, Platform.CONVERSATION, Platform.SENSOR]
+NEVERMIND_LLM_TIMEOUT_SECONDS = 4.0
 
 
 class SmartAssistNevermindHandler:
@@ -160,8 +161,9 @@ class SmartAssistNevermindHandler:
                     ),
                 ]
 
-                llm_response = await llm_client.chat(
-                    messages=messages, tools=[]
+                llm_response = await asyncio.wait_for(
+                    llm_client.chat(messages=messages, tools=[]),
+                    timeout=NEVERMIND_LLM_TIMEOUT_SECONDS,
                 )
 
                 if llm_response.content and llm_response.content.strip():
@@ -174,6 +176,11 @@ class SmartAssistNevermindHandler:
                         "HassNevermind: LLM response: %s", speech
                     )
                     return response
+            except asyncio.TimeoutError:
+                _LOGGER.warning(
+                    "HassNevermind: LLM response timed out after %.1fs, using fallback",
+                    NEVERMIND_LLM_TIMEOUT_SECONDS,
+                )
             except Exception as err:
                 _LOGGER.debug(
                     "HassNevermind: LLM call failed, using fallback: %s", err
