@@ -843,6 +843,14 @@ class SmartAssistPanel extends HTMLElement {
     const frequency = this._esc(recurrence.frequency || '');
     const interval = this._esc(String(recurrence.interval || 1));
     const reactivateSuggested = (alarm.status === 'fired' || alarm.status === 'dismissed') ? 'checked' : '';
+    const weekdays = Array.isArray(recurrence.byweekday) ? recurrence.byweekday : [];
+    const weekdayCodes = ['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su'];
+    const weekdayLabels = { mo: 'Mo', tu: 'Tu', we: 'We', th: 'Th', fr: 'Fr', sa: 'Sa', su: 'Su' };
+    let weekdayHtml = '';
+    for (const code of weekdayCodes) {
+      const checked = weekdays.includes(code) ? ' checked' : '';
+      weekdayHtml += '<label style="margin-right:8px;"><input class="alarm-edit-weekday" type="checkbox" value="' + code + '"' + checked + '> ' + weekdayLabels[code] + '</label>';
+    }
 
     return '<tr data-alarm-edit-id="' + this._esc(alarm.id || '') + '">'
       + '<td colspan="10" style="background:var(--ha-card-background, #fff);">'
@@ -866,7 +874,9 @@ class SmartAssistPanel extends HTMLElement {
       + '<div>'
       + '<button class="refresh-btn alarm-edit-save-btn" data-alarm-id="' + this._esc(alarm.id || '') + '">Save</button> '
       + '<button class="refresh-btn alarm-edit-cancel-btn" data-alarm-id="' + this._esc(alarm.id || '') + '">Cancel</button>'
-      + '</div></div></div></td></tr>';
+        + '</div></div>'
+        + '<div style="grid-column:1 / -1;font-size:12px;">Weekly days: ' + weekdayHtml + '</div>'
+        + '</div></td></tr>';
   }
 
   _renderCalendarTab() {
@@ -1236,6 +1246,7 @@ class SmartAssistPanel extends HTMLElement {
     const recurrenceFrequency = (row.querySelector('.alarm-edit-recurrence-frequency')?.value || '').trim().toLowerCase();
     const recurrenceIntervalRaw = (row.querySelector('.alarm-edit-recurrence-interval')?.value || '1').trim();
     const reactivate = Boolean(row.querySelector('.alarm-edit-reactivate')?.checked);
+    const selectedWeekdays = Array.from(row.querySelectorAll('.alarm-edit-weekday:checked')).map((el) => String(el.value || '').trim().toLowerCase());
 
     let recurrence = null;
     if (recurrenceFrequency) {
@@ -1246,6 +1257,14 @@ class SmartAssistPanel extends HTMLElement {
         return;
       }
       recurrence = { frequency: recurrenceFrequency, interval: recurrenceInterval };
+      if (recurrenceFrequency === 'weekly') {
+        if (!selectedWeekdays.length) {
+          this._alarmsError = 'Please select at least one weekday for weekly recurrence';
+          this._render();
+          return;
+        }
+        recurrence.byweekday = selectedWeekdays;
+      }
     }
 
     try {

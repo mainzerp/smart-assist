@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.20.1 | 2026-02-15 |
+| Smart Assist | 1.20.2 | 2026-02-15 |
 
 ## Version History
+
+### v1.20.2 (2026-02-15) - Weekly Day Picker in Inline Alarm Edit
+
+**Improvements:**
+- Added weekday checkboxes (Mo-Su) for weekly recurrence in inline alarm editor
+- Added validation requiring at least one weekday when `weekly` recurrence is selected
+- Included selected weekdays in dashboard edit payload for recurrence updates
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.20.1 (2026-02-15) - Inline Alarm Edit UX
 
