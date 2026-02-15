@@ -185,6 +185,7 @@ class ToolRegistry:
         last_error: Exception | None = None
         timed_out = False
         start = time.monotonic()
+        normalized_arguments = self._normalize_arguments(arguments)
 
         for attempt in range(1, attempts_allowed + 1):
             try:
@@ -193,13 +194,13 @@ class ToolRegistry:
                     name,
                     attempt,
                     attempts_allowed,
-                    arguments,
+                    normalized_arguments,
                 )
                 if latency_budget_ms and latency_budget_ms > 0:
                     async with asyncio.timeout(latency_budget_ms / 1000):
-                        result = await tool.execute(**arguments)
+                        result = await tool.execute(**normalized_arguments)
                 else:
-                    result = await tool.execute(**arguments)
+                    result = await tool.execute(**normalized_arguments)
 
                 elapsed_ms = (time.monotonic() - start) * 1000
                 result.data["execution_time_ms"] = round(elapsed_ms, 2)
@@ -259,3 +260,18 @@ class ToolRegistry:
                 "latency_budget_ms": latency_budget_ms,
             },
         )
+
+    def _normalize_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Normalize tool argument keys from LLM output into safe kwargs names."""
+        normalized: dict[str, Any] = {}
+        for key, value in (arguments or {}).items():
+            raw_key = str(key)
+            normalized_key = "".join(raw_key.split())
+            if normalized_key != raw_key:
+                _LOGGER.debug(
+                    "Normalized tool arg key: %s -> %s",
+                    raw_key,
+                    normalized_key,
+                )
+            normalized[normalized_key] = value
+        return normalized

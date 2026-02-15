@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.15 | 2026-02-15 |
+| Smart Assist | 1.22.16 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.16 (2026-02-15) - Tool Arg Key Whitespace Normalization
+
+**Fixes:**
+- Tool dispatch now normalizes argument keys by removing whitespace before calling tool handlers
+- Prevents failures like `unexpected keyword argument 'wake_ text_include_news'` when LLM emits malformed key names
+- Keeps retry flow stable by passing normalized argument keys consistently across attempts
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_tools.py -q`: 41 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/tools/base.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.15 (2026-02-15) - Alarm Tool Typo Alias Hotfix
 
