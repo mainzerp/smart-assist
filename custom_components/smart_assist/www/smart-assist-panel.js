@@ -7,6 +7,8 @@
 
 const DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS = 30;
 const CALENDAR_CACHE_TTL_MS = 30000;
+const WS_CALL_TIMEOUT_MS = 20000;
+const STUCK_REQUEST_THRESHOLD_MS = 60000;
 const HISTORY_PAGE_SIZE = 50;
 const DASHBOARD_TABS = [
   { id: "overview", label: "Overview" },
@@ -50,6 +52,13 @@ class SmartAssistPanel extends HTMLElement {
     this._lastSubscriptionUpdate = 0;
     this._subscriptionHealthy = false;
     this._renderQueued = false;
+    this._fetchStartedAt = 0;
+    this._historyFetchStartedAt = 0;
+    this._promptFetchStartedAt = 0;
+    this._calendarFetchStartedAt = 0;
+    this._lastSuccessfulFetchAt = 0;
+    this._wsTimeoutCount = 0;
+    this._renderErrorCount = 0;
   }
 
   set hass(hass) {
@@ -101,9 +110,61 @@ class SmartAssistPanel extends HTMLElement {
     this._scrollContainer = null;
   }
 
+  _callWSWithTimeout(message, timeoutMs = WS_CALL_TIMEOUT_MS, label = "request") {
+    const callPromise = this._hass.callWS(message);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        this._wsTimeoutCount += 1;
+        reject(new Error("Request timed out: " + label));
+      }, timeoutMs);
+    });
+    return Promise.race([callPromise, timeoutPromise]);
+  }
+
+  _requestIsStuck(inProgress, startedAt, thresholdMs = STUCK_REQUEST_THRESHOLD_MS) {
+    return inProgress && startedAt > 0 && (Date.now() - startedAt) > thresholdMs;
+  }
+
+  _recoverFromStuckRequests() {
+    let hadStuckRequest = false;
+
+    if (this._requestIsStuck(this._fetchInProgress, this._fetchStartedAt)) {
+      this._fetchInProgress = false;
+      this._fetchStartedAt = 0;
+      hadStuckRequest = true;
+    }
+    if (this._requestIsStuck(this._historyFetchInProgress, this._historyFetchStartedAt)) {
+      this._historyFetchInProgress = false;
+      this._historyFetchStartedAt = 0;
+      this._historyLoading = false;
+      hadStuckRequest = true;
+    }
+    if (this._requestIsStuck(this._promptFetchInProgress, this._promptFetchStartedAt)) {
+      this._promptFetchInProgress = false;
+      this._promptFetchStartedAt = 0;
+      this._promptLoading = false;
+      hadStuckRequest = true;
+    }
+    if (this._requestIsStuck(this._calendarFetchInProgress, this._calendarFetchStartedAt)) {
+      this._calendarFetchInProgress = false;
+      this._calendarFetchStartedAt = 0;
+      this._calendarLoading = false;
+      hadStuckRequest = true;
+    }
+
+    if (hadStuckRequest) {
+      this._warning = "Recovered from a stalled dashboard request. Refreshing data...";
+      this._subscriptionHealthy = false;
+      this._resubscribe();
+      this._maybeFetchData(true);
+      this._loadActiveTabData(true);
+    }
+  }
+
   async _fetchData() {
     if (this._fetchInProgress) return;
     this._fetchInProgress = true;
+    this._fetchStartedAt = Date.now();
     const isInitialLoad = !this._data;
     this._error = null;
     this._warning = null;
@@ -112,10 +173,15 @@ class SmartAssistPanel extends HTMLElement {
       this._render();
     }
     try {
-      const result = await this._hass.callWS({ type: "smart_assist/dashboard_data" });
+      const result = await this._callWSWithTimeout(
+        { type: "smart_assist/dashboard_data" },
+        WS_CALL_TIMEOUT_MS,
+        "dashboard data"
+      );
       this._data = result;
       this._error = null;
       this._warning = null;
+      this._lastSuccessfulFetchAt = Date.now();
       if (!this._selectedAgent && result.agents) {
         const ids = Object.keys(result.agents);
         if (ids.length > 0) this._selectedAgent = ids[0];
@@ -129,6 +195,7 @@ class SmartAssistPanel extends HTMLElement {
     } finally {
       this._loading = false;
       this._fetchInProgress = false;
+      this._fetchStartedAt = 0;
       this._render();
     }
   }
@@ -186,6 +253,7 @@ class SmartAssistPanel extends HTMLElement {
   _startAutoRefresh() {
     this._stopAutoRefresh();
     this._autoRefreshTimer = setInterval(() => {
+      this._recoverFromStuckRequests();
       this._maybeFetchData(false);
       if (this._activeTab === "calendar") {
         this._loadCalendar(false);
@@ -224,6 +292,7 @@ class SmartAssistPanel extends HTMLElement {
     if (document.hidden) {
       this._stopAutoRefresh();
     } else {
+      this._recoverFromStuckRequests();
       this._maybeFetchData(true);
       this._loadActiveTabData(true);
       if (this._autoRefreshEnabled) {
@@ -247,7 +316,10 @@ class SmartAssistPanel extends HTMLElement {
 
 
   _getScrollContainer() {
-    if (this._scrollContainer) return this._scrollContainer;
+    if (this._scrollContainer && this._scrollContainer.isConnected && typeof this._scrollContainer.scrollTop === "number") {
+      return this._scrollContainer;
+    }
+    this._scrollContainer = null;
     let el = this.parentElement;
     while (el && el !== document.documentElement) {
       const style = getComputedStyle(el);
@@ -263,7 +335,7 @@ class SmartAssistPanel extends HTMLElement {
         break;
       }
     }
-    this._scrollContainer = document.scrollingElement || document.documentElement;
+    this._scrollContainer = document.scrollingElement || document.documentElement || null;
     return this._scrollContainer;
   }
 
@@ -351,22 +423,35 @@ class SmartAssistPanel extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    const sc = this._getScrollContainer();
-    const prevScrollTop = sc.scrollTop;
-    let content = "";
-    if (this._loading) {
-      content = '<div class="loading">Loading Smart Assist Dashboard...</div>';
-    } else if (this._error && !this._data) {
-      content = '<div class="error-msg">' + this._esc(this._error) + '<br><br><button class="refresh-btn" id="retry-btn">Retry</button></div>';
-    } else if (!this._data) {
-      content = '<div class="loading">No data available</div>';
-    } else {
-      content = this._renderDashboard();
-    }
-    this.shadowRoot.innerHTML = "<style>" + this._getStyles() + "</style>" + content;
-    this._attachEvents();
-    if (prevScrollTop > 0) {
-      requestAnimationFrame(() => { sc.scrollTop = prevScrollTop; });
+    try {
+      const sc = this._getScrollContainer();
+      const prevScrollTop = (sc && typeof sc.scrollTop === "number") ? sc.scrollTop : 0;
+      let content = "";
+      if (this._loading) {
+        content = '<div class="loading">Loading Smart Assist Dashboard...</div>';
+      } else if (this._error && !this._data) {
+        content = '<div class="error-msg">' + this._esc(this._error) + '<br><br><button class="refresh-btn" id="retry-btn">Retry</button></div>';
+      } else if (!this._data) {
+        content = '<div class="loading">No data available</div>';
+      } else {
+        content = this._renderDashboard();
+      }
+      this.shadowRoot.innerHTML = "<style>" + this._getStyles() + "</style>" + content;
+      this._attachEvents();
+      if (sc && prevScrollTop > 0) {
+        requestAnimationFrame(() => {
+          if (sc.isConnected && typeof sc.scrollTop === "number") {
+            sc.scrollTop = prevScrollTop;
+          }
+        });
+      }
+    } catch (err) {
+      this._renderErrorCount += 1;
+      this._warning = "Render recovered from an internal error.";
+      this.shadowRoot.innerHTML = "<style>" + this._getStyles() + "</style>"
+        + '<div class="error-msg">Dashboard render error.<br><br><button class="refresh-btn" id="retry-btn">Retry</button></div>';
+      this._attachEvents();
+      console.error("Smart Assist: Render failed", err);
     }
   }
 
@@ -377,7 +462,12 @@ class SmartAssistPanel extends HTMLElement {
     this._renderQueued = true;
     requestAnimationFrame(() => {
       this._renderQueued = false;
-      this._render();
+      try {
+        this._render();
+      } catch (err) {
+        this._renderErrorCount += 1;
+        console.error("Smart Assist: Scheduled render failed", err);
+      }
     });
   }
 
@@ -783,6 +873,7 @@ class SmartAssistPanel extends HTMLElement {
   async _loadHistory() {
     if (this._historyFetchInProgress) return;
     this._historyFetchInProgress = true;
+    this._historyFetchStartedAt = Date.now();
     const isInitialLoad = !this._historyData;
     this._historyLoading = true;
     if (isInitialLoad) {
@@ -791,14 +882,14 @@ class SmartAssistPanel extends HTMLElement {
     try {
       const offset = (this._historyPage || 0) * HISTORY_PAGE_SIZE;
       const [historyResult, analyticsResult] = await Promise.all([
-        this._hass.callWS({
+        this._callWSWithTimeout({
           type: "smart_assist/request_history",
           limit: HISTORY_PAGE_SIZE,
           offset: offset,
-        }),
-        this._hass.callWS({
+        }, WS_CALL_TIMEOUT_MS, "request history"),
+        this._callWSWithTimeout({
           type: "smart_assist/tool_analytics",
-        }),
+        }, WS_CALL_TIMEOUT_MS, "tool analytics"),
       ]);
       this._historyData = historyResult;
       this._toolAnalytics = analyticsResult;
@@ -807,6 +898,7 @@ class SmartAssistPanel extends HTMLElement {
     } finally {
       this._historyLoading = false;
       this._historyFetchInProgress = false;
+      this._historyFetchStartedAt = 0;
       this._render();
     }
   }
@@ -814,6 +906,7 @@ class SmartAssistPanel extends HTMLElement {
   async _loadPrompt() {
     if (this._promptFetchInProgress) return;
     this._promptFetchInProgress = true;
+    this._promptFetchStartedAt = Date.now();
     const isInitialLoad = !this._promptData;
     this._promptLoading = true;
     if (isInitialLoad) {
@@ -821,10 +914,10 @@ class SmartAssistPanel extends HTMLElement {
     }
     try {
       const agentId = this._selectedAgent || undefined;
-      const result = await this._hass.callWS({
+      const result = await this._callWSWithTimeout({
         type: "smart_assist/system_prompt",
         agent_id: agentId,
-      });
+      }, WS_CALL_TIMEOUT_MS, "system prompt");
       this._promptData = result;
     } catch (err) {
       console.error("Failed to load system prompt:", err);
@@ -832,6 +925,7 @@ class SmartAssistPanel extends HTMLElement {
     } finally {
       this._promptLoading = false;
       this._promptFetchInProgress = false;
+      this._promptFetchStartedAt = 0;
       this._render();
     }
   }
@@ -843,13 +937,14 @@ class SmartAssistPanel extends HTMLElement {
       return;
     }
     this._calendarFetchInProgress = true;
+    this._calendarFetchStartedAt = Date.now();
     this._calendarLoading = true;
     this._calendarError = null;
     this._render();
     try {
-      const calendar = await this._hass.callWS({
+      const calendar = await this._callWSWithTimeout({
         type: "smart_assist/calendar_data",
-      });
+      }, WS_CALL_TIMEOUT_MS, "calendar data");
       this._data = this._data || {};
       this._data.calendar = calendar;
       this._calendarLastLoaded = Date.now();
@@ -858,6 +953,7 @@ class SmartAssistPanel extends HTMLElement {
     } finally {
       this._calendarLoading = false;
       this._calendarFetchInProgress = false;
+      this._calendarFetchStartedAt = 0;
       this._render();
     }
   }

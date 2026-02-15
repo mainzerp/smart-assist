@@ -4,9 +4,26 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.14.9  | 2026-02-14 |
+| Smart Assist | 1.14.10 | 2026-02-15 |
 
 ## Version History
+
+### v1.14.10 (2026-02-15) - Dashboard Idle Blank Resilience Hardening
+
+**Bug Fixes:**
+- Added WebSocket request timeout protection for dashboard, calendar, history, analytics, and prompt loads to prevent stuck in-progress states after idle/reconnect instability
+- Added stale-request self-healing logic that clears long-running fetch locks and triggers automatic re-subscribe + forced refresh recovery
+- Added render error boundary fallback to avoid blank panel states on rare runtime render exceptions
+- Hardened scroll container caching/restoration to skip stale or detached container references safely
+
+**Observability:**
+- Added lightweight frontend resilience counters (`_wsTimeoutCount`, `_renderErrorCount`, `_lastSuccessfulFetchAt`) for easier field diagnosis
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.14.9 (2026-02-14) - Per-Entity Avg Response + Cleaner Top Overview
 
