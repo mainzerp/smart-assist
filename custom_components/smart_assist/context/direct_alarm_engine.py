@@ -366,9 +366,19 @@ class DirectAlarmEngine:
             system_parts.append(
                 "You are now generating a wake-up TTS message for a fired alarm. "
                 "Stay in character as described above. "
-                "Keep it concise and natural: max 2 short sentences. "
-                "No markdown, no emojis."
+                "Keep it natural and suitable for spoken TTS output. "
+                "No markdown, no emojis, no special characters."
             )
+            if extra_context:
+                system_parts.append(
+                    "IMPORTANT: You MUST incorporate ALL provided context (weather, news, etc.) "
+                    "into the wake-up message. The user explicitly requested this information. "
+                    "Weave it naturally into the message. Aim for 3-5 sentences."
+                )
+            else:
+                system_parts.append(
+                    "Keep it concise and natural: max 2 short sentences."
+                )
             messages = [
                 ChatMessage(
                     role=MessageRole.SYSTEM,
@@ -379,10 +389,9 @@ class DirectAlarmEngine:
                     content=(
                         f"Language: {language}\n"
                         f"Alarm label: {alarm.get('label', 'Alarm')}\n"
-                        f"Fallback message: {fallback}\n"
                         f"Current local time: {dt_util.now().strftime('%H:%M')}\n"
-                        f"Optional context:\n{extra_context if extra_context else 'none'}\n"
-                        "Generate the final wake-up message now."
+                        + (f"Context to include:\n{extra_context}\n" if extra_context else "")
+                        + "Generate the wake-up message now."
                     ),
                 ),
             ]
@@ -392,8 +401,9 @@ class DirectAlarmEngine:
             )
             candidate = str(llm_response.content or "").strip()
             if candidate:
-                if len(candidate) > 260:
-                    candidate = candidate[:260].rstrip()
+                max_length = 500 if extra_context else 260
+                if len(candidate) > max_length:
+                    candidate = candidate[:max_length].rstrip()
                 return candidate
         except Exception as err:
             _LOGGER.debug("Dynamic wake text generation failed for %s: %s", alarm.get("id"), err)
