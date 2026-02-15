@@ -12,7 +12,7 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 
 ### Core Features
 
-- **Triple Provider Support**: Choose between Groq (fastest), OpenRouter (most models), or Ollama (local/private)
+- **Triple Provider Support**: Choose between Groq, OpenRouter, or Ollama (local/private)
 - **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL, ~90% cache hit rate)
 - **OpenRouter Integration**: Access to 200+ models including Claude, GPT-4, Llama, Mistral, and more
 - **Ollama Integration**: Run LLMs locally on your own hardware with full privacy

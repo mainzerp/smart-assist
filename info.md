@@ -10,7 +10,7 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 
 | Provider | Best For | Caching |
 | -------- | -------- | ------- |
-| **Groq** | Speed | Automatic prompt caching (2h TTL, ~90% hit rate) |
+| **Groq** | Speed | Automatic prompt caching |
 | **OpenRouter** | Model variety | Caching for some models |
 | **Ollama** | Privacy/Local | Internal KV cache (no metrics exposed) |
 
@@ -19,8 +19,8 @@ Control your smart home with natural language. Supports **Groq API** for ultra-f
 ### Core Features
 
 - **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
-- **OpenRouter Integration**: Access 200+ models (Claude, GPT-4, Llama, Mistral, Gemini, etc.)
-- **Ollama Integration**: Run LLMs locally with full privacy (llama3.1, qwen2.5, mistral, etc.)
+- **OpenRouter Integration**: Access 200+ models
+- **Ollama Integration**: Run LLMs locally with full privacy
 - **Natural Language Control**: Talk to your smart home naturally
 - **Unified Control Tool**: Single efficient tool for all entity types
 - **Parallel Tool Execution**: Execute multiple tool calls concurrently
