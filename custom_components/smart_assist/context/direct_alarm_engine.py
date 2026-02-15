@@ -218,6 +218,16 @@ class DirectAlarmEngine:
             )
             return self._failure_result(DIRECT_ALARM_ERROR_VALIDATION, "tts_engine_required")
 
+        _LOGGER.debug(
+            "Direct alarm TTS resolution for %s: service=%s.%s, engine_entity=%s, voice=%s, targets=%s",
+            alarm.get("id"),
+            domain,
+            service,
+            tts_engine_entity_id,
+            source_tts_voice,
+            targets,
+        )
+
         if not targets:
             if domain == "tts" and service == "speak":
                 raw_delivery = alarm.get("delivery")
@@ -277,14 +287,28 @@ class DirectAlarmEngine:
             return fallback
 
         context_parts: list[str] = []
+        used_weather_context = False
+        used_news_context = False
         if bool(wake_text.get("include_weather", False)):
             weather_context = self._collect_weather_context()
             if weather_context:
                 context_parts.append(f"Weather: {weather_context}")
+                used_weather_context = True
         if bool(wake_text.get("include_news", False)):
             news_context = await self._collect_news_context()
             if news_context:
                 context_parts.append(f"News: {news_context}")
+                used_news_context = True
+
+        _LOGGER.debug(
+            "Direct alarm wake context for %s: dynamic=%s, include_weather=%s, include_news=%s, used_weather=%s, used_news=%s",
+            alarm.get("id"),
+            bool(wake_text.get("dynamic", False)),
+            bool(wake_text.get("include_weather", False)),
+            bool(wake_text.get("include_news", False)),
+            used_weather_context,
+            used_news_context,
+        )
 
         extra_context = "\n".join(context_parts) if context_parts else ""
         language = str(getattr(self._hass.config, "language", "en") or "en")

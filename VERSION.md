@@ -4,9 +4,24 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.10 | 2026-02-15 |
+| Smart Assist | 1.22.11 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.11 (2026-02-15) - Alarm Fire Diagnostics
+
+**Fixes:**
+- Added direct alarm diagnostics log for resolved TTS execution details: service, engine entity, selected voice, and target list
+- Added dynamic wake context diagnostics log showing requested vs actually used weather/news context flags
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py -q`: 21 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.10 (2026-02-15) - Alarm Voice + News Reliability
 
