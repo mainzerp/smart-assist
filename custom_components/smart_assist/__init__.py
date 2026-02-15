@@ -853,11 +853,12 @@ def _get_alarm_execution_config(entry: ConfigEntry) -> dict[str, Any]:
                     config[key] = subentry.data[key]
             break
 
+    config[CONF_ENABLE_ADVANCED_ALARM_BACKENDS] = False
     if not bool(config.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, False)):
         config[CONF_ALARM_EXECUTION_MODE] = ALARM_EXECUTION_MODE_DIRECT_ONLY
         config[CONF_DIRECT_ALARM_ENABLE_NOTIFICATION] = True
         config[CONF_DIRECT_ALARM_ENABLE_NOTIFY] = False
-        config[CONF_DIRECT_ALARM_ENABLE_TTS] = False
+        config[CONF_DIRECT_ALARM_ENABLE_TTS] = True
         config[CONF_DIRECT_ALARM_ENABLE_SCRIPT] = False
 
     return config

@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.21.0 | 2026-02-15 |
+| Smart Assist | 1.21.1 | 2026-02-15 |
 
 ## Version History
+
+### v1.21.1 (2026-02-15) - Alarm Backend UX Simplification
+
+**Fixes:**
+- Removed advanced alarm backend controls from conversation create/reconfigure settings UI
+- Enforced simple alarm runtime mode (`direct_only`) and disabled advanced backend steering internally
+- Enabled direct alarm TTS by default in simple mode so alarms can speak on source-routed targets
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_direct_alarm_engine.py tests/test_persistent_alarms.py tests/test_websocket.py -q`: 32 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.21.0 (2026-02-15) - Per-Alarm TTS Target Routing
 

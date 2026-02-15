@@ -313,26 +313,8 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     ) -> SubentryFlowResult:
         """Handle settings step - provider + all other settings."""
         errors: dict[str, str] = {}
-        if user_input is not None:
-            advanced_enabled = bool(user_input.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
-            if advanced_enabled:
-                timeout_seconds = int(user_input.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS))
-                user_input[CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS] = timeout_seconds
-                execution_mode = str(user_input.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE))
-                if "base" not in errors and not validate_alarm_execution_mode(execution_mode):
-                    errors["base"] = "invalid_alarm_execution_mode"
-                if "base" not in errors and not validate_direct_alarm_timeout(timeout_seconds):
-                    errors["base"] = "invalid_direct_alarm_timeout"
-                notify_service = str(user_input.get(CONF_DIRECT_ALARM_NOTIFY_SERVICE, "") or "").strip()
-                if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_NOTIFY, DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY) and not validate_service_string(notify_service):
-                    errors["base"] = "invalid_direct_alarm_notify_service"
-                tts_service = str(user_input.get(CONF_DIRECT_ALARM_TTS_SERVICE, "") or "").strip()
-                if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_TTS, DEFAULT_DIRECT_ALARM_ENABLE_TTS) and not validate_service_string(tts_service):
-                    errors["base"] = "invalid_direct_alarm_tts_service"
-                script_entity_id = str(user_input.get(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID, "") or "").strip()
-                if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_SCRIPT, DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT) and not validate_script_entity_id(script_entity_id):
-                    errors["base"] = "invalid_direct_alarm_script_entity_id"
         if user_input is not None and not errors:
+            user_input[CONF_ENABLE_ADVANCED_ALARM_BACKENDS] = False
             self._data.update(user_input)
             return await self.async_step_prompt()
         
@@ -425,47 +407,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             ),
             # Group: Cancel Intent
             vol.Required(CONF_CANCEL_INTENT_AGENT, default=DEFAULT_CANCEL_INTENT_AGENT): BooleanSelector(),
-            # Group: Alarm Backend UX
-            vol.Required(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, default=DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS): BooleanSelector(),
         })
-
-        advanced_enabled = bool(self._data.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
-        if advanced_enabled:
-            schema_dict.update({
-            # Group: Direct Alarm Engine
-            vol.Required(CONF_ALARM_EXECUTION_MODE, default=DEFAULT_ALARM_EXECUTION_MODE): SelectSelector(
-                SelectSelectorConfig(
-                    options=list(ALARM_EXECUTION_MODES),
-                    mode=SelectSelectorMode.DROPDOWN,
-                    translation_key="alarm_execution_mode",
-                )
-            ),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFICATION, default=DEFAULT_DIRECT_ALARM_ENABLE_NOTIFICATION): BooleanSelector(),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFY, default=DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY): BooleanSelector(),
-            vol.Required(CONF_DIRECT_ALARM_NOTIFY_SERVICE, default=DEFAULT_DIRECT_ALARM_NOTIFY_SERVICE): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_TTS, default=DEFAULT_DIRECT_ALARM_ENABLE_TTS): BooleanSelector(),
-            vol.Required(CONF_DIRECT_ALARM_TTS_SERVICE, default=DEFAULT_DIRECT_ALARM_TTS_SERVICE): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Optional(CONF_DIRECT_ALARM_TTS_TARGET, default=DEFAULT_DIRECT_ALARM_TTS_TARGET): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_SCRIPT, default=DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT): BooleanSelector(),
-            vol.Optional(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID, default=DEFAULT_DIRECT_ALARM_SCRIPT_ENTITY_ID): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Required(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, default=DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS): NumberSelector(
-                NumberSelectorConfig(
-                    min=DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
-                    max=DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
-                    step=1,
-                    unit_of_measurement="s",
-                    mode=NumberSelectorMode.BOX,
-                )
-            ),
-            })
         
         return self.async_show_form(
             step_id="settings",
@@ -625,26 +567,8 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
     ) -> SubentryFlowResult:
         """Handle reconfiguration step 3 - provider routing and all settings."""
         errors: dict[str, str] = {}
-        if user_input is not None:
-            advanced_enabled = bool(user_input.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
-            if advanced_enabled:
-                timeout_seconds = int(user_input.get(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS, DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS))
-                user_input[CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS] = timeout_seconds
-                execution_mode = str(user_input.get(CONF_ALARM_EXECUTION_MODE, DEFAULT_ALARM_EXECUTION_MODE))
-                if "base" not in errors and not validate_alarm_execution_mode(execution_mode):
-                    errors["base"] = "invalid_alarm_execution_mode"
-                if "base" not in errors and not validate_direct_alarm_timeout(timeout_seconds):
-                    errors["base"] = "invalid_direct_alarm_timeout"
-                notify_service = str(user_input.get(CONF_DIRECT_ALARM_NOTIFY_SERVICE, "") or "").strip()
-                if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_NOTIFY, DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY) and not validate_service_string(notify_service):
-                    errors["base"] = "invalid_direct_alarm_notify_service"
-                tts_service = str(user_input.get(CONF_DIRECT_ALARM_TTS_SERVICE, "") or "").strip()
-                if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_TTS, DEFAULT_DIRECT_ALARM_ENABLE_TTS) and not validate_service_string(tts_service):
-                    errors["base"] = "invalid_direct_alarm_tts_service"
-                script_entity_id = str(user_input.get(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID, "") or "").strip()
-                if "base" not in errors and user_input.get(CONF_DIRECT_ALARM_ENABLE_SCRIPT, DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT) and not validate_script_entity_id(script_entity_id):
-                    errors["base"] = "invalid_direct_alarm_script_entity_id"
         if user_input is not None and not errors:
+            user_input[CONF_ENABLE_ADVANCED_ALARM_BACKENDS] = False
             self._data.update(user_input)
             return self.async_update_and_abort(
                 self._get_entry(),
@@ -730,47 +654,7 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             ),
             # Cancel Intent
             vol.Required(CONF_CANCEL_INTENT_AGENT): BooleanSelector(),
-            # Alarm Backend UX
-            vol.Required(CONF_ENABLE_ADVANCED_ALARM_BACKENDS): BooleanSelector(),
         })
-
-        advanced_enabled = bool(self._data.get(CONF_ENABLE_ADVANCED_ALARM_BACKENDS, DEFAULT_ENABLE_ADVANCED_ALARM_BACKENDS))
-        if advanced_enabled:
-            schema_dict.update({
-            # Direct Alarm Engine
-            vol.Required(CONF_ALARM_EXECUTION_MODE): SelectSelector(
-                SelectSelectorConfig(
-                    options=list(ALARM_EXECUTION_MODES),
-                    mode=SelectSelectorMode.DROPDOWN,
-                    translation_key="alarm_execution_mode",
-                )
-            ),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFICATION): BooleanSelector(),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_NOTIFY): BooleanSelector(),
-            vol.Required(CONF_DIRECT_ALARM_NOTIFY_SERVICE): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_TTS): BooleanSelector(),
-            vol.Required(CONF_DIRECT_ALARM_TTS_SERVICE): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Optional(CONF_DIRECT_ALARM_TTS_TARGET): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Required(CONF_DIRECT_ALARM_ENABLE_SCRIPT): BooleanSelector(),
-            vol.Optional(CONF_DIRECT_ALARM_SCRIPT_ENTITY_ID): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.TEXT)
-            ),
-            vol.Required(CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS): NumberSelector(
-                NumberSelectorConfig(
-                    min=DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
-                    max=DIRECT_ALARM_BACKEND_TIMEOUT_MAX,
-                    step=1,
-                    unit_of_measurement="s",
-                    mode=NumberSelectorMode.BOX,
-                )
-            ),
-            })
         schema_dict.update({
             # System Prompt
             vol.Required(CONF_USER_SYSTEM_PROMPT): TextSelector(
