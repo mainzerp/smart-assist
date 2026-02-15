@@ -72,12 +72,37 @@ class PersistentAlarmManager:
                 hass,
                 PERSISTENT_ALARM_STORAGE_VERSION,
                 PERSISTENT_ALARM_STORAGE_KEY,
+                async_migrate_func=self._async_migrate_storage,
             )
 
         self._data: dict[str, Any] = _empty_store_data()
         self._dirty = False
         self._last_save: float = 0.0
         self._save_debounce_seconds = 5.0
+
+    async def _async_migrate_storage(
+        self,
+        old_major_version: int,
+        old_minor_version: int,
+        old_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Migrate stored alarm payload to current schema version."""
+        data = old_data if isinstance(old_data, dict) else {}
+        alarms = data.get("alarms", [])
+        if not isinstance(alarms, list):
+            alarms = []
+
+        _LOGGER.info(
+            "Migrating persistent alarm storage from %s.%s to %s",
+            old_major_version,
+            old_minor_version,
+            PERSISTENT_ALARM_STORAGE_VERSION,
+        )
+
+        return {
+            "version": PERSISTENT_ALARM_STORAGE_VERSION,
+            "alarms": alarms,
+        }
 
     async def async_load(self) -> None:
         """Load alarms from HA storage."""
