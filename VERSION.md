@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.20.0 | 2026-02-15 |
+| Smart Assist | 1.20.1 | 2026-02-15 |
 
 ## Version History
+
+### v1.20.1 (2026-02-15) - Inline Alarm Edit UX
+
+**Improvements:**
+- Replaced prompt-based alarm editing in dashboard with inline table form editing
+- Added inline Save/Cancel controls and field validation for recurrence interval
+- Kept existing websocket `alarm_action=edit` contract unchanged
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.20.0 (2026-02-15) - Alarm V2 Simplification (Simple Default + Edit + Recurrence)
 

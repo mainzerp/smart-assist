@@ -55,6 +55,7 @@ class SmartAssistPanel extends HTMLElement {
     this._alarmsFetchInProgress = false;
     this._alarmsFetchStartedAt = 0;
     this._alarmsLastLoaded = 0;
+    this._alarmEditId = null;
     this._warning = null;
     this._lastSubscriptionUpdate = 0;
     this._subscriptionHealthy = false;
@@ -781,12 +782,16 @@ class SmartAssistPanel extends HTMLElement {
         + '<td style="white-space:nowrap;">' + trigger + '</td>'
         + '<td style="white-space:nowrap;color:var(--sa-text-secondary);">' + fired + '</td>'
         + '<td style="white-space:nowrap;">'
-          + '<button class="refresh-btn alarm-edit-btn" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (alarm.can_edit ? '' : 'disabled') + '>Edit</button> '
+          + '<button class="refresh-btn alarm-edit-start-btn" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (alarm.can_edit ? '' : 'disabled') + '>Edit</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="5" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 5m</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="snooze" data-minutes="10" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canSnooze ? '' : 'disabled') + '>Snooze 10m</button> '
           + '<button class="refresh-btn alarm-action-btn" data-action="cancel" data-alarm-id="' + this._esc(alarm.id || '') + '" ' + (canCancel ? '' : 'disabled') + '>Cancel</button>'
         + '</td>'
         + '</tr>';
+
+      if (this._alarmEditId && alarm.id === this._alarmEditId) {
+        rows += this._renderAlarmEditRow(alarm);
+      }
     }
 
     html += '<div class="card"><h3>Alarms</h3>'
@@ -831,6 +836,37 @@ class SmartAssistPanel extends HTMLElement {
       return this._esc('weekly (' + recurrence.byweekday.join(',') + '), every ' + interval);
     }
     return this._esc(frequency + ', every ' + interval);
+  }
+
+  _renderAlarmEditRow(alarm) {
+    const recurrence = alarm.recurrence || {};
+    const frequency = this._esc(recurrence.frequency || '');
+    const interval = this._esc(String(recurrence.interval || 1));
+    const reactivateSuggested = (alarm.status === 'fired' || alarm.status === 'dismissed') ? 'checked' : '';
+
+    return '<tr data-alarm-edit-id="' + this._esc(alarm.id || '') + '">'
+      + '<td colspan="10" style="background:var(--ha-card-background, #fff);">'
+      + '<div style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:8px;align-items:end;">'
+      + '<label style="display:flex;flex-direction:column;font-size:12px;">Label'
+      + '<input class="alarm-edit-label" type="text" value="' + this._esc(alarm.label || '') + '"></label>'
+      + '<label style="display:flex;flex-direction:column;font-size:12px;">Message'
+      + '<input class="alarm-edit-message" type="text" value="' + this._esc(alarm.message || '') + '"></label>'
+      + '<label style="display:flex;flex-direction:column;font-size:12px;">Scheduled (ISO)'
+      + '<input class="alarm-edit-scheduled" type="text" value="' + this._esc(alarm.scheduled_for || '') + '"></label>'
+      + '<label style="display:flex;flex-direction:column;font-size:12px;">Recurrence'
+      + '<select class="alarm-edit-recurrence-frequency">'
+      + '<option value=""' + (frequency ? '' : ' selected') + '>none</option>'
+      + '<option value="daily"' + (frequency === 'daily' ? ' selected' : '') + '>daily</option>'
+      + '<option value="weekly"' + (frequency === 'weekly' ? ' selected' : '') + '>weekly</option>'
+      + '</select></label>'
+      + '<label style="display:flex;flex-direction:column;font-size:12px;">Interval'
+      + '<input class="alarm-edit-recurrence-interval" type="number" min="1" step="1" value="' + interval + '"></label>'
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + '<label style="font-size:12px;"><input class="alarm-edit-reactivate" type="checkbox" ' + reactivateSuggested + '> Reactivate</label>'
+      + '<div>'
+      + '<button class="refresh-btn alarm-edit-save-btn" data-alarm-id="' + this._esc(alarm.id || '') + '">Save</button> '
+      + '<button class="refresh-btn alarm-edit-cancel-btn" data-alarm-id="' + this._esc(alarm.id || '') + '">Cancel</button>'
+      + '</div></div></div></td></tr>';
   }
 
   _renderCalendarTab() {
@@ -1180,71 +1216,57 @@ class SmartAssistPanel extends HTMLElement {
     }
   }
 
-  async _editAlarm(alarmId) {
-    const alarms = (this._alarmsData && this._alarmsData.alarms) ? this._alarmsData.alarms : [];
-    const alarm = alarms.find((item) => item.id === alarmId);
-    if (!alarm) {
-      this._alarmsError = "Alarm not found";
-      this._render();
-      return;
-    }
+  _startAlarmEdit(alarmId) {
+    this._alarmEditId = alarmId || null;
+    this._render();
+  }
 
-    const label = prompt("Alarm label:", alarm.label || "Alarm");
-    if (label === null) return;
+  _cancelAlarmEdit() {
+    this._alarmEditId = null;
+    this._render();
+  }
 
-    const message = prompt("Alarm message:", alarm.message || "");
-    if (message === null) return;
+  async _saveAlarmEdit(alarmId) {
+    const row = this.shadowRoot.querySelector('tr[data-alarm-edit-id="' + alarmId + '"]');
+    if (!row) return;
 
-    const scheduleInput = prompt("Scheduled time (ISO datetime):", alarm.scheduled_for || "");
-    if (scheduleInput === null) return;
-
-    const currentRecurrence = alarm.recurrence || {};
-    const recurrenceFrequency = prompt("Recurrence frequency (empty, daily, weekly):", currentRecurrence.frequency || "");
-    if (recurrenceFrequency === null) return;
-
-    const recurrenceIntervalRaw = prompt("Recurrence interval (default 1):", String(currentRecurrence.interval || 1));
-    if (recurrenceIntervalRaw === null) return;
+    const label = (row.querySelector('.alarm-edit-label')?.value || '').trim();
+    const message = (row.querySelector('.alarm-edit-message')?.value || '').trim();
+    const scheduledFor = (row.querySelector('.alarm-edit-scheduled')?.value || '').trim();
+    const recurrenceFrequency = (row.querySelector('.alarm-edit-recurrence-frequency')?.value || '').trim().toLowerCase();
+    const recurrenceIntervalRaw = (row.querySelector('.alarm-edit-recurrence-interval')?.value || '1').trim();
+    const reactivate = Boolean(row.querySelector('.alarm-edit-reactivate')?.checked);
 
     let recurrence = null;
-    const normalizedFrequency = String(recurrenceFrequency || "").trim().toLowerCase();
-    if (normalizedFrequency) {
-      const recurrenceInterval = parseInt(recurrenceIntervalRaw || "1", 10);
+    if (recurrenceFrequency) {
+      const recurrenceInterval = parseInt(recurrenceIntervalRaw || '1', 10);
       if (isNaN(recurrenceInterval) || recurrenceInterval <= 0) {
-        this._alarmsError = "Recurrence interval must be a positive number";
+        this._alarmsError = 'Recurrence interval must be a positive number';
         this._render();
         return;
       }
-      recurrence = {
-        frequency: normalizedFrequency,
-        interval: recurrenceInterval,
-      };
-      if (normalizedFrequency === "weekly" && Array.isArray(currentRecurrence.byweekday) && currentRecurrence.byweekday.length) {
-        recurrence.byweekday = currentRecurrence.byweekday;
-      }
+      recurrence = { frequency: recurrenceFrequency, interval: recurrenceInterval };
     }
-
-    const reactivate = (alarm.status === "fired" || alarm.status === "dismissed")
-      ? confirm("This alarm is not active. Reactivate with this edit?")
-      : false;
 
     try {
       await this._callWSWithTimeout(
         {
-          type: "smart_assist/alarm_action",
-          action: "edit",
+          type: 'smart_assist/alarm_action',
+          action: 'edit',
           alarm_id: alarmId,
           label: label,
           message: message,
-          scheduled_for: scheduleInput,
+          scheduled_for: scheduledFor,
           recurrence: recurrence,
           reactivate: reactivate,
         },
         WS_CALL_TIMEOUT_MS,
-        "alarm edit"
+        'alarm edit'
       );
+      this._alarmEditId = null;
       await this._loadAlarms(true);
     } catch (err) {
-      this._alarmsError = err.message || "Alarm edit failed";
+      this._alarmsError = err.message || 'Alarm edit failed';
       this._render();
     }
   }
@@ -1515,8 +1537,14 @@ class SmartAssistPanel extends HTMLElement {
       const minutes = btn.dataset.minutes ? parseInt(btn.dataset.minutes, 10) : undefined;
       this._runAlarmAction(action, alarmId, minutes);
     });
-    this._bindAllClick(".alarm-edit-btn", (btn) => {
-      this._editAlarm(btn.dataset.alarmId);
+    this._bindAllClick(".alarm-edit-start-btn", (btn) => {
+      this._startAlarmEdit(btn.dataset.alarmId);
+    });
+    this._bindAllClick(".alarm-edit-save-btn", (btn) => {
+      this._saveAlarmEdit(btn.dataset.alarmId);
+    });
+    this._bindAllClick(".alarm-edit-cancel-btn", () => {
+      this._cancelAlarmEdit();
     });
   }
 
