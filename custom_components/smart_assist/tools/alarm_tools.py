@@ -15,6 +15,7 @@ from ..const import (
     CONF_ALARM_EXECUTION_MODE,
     DEFAULT_ALARM_EXECUTION_MODE,
     DOMAIN,
+    POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
     PERSISTENT_ALARM_EVENT_UPDATED,
 )
 from ..context.persistent_alarms import PersistentAlarmManager
@@ -404,7 +405,10 @@ class AlarmTool(BaseTool):
             )
             return None, f"Multiple recently fired alarms found. Which one should I snooze? ({choices})"
 
-        recent_fired = manager.get_recent_fired_alarms(window_minutes=30, limit=3)
+        recent_fired = manager.get_recent_fired_alarms(
+            window_minutes=POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
+            limit=3,
+        )
         if len(recent_fired) == 1:
             return str(recent_fired[0].get("id")), ""
         if len(recent_fired) > 1:

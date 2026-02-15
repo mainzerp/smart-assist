@@ -16,6 +16,7 @@ from .const import (
     DEFAULT_TOOL_MAX_RETRIES,
     MAX_CONSECUTIVE_FOLLOWUPS,
     MAX_TOOL_ITERATIONS,
+    POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
     REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
     TTS_STREAM_MIN_CHARS,
 )
@@ -153,7 +154,12 @@ def _has_recent_fired_alarm_context(entity: SmartAssistConversationEntity) -> bo
     if manager is None:
         return False
     try:
-        return bool(manager.get_recent_fired_alarms(window_minutes=30, limit=3))
+        return bool(
+            manager.get_recent_fired_alarms(
+                window_minutes=POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
+                limit=3,
+            )
+        )
     except Exception:  # noqa: BLE001
         return False
 

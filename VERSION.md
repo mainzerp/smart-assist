@@ -4,9 +4,31 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.6 | 2026-02-15 |
+| Smart Assist | 1.22.7 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.7 (2026-02-15) - Stricter Post-Fire Snooze Window
+
+**Fixes:**
+- Tightened implicit post-fire snooze matching window from 30 to 5 minutes
+- Applied consistently across conversation alarm context hints, streaming retry heuristics, alarm tool snooze fallback, and websocket snooze fallback
+- Added regression test to ensure snooze without explicit alarm id does not target older fired alarms
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_tools.py tests/test_websocket.py tests/test_streaming.py -q`: 62 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 74 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.6 (2026-02-15) - Alarm TTS Target Diagnostics
 

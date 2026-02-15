@@ -49,6 +49,7 @@ from .const import (
     DEFAULT_USER_SYSTEM_PROMPT,
     DOMAIN,
     MANAGED_ALARM_DISPATCHER_RECONCILED,
+    POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
     PERSISTENT_ALARM_EVENT_UPDATED,
 )
 from .context.calendar_reminder import CalendarReminderTracker
@@ -1165,7 +1166,10 @@ async def ws_alarm_action(
         return
 
     if not alarm_ref:
-        recent = manager.get_recent_fired_alarms(window_minutes=30, limit=3)
+        recent = manager.get_recent_fired_alarms(
+            window_minutes=POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
+            limit=3,
+        )
         if len(recent) == 1:
             alarm_ref = str(recent[0].get("id"))
         elif len(recent) > 1:

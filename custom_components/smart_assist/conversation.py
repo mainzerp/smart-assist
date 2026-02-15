@@ -109,6 +109,7 @@ try:
         REQUEST_HISTORY_INPUT_MAX_LENGTH,
         REQUEST_HISTORY_RESPONSE_MAX_LENGTH,
         REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
+        POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
     )
     from .context import EntityManager, PersistentAlarmManager
     from .context.calendar_reminder import CalendarReminderTracker
@@ -546,7 +547,7 @@ class SmartAssistConversationEntity(ConversationEntity):
             alarm_tool._satellite_id = satellite_id
             if self._persistent_alarm_manager is not None:
                 recent = self._persistent_alarm_manager.get_recent_fired_alarms(
-                    window_minutes=30,
+                    window_minutes=POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
                     limit=3,
                 )
                 alarm_tool._recent_fired_alarm_ids = [

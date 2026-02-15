@@ -135,6 +135,7 @@ PERSISTENT_ALARM_STORAGE_KEY: Final = "smart_assist_persistent_alarms"
 PERSISTENT_ALARM_STORAGE_VERSION: Final = 3
 PERSISTENT_ALARM_EVENT_FIRED: Final = "smart_assist_alarm_fired"
 PERSISTENT_ALARM_EVENT_UPDATED: Final = "smart_assist_alarm_updated"
+POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES: Final = 5
 
 # Managed alarm automation settings (opt-in)
 CONF_ENABLE_MANAGED_ALARM_AUTOMATION: Final = "enable_managed_alarm_automation"
