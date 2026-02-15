@@ -124,6 +124,24 @@ class AlarmTool(BaseTool):
             description="Optional comma-separated media_player targets for this alarm (e.g. media_player.kitchen,media_player.bedroom).",
             required=False,
         ),
+        ToolParameter(
+            name="wake_text_dynamic",
+            type="boolean",
+            description="Optional: generate wake text dynamically via LLM when alarm fires.",
+            required=False,
+        ),
+        ToolParameter(
+            name="wake_text_include_weather",
+            type="boolean",
+            description="Optional: include current weather in dynamic wake text.",
+            required=False,
+        ),
+        ToolParameter(
+            name="wake_text_include_news",
+            type="boolean",
+            description="Optional: include latest headlines in dynamic wake text.",
+            required=False,
+        ),
     ]
 
     def __init__(self, hass: HomeAssistant, entry_id: str | None = None) -> None:
@@ -148,6 +166,9 @@ class AlarmTool(BaseTool):
         recurrence_interval: int | None = None,
         recurrence_byweekday: str | None = None,
         tts_targets: str | None = None,
+        wake_text_dynamic: bool | None = None,
+        wake_text_include_weather: bool | None = None,
+        wake_text_include_news: bool | None = None,
     ) -> ToolResult:
         """Execute persistent alarm actions."""
         manager = self._get_manager()
@@ -169,6 +190,11 @@ class AlarmTool(BaseTool):
                     recurrence_byweekday,
                 )
                 parsed_tts_targets = self._parse_tts_targets(tts_targets)
+                wake_text_options = self._build_wake_text_options(
+                    wake_text_dynamic,
+                    wake_text_include_weather,
+                    wake_text_include_news,
+                )
                 alarm, status = manager.create_alarm(
                     alarm_datetime,
                     label,
@@ -177,6 +203,7 @@ class AlarmTool(BaseTool):
                     source_device_id=getattr(self, "_device_id", None),
                     source_satellite_id=getattr(self, "_satellite_id", None),
                     tts_targets=parsed_tts_targets,
+                    wake_text=wake_text_options,
                 )
                 if alarm is None:
                     return ToolResult(False, status)
@@ -300,10 +327,21 @@ class AlarmTool(BaseTool):
                 )
                 if recurrence_payload is not None:
                     updates["recurrence"] = recurrence_payload
+
+                delivery_updates: dict[str, Any] = {}
                 if tts_targets is not None:
-                    updates["delivery"] = {
-                        "tts_targets": self._parse_tts_targets(tts_targets),
-                    }
+                    delivery_updates["tts_targets"] = self._parse_tts_targets(tts_targets)
+
+                wake_text_options = self._build_wake_text_options(
+                    wake_text_dynamic,
+                    wake_text_include_weather,
+                    wake_text_include_news,
+                )
+                if wake_text_options:
+                    delivery_updates["wake_text"] = wake_text_options
+
+                if delivery_updates:
+                    updates["delivery"] = delivery_updates
 
                 updated_alarm, status = manager.update_alarm(
                     alarm_ref,
@@ -438,6 +476,22 @@ class AlarmTool(BaseTool):
             seen.add(entity_id)
             targets.append(entity_id)
         return targets
+
+    def _build_wake_text_options(
+        self,
+        dynamic: bool | None,
+        include_weather: bool | None,
+        include_news: bool | None,
+    ) -> dict[str, bool]:
+        """Build partial wake-text options payload from optional tool args."""
+        updates: dict[str, bool] = {}
+        if dynamic is not None:
+            updates["dynamic"] = bool(dynamic)
+        if include_weather is not None:
+            updates["include_weather"] = bool(include_weather)
+        if include_news is not None:
+            updates["include_news"] = bool(include_news)
+        return updates
 
     async def _reconcile_managed_alarm(self, alarm: dict[str, Any]) -> None:
         """Best-effort managed automation sync; never block alarm command success."""

@@ -66,6 +66,11 @@ def _delivery_defaults() -> dict[str, Any]:
         "source_device_id": None,
         "source_satellite_id": None,
         "tts_targets": [],
+        "wake_text": {
+            "dynamic": False,
+            "include_weather": False,
+            "include_news": False,
+        },
     }
 
 
@@ -174,6 +179,7 @@ class PersistentAlarmManager:
         source_device_id: str | None = None,
         source_satellite_id: str | None = None,
         tts_targets: list[str] | None = None,
+        wake_text: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any] | None, str]:
         """Create a new alarm at an absolute datetime."""
         trigger_dt = self._parse_datetime(when_iso)
@@ -219,6 +225,7 @@ class PersistentAlarmManager:
                 "source_device_id": str(source_device_id or "").strip() or None,
                 "source_satellite_id": str(source_satellite_id or "").strip() or None,
                 "tts_targets": self._normalize_tts_targets(tts_targets),
+                "wake_text": self._normalize_wake_text_options(wake_text),
             },
         }
 
@@ -435,6 +442,7 @@ class PersistentAlarmManager:
                 "source_device_id": str(delivery.get("source_device_id") or "").strip() or None,
                 "source_satellite_id": str(delivery.get("source_satellite_id") or "").strip() or None,
                 "tts_targets": self._normalize_tts_targets(delivery.get("tts_targets")),
+                "wake_text": self._normalize_wake_text_options(delivery.get("wake_text")),
             })
             alarm["delivery"] = merged_delivery
             display_id = alarm.get("display_id")
@@ -527,6 +535,8 @@ class PersistentAlarmManager:
                     next_delivery["source_device_id"] = str(delivery_updates.get("source_device_id") or "").strip() or None
                 if "source_satellite_id" in delivery_updates:
                     next_delivery["source_satellite_id"] = str(delivery_updates.get("source_satellite_id") or "").strip() or None
+                if "wake_text" in delivery_updates:
+                    next_delivery["wake_text"] = self._normalize_wake_text_options(delivery_updates.get("wake_text"))
 
                 if next_delivery != current_delivery:
                     alarm["delivery"] = next_delivery
@@ -842,6 +852,18 @@ class PersistentAlarmManager:
             seen.add(entity_id)
             normalized.append(entity_id)
         return normalized
+
+    def _normalize_wake_text_options(self, wake_text: Any) -> dict[str, bool]:
+        """Normalize wake text options into canonical booleans."""
+        defaults = _delivery_defaults()["wake_text"]
+        if not isinstance(wake_text, dict):
+            return dict(defaults)
+
+        return {
+            "dynamic": bool(wake_text.get("dynamic", defaults["dynamic"])),
+            "include_weather": bool(wake_text.get("include_weather", defaults["include_weather"])),
+            "include_news": bool(wake_text.get("include_news", defaults["include_news"])),
+        }
 
     def _compute_next_occurrence(
         self,

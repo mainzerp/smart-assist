@@ -4,9 +4,30 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.21.2 | 2026-02-15 |
+| Smart Assist | 1.22.0 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.0 (2026-02-15) - Dynamic LLM Wake Text on Alarm Fire
+
+**New Features:**
+- Added per-alarm dynamic wake text generation via LLM at fire time (`wake_text_dynamic`)
+- Added optional per-alarm context flags for weather and latest headlines (`wake_text_include_weather`, `wake_text_include_news`)
+- Added persistent per-alarm wake text options in alarm delivery metadata with backward-compatible defaults
+- Kept robust fallback to static alarm message when LLM or context retrieval is unavailable
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_direct_alarm_engine.py tests/test_persistent_alarms.py -q`: 26 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- tests/test_direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.21.2 (2026-02-15) - Translation Cleanup for Simple Alarm UX
 

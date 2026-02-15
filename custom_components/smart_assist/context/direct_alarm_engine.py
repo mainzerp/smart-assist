@@ -12,6 +12,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    CONF_CANCEL_INTENT_AGENT,
     CONF_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
     CONF_DIRECT_ALARM_ENABLE_NOTIFICATION,
     CONF_DIRECT_ALARM_ENABLE_NOTIFY,
@@ -22,6 +23,7 @@ from ..const import (
     CONF_DIRECT_ALARM_TTS_SERVICE,
     CONF_DIRECT_ALARM_TTS_TARGET,
     DEFAULT_DIRECT_ALARM_BACKEND_TIMEOUT_SECONDS,
+    DEFAULT_CANCEL_INTENT_AGENT,
     DEFAULT_DIRECT_ALARM_ENABLE_NOTIFICATION,
     DEFAULT_DIRECT_ALARM_ENABLE_NOTIFY,
     DEFAULT_DIRECT_ALARM_ENABLE_SCRIPT,
@@ -44,6 +46,8 @@ from ..const import (
     DIRECT_ALARM_STATE_SKIPPED,
     DOMAIN,
 )
+from ..llm import ChatMessage
+from ..llm.models import MessageRole
 from .persistent_alarms import PersistentAlarmManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -196,7 +200,7 @@ class DirectAlarmEngine:
         if not self._hass.services.has_service(domain, service):
             return self._failure_result(DIRECT_ALARM_ERROR_UNSUPPORTED, "tts_service_unavailable")
 
-        message = str(alarm.get("message") or "").strip() or f"Alarm {alarm.get('label', 'Alarm')} fired"
+        message = await self._resolve_tts_message(alarm)
         targets = self._resolve_tts_targets(alarm)
 
         if not targets:
@@ -226,6 +230,137 @@ class DirectAlarmEngine:
         result["target_success_count"] = successful
         result["target_failure_count"] = failed
         return result
+
+    async def _resolve_tts_message(self, alarm: dict[str, Any]) -> str:
+        """Resolve final TTS text, optionally generated dynamically by LLM."""
+        fallback = str(alarm.get("message") or "").strip() or f"Alarm {alarm.get('label', 'Alarm')} fired"
+        raw_delivery = alarm.get("delivery")
+        delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
+        raw_wake_text = delivery.get("wake_text")
+        wake_text: dict[str, Any] = raw_wake_text if isinstance(raw_wake_text, dict) else {}
+
+        if not bool(wake_text.get("dynamic", False)):
+            return fallback
+
+        llm_client = self._get_llm_client()
+        if llm_client is None:
+            return fallback
+
+        context_parts: list[str] = []
+        if bool(wake_text.get("include_weather", False)):
+            weather_context = self._collect_weather_context()
+            if weather_context:
+                context_parts.append(f"Weather: {weather_context}")
+        if bool(wake_text.get("include_news", False)):
+            news_context = await self._collect_news_context()
+            if news_context:
+                context_parts.append(f"News: {news_context}")
+
+        extra_context = "\n".join(context_parts) if context_parts else ""
+        language = str(getattr(self._hass.config, "language", "en") or "en")
+
+        try:
+            messages = [
+                ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=(
+                        "You write wake-up TTS messages for a smart home alarm. "
+                        "Respond in the requested language. Keep it concise and natural: max 2 short sentences. "
+                        "No markdown, no emojis."
+                    ),
+                ),
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=(
+                        f"Language: {language}\n"
+                        f"Alarm label: {alarm.get('label', 'Alarm')}\n"
+                        f"Fallback message: {fallback}\n"
+                        f"Current local time: {dt_util.now().strftime('%H:%M')}\n"
+                        f"Optional context:\n{extra_context if extra_context else 'none'}\n"
+                        "Generate the final wake-up message now."
+                    ),
+                ),
+            ]
+            llm_response = await llm_client.chat(messages=messages, tools=[])
+            candidate = str(llm_response.content or "").strip()
+            if candidate:
+                if len(candidate) > 260:
+                    candidate = candidate[:260].rstrip()
+                return candidate
+        except Exception as err:
+            _LOGGER.debug("Dynamic wake text generation failed for %s: %s", alarm.get("id"), err)
+
+        return fallback
+
+    def _collect_weather_context(self) -> str:
+        """Return compact weather context from first available weather entity."""
+        weather_entities = [
+            state for state in self._hass.states.async_all() if state.entity_id.startswith("weather.")
+        ]
+        if not weather_entities:
+            return ""
+
+        state = weather_entities[0]
+        attrs = state.attributes
+        temperature = attrs.get("temperature")
+        temperature_unit = attrs.get("temperature_unit", "C")
+        wind_speed = attrs.get("wind_speed")
+        wind_unit = attrs.get("wind_speed_unit", "km/h")
+        segments = [f"{state.state}"]
+        if temperature is not None:
+            segments.append(f"{temperature}°{temperature_unit}")
+        if wind_speed is not None:
+            segments.append(f"wind {wind_speed} {wind_unit}")
+        return ", ".join(segments)
+
+    async def _collect_news_context(self) -> str:
+        """Return compact latest-news context using DDGS web search."""
+        try:
+            from ..tools.search_tools import WebSearchTool
+
+            result = await WebSearchTool(self._hass).execute(
+                query="latest news headlines",
+                max_results=3,
+            )
+            if not result.success:
+                return ""
+
+            entries = result.data.get("results") if isinstance(result.data, dict) else []
+        except Exception:
+            return ""
+
+        headlines: list[str] = []
+        for item in entries if isinstance(entries, list) else []:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            if title:
+                headlines.append(title)
+        if not headlines:
+            return ""
+        return " | ".join(headlines[:3])
+
+    def _get_llm_client(self):
+        """Get preferred LLM client from entry agents for dynamic wake text."""
+        entry_data = self._hass.data.get(DOMAIN, {}).get(self._entry_id, {})
+        agents = entry_data.get("agents", {}) if isinstance(entry_data, dict) else {}
+        entry = self._hass.config_entries.async_get_entry(self._entry_id)
+
+        fallback_client = None
+        for subentry_id, agent_info in agents.items():
+            llm_client = agent_info.get("llm_client") if isinstance(agent_info, dict) else None
+            if llm_client is None:
+                continue
+
+            if entry is not None:
+                subentry = entry.subentries.get(subentry_id)
+                if subentry is not None and subentry.data.get(CONF_CANCEL_INTENT_AGENT, DEFAULT_CANCEL_INTENT_AGENT):
+                    return llm_client
+
+            if fallback_client is None:
+                fallback_client = llm_client
+
+        return fallback_client
 
     async def _run_script_backend(self, alarm: dict[str, Any]) -> dict[str, Any]:
         script_entity_id = str(
@@ -308,7 +443,8 @@ class DirectAlarmEngine:
 
     def _resolve_tts_targets(self, alarm: dict[str, Any]) -> list[str]:
         """Resolve TTS targets with per-alarm override and source-aware defaults."""
-        delivery = alarm.get("delivery") if isinstance(alarm.get("delivery"), dict) else {}
+        raw_delivery = alarm.get("delivery")
+        delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
         explicit_targets = self._normalize_targets(delivery.get("tts_targets"))
         if explicit_targets:
             return explicit_targets
