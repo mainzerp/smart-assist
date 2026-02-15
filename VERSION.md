@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.22.4 | 2026-02-15 |
+| Smart Assist | 1.22.5 | 2026-02-15 |
 
 ## Version History
+
+### v1.22.5 (2026-02-15) - Alarm TTS Target Routing Fix
+
+**Fixes:**
+- Fixed direct alarm TTS payload for `tts.speak`: targets are now sent as `media_player_entity_id` (instead of `entity_id`)
+- Added defensive validation for `tts.speak` to fail clearly when no target is resolvable
+- Alarm creation now auto-prefills per-alarm `delivery.tts_targets` from source device/satellite context when explicit targets are not provided
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 55 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 73 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.22.4 (2026-02-15) - Alarm Delete Runtime Hardening
 

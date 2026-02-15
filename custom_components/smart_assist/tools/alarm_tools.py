@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
@@ -190,6 +191,8 @@ class AlarmTool(BaseTool):
                     recurrence_byweekday,
                 )
                 parsed_tts_targets = self._parse_tts_targets(tts_targets)
+                if not parsed_tts_targets:
+                    parsed_tts_targets = self._resolve_default_tts_targets()
                 wake_text_options = self._build_wake_text_options(
                     wake_text_dynamic,
                     wake_text_include_weather,
@@ -530,6 +533,77 @@ class AlarmTool(BaseTool):
         if byweekday:
             payload["byweekday"] = [part.strip().lower() for part in str(byweekday).split(",") if part.strip()]
         return payload
+
+    def _resolve_default_tts_targets(self) -> list[str]:
+        """Resolve default media_player targets from current device/satellite context."""
+        by_device = self._resolve_media_players_by_device(getattr(self, "_device_id", None))
+        if by_device:
+            return by_device
+
+        by_satellite = self._resolve_media_players_by_satellite(getattr(self, "_satellite_id", None))
+        if by_satellite:
+            return by_satellite
+
+        return []
+
+    def _resolve_media_players_by_device(self, device_id: str | None) -> list[str]:
+        """Resolve media_player entity ids linked to the source device."""
+        if not device_id:
+            return []
+
+        try:
+            entity_registry = er.async_get(self._hass)
+            entries = er.async_entries_for_device(entity_registry, str(device_id))
+        except Exception:
+            return []
+
+        players = [
+            entry.entity_id
+            for entry in entries
+            if isinstance(entry.entity_id, str)
+            and entry.entity_id.startswith("media_player.")
+            and self._hass.states.get(entry.entity_id) is not None
+        ]
+        return self._normalize_targets(players)
+
+    def _resolve_media_players_by_satellite(self, satellite_id: str | None) -> list[str]:
+        """Best-effort match from satellite id to media_player entities."""
+        if not satellite_id:
+            return []
+
+        sat_name = str(satellite_id).lower().replace("assist_satellite.", "")
+        sat_parts = sat_name.replace("satellite_", "").replace("_assist_satellit", "").split("_")
+        candidates: list[str] = []
+
+        for state in self._hass.states.async_all("media_player"):
+            player_id = state.entity_id.lower()
+            for part in sat_parts:
+                if len(part) >= 3 and part in player_id:
+                    candidates.append(state.entity_id)
+                    break
+
+        return self._normalize_targets(candidates)
+
+    def _normalize_targets(self, targets: Any) -> list[str]:
+        """Normalize targets from list or comma-separated string."""
+        if targets is None:
+            return []
+        if isinstance(targets, list):
+            raw_values = [str(item or "") for item in targets]
+        else:
+            raw_values = str(targets).split(",")
+
+        result: list[str] = []
+        seen: set[str] = set()
+        for value in raw_values:
+            entity_id = value.strip().lower()
+            if not entity_id or not entity_id.startswith("media_player."):
+                continue
+            if entity_id in seen:
+                continue
+            seen.add(entity_id)
+            result.append(entity_id)
+        return result
 
     def _get_execution_mode(self) -> str:
         """Return configured alarm execution mode from runtime entry data."""

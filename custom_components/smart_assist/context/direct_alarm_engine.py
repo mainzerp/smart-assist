@@ -204,6 +204,8 @@ class DirectAlarmEngine:
         targets = self._resolve_tts_targets(alarm)
 
         if not targets:
+            if domain == "tts" and service == "speak":
+                return self._failure_result(DIRECT_ALARM_ERROR_VALIDATION, "tts_target_required")
             payload: dict[str, Any] = {"message": message}
             await self._async_call_service(domain, service, payload)
             return self._ok_result(f"{domain}.{service}")
@@ -211,10 +213,7 @@ class DirectAlarmEngine:
         successful = 0
         failed = 0
         for target in targets:
-            payload = {
-                "message": message,
-                "entity_id": target,
-            }
+            payload = self._build_tts_call_payload(domain, service, message, target)
             try:
                 await self._async_call_service(domain, service, payload)
                 successful += 1
@@ -440,6 +439,21 @@ class DirectAlarmEngine:
         if not domain or not service:
             return "", "", False
         return domain, service, True
+
+    def _build_tts_call_payload(
+        self,
+        domain: str,
+        service: str,
+        message: str,
+        target: str,
+    ) -> dict[str, Any]:
+        """Build backend-specific TTS payload for one target."""
+        payload: dict[str, Any] = {"message": message}
+        if domain == "tts" and service == "speak":
+            payload["media_player_entity_id"] = target
+        else:
+            payload["entity_id"] = target
+        return payload
 
     def _resolve_tts_targets(self, alarm: dict[str, Any]) -> list[str]:
         """Resolve TTS targets with per-alarm override and source-aware defaults."""
