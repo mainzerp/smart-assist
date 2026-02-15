@@ -162,6 +162,8 @@ def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
     """Return normalized alarm payload for websocket responses."""
     managed = alarm.get("managed_automation") if isinstance(alarm.get("managed_automation"), dict) else {}
     direct = alarm.get("direct_execution") if isinstance(alarm.get("direct_execution"), dict) else {}
+    delivery = alarm.get("delivery") if isinstance(alarm.get("delivery"), dict) else {}
+    wake_text = delivery.get("wake_text") if isinstance(delivery.get("wake_text"), dict) else {}
     status = str(alarm.get("status") or "")
     can_edit = bool(alarm.get("active")) or status in {"fired", "dismissed"}
     return {
@@ -192,6 +194,10 @@ def _serialize_alarm(alarm: dict[str, Any]) -> dict[str, Any]:
         "direct_last_executed_at": direct.get("last_executed_at"),
         "direct_last_error": direct.get("last_error"),
         "direct_backend_results": direct.get("last_backend_results", {}),
+        "tts_targets": delivery.get("tts_targets") if isinstance(delivery.get("tts_targets"), list) else [],
+        "wake_text_dynamic": bool(wake_text.get("dynamic", False)),
+        "wake_text_include_weather": bool(wake_text.get("include_weather", False)),
+        "wake_text_include_news": bool(wake_text.get("include_news", False)),
         "can_edit": can_edit,
     }
 
@@ -911,6 +917,10 @@ async def ws_alarms_data(
         vol.Optional("message"): str,
         vol.Optional("scheduled_for"): str,
         vol.Optional("recurrence"): vol.Any(dict, None),
+        vol.Optional("tts_targets"): str,
+        vol.Optional("wake_text_dynamic"): bool,
+        vol.Optional("wake_text_include_weather"): bool,
+        vol.Optional("wake_text_include_news"): bool,
         vol.Optional("reactivate", default=False): bool,
     }
 )
@@ -1044,6 +1054,26 @@ async def ws_alarm_action(
             updates["scheduled_for"] = msg.get("scheduled_for")
         if "recurrence" in msg:
             updates["recurrence"] = msg.get("recurrence")
+        delivery_updates: dict[str, Any] = {}
+        if "tts_targets" in msg:
+            raw_targets = str(msg.get("tts_targets") or "")
+            parsed_targets = [
+                token.strip().lower()
+                for token in raw_targets.split(",")
+                if token.strip().lower().startswith("media_player.")
+            ]
+            delivery_updates["tts_targets"] = parsed_targets
+        wake_text_updates: dict[str, Any] = {}
+        if "wake_text_dynamic" in msg:
+            wake_text_updates["dynamic"] = bool(msg.get("wake_text_dynamic"))
+        if "wake_text_include_weather" in msg:
+            wake_text_updates["include_weather"] = bool(msg.get("wake_text_include_weather"))
+        if "wake_text_include_news" in msg:
+            wake_text_updates["include_news"] = bool(msg.get("wake_text_include_news"))
+        if wake_text_updates:
+            delivery_updates["wake_text"] = wake_text_updates
+        if delivery_updates:
+            updates["delivery"] = delivery_updates
 
         alarm, status = manager.update_alarm(
             str(alarm_ref),

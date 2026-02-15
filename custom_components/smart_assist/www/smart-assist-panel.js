@@ -727,7 +727,6 @@ class SmartAssistPanel extends HTMLElement {
     const alarms = alarmsPayload.alarms || [];
     const executionMode = alarmsPayload.execution_mode || "managed_only";
     const managedReconcileAvailable = alarmsPayload.managed_reconcile_available !== false;
-    const managedEnabled = alarms.some((alarm) => alarm.managed_enabled);
 
     let html = '<div class="overview-grid">'
       + '<div class="metric-card"><div class="label">Total</div><div class="value">' + (summary.total || 0) + '</div></div>'
@@ -755,12 +754,6 @@ class SmartAssistPanel extends HTMLElement {
       const fired = alarm.last_fired_at ? this._fmtDateTime(alarm.last_fired_at) : '-';
       const status = this._esc(alarm.status || '-');
       const statusCls = (alarm.status || 'upcoming');
-      const managedStatus = alarm.managed_enabled
-        ? this._esc(alarm.managed_sync_state || 'pending')
-        : 'disabled';
-      const managedHint = alarm.managed_last_error
-        ? '<div style="font-size:11px;color:var(--sa-text-secondary);">' + this._esc(alarm.managed_last_error) + '</div>'
-        : '';
       const canSnooze = alarm.status === 'fired' || alarm.active;
       const canCancel = alarm.active;
       const recurrence = this._formatRecurrence(alarm.recurrence);
@@ -777,7 +770,6 @@ class SmartAssistPanel extends HTMLElement {
         + '<td>' + this._esc(alarm.display_id || alarm.id || '-') + '</td>'
         + '<td><span class="cal-status ' + statusCls + '">' + status + '</span></td>'
         + '<td><span class="cal-status ' + (alarm.direct_last_state === 'ok' ? 'announced' : (alarm.direct_last_state === 'failed' ? 'pending' : 'upcoming')) + '">' + directStatus + '</span>' + directHint + '</td>'
-        + '<td><span class="cal-status ' + (alarm.ownership_verified ? 'announced' : 'pending') + '">' + managedStatus + '</span>' + managedHint + '</td>'
         + '<td style="white-space:nowrap;">' + recurrence + '</td>'
         + '<td style="white-space:nowrap;">' + trigger + '</td>'
         + '<td style="white-space:nowrap;color:var(--sa-text-secondary);">' + fired + '</td>'
@@ -795,11 +787,8 @@ class SmartAssistPanel extends HTMLElement {
     }
 
     html += '<div class="card"><h3>Alarms</h3>'
-      + '<table><thead><tr><th>Time</th><th>Label</th><th>Display ID</th><th>Status</th><th>Direct</th><th>Managed</th><th>Recurrence</th><th>Next Trigger</th><th>Last Fired</th><th>Actions</th></tr></thead>'
+      + '<table><thead><tr><th>Time</th><th>Label</th><th>Display ID</th><th>Status</th><th>Direct</th><th>Recurrence</th><th>Next Trigger</th><th>Last Fired</th><th>Actions</th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
-    if (!managedEnabled) {
-      html += '<div class="sub" style="margin-top:-8px;margin-bottom:12px;">Managed alarm automation is currently disabled.</div>';
-    }
     return html;
   }
 
@@ -844,6 +833,10 @@ class SmartAssistPanel extends HTMLElement {
     const interval = this._esc(String(recurrence.interval || 1));
     const reactivateSuggested = (alarm.status === 'fired' || alarm.status === 'dismissed') ? 'checked' : '';
     const weekdays = Array.isArray(recurrence.byweekday) ? recurrence.byweekday : [];
+    const ttsTargets = Array.isArray(alarm.tts_targets) ? alarm.tts_targets.join(', ') : '';
+    const wakeTextDynamicChecked = alarm.wake_text_dynamic ? 'checked' : '';
+    const wakeTextWeatherChecked = alarm.wake_text_include_weather ? 'checked' : '';
+    const wakeTextNewsChecked = alarm.wake_text_include_news ? 'checked' : '';
     const weekdayCodes = ['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su'];
     const weekdayLabels = { mo: 'Mo', tu: 'Tu', we: 'We', th: 'Th', fr: 'Fr', sa: 'Sa', su: 'Su' };
     let weekdayHtml = '';
@@ -855,7 +848,7 @@ class SmartAssistPanel extends HTMLElement {
     const previewText = this._recurrencePreviewText(String(recurrence.frequency || '').toLowerCase(), parseInt(recurrence.interval || 1, 10) || 1, weekdays);
 
     return '<tr data-alarm-edit-id="' + this._esc(alarm.id || '') + '">'
-      + '<td colspan="10" style="background:var(--ha-card-background, #fff);">'
+      + '<td colspan="9" style="background:var(--ha-card-background, #fff);">'
       + '<div style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:8px;align-items:end;">'
       + '<label style="display:flex;flex-direction:column;font-size:12px;">Label'
       + '<input class="alarm-edit-label" type="text" value="' + this._esc(alarm.label || '') + '"></label>'
@@ -871,8 +864,13 @@ class SmartAssistPanel extends HTMLElement {
       + '</select></label>'
       + '<label style="display:flex;flex-direction:column;font-size:12px;">Interval'
       + '<input class="alarm-edit-recurrence-interval" type="number" min="1" step="1" value="' + interval + '"></label>'
+      + '<label style="display:flex;flex-direction:column;font-size:12px;">TTS targets (comma-separated)'
+      + '<input class="alarm-edit-tts-targets" type="text" value="' + this._esc(ttsTargets) + '"></label>'
       + '<div style="display:flex;flex-direction:column;gap:8px;">'
       + '<label style="font-size:12px;"><input class="alarm-edit-reactivate" type="checkbox" ' + reactivateSuggested + '> Reactivate</label>'
+      + '<label style="font-size:12px;"><input class="alarm-edit-wake-dynamic" type="checkbox" ' + wakeTextDynamicChecked + '> Dynamic wake text</label>'
+      + '<label style="font-size:12px;"><input class="alarm-edit-wake-weather" type="checkbox" ' + wakeTextWeatherChecked + '> Include weather</label>'
+      + '<label style="font-size:12px;"><input class="alarm-edit-wake-news" type="checkbox" ' + wakeTextNewsChecked + '> Include news</label>'
       + '<div>'
       + '<button class="refresh-btn alarm-edit-save-btn" data-alarm-id="' + this._esc(alarm.id || '') + '">Save</button> '
       + '<button class="refresh-btn alarm-edit-cancel-btn" data-alarm-id="' + this._esc(alarm.id || '') + '">Cancel</button>'
@@ -1270,6 +1268,10 @@ class SmartAssistPanel extends HTMLElement {
     const scheduledFor = (row.querySelector('.alarm-edit-scheduled')?.value || '').trim();
     const recurrenceFrequency = (row.querySelector('.alarm-edit-recurrence-frequency')?.value || '').trim().toLowerCase();
     const recurrenceIntervalRaw = (row.querySelector('.alarm-edit-recurrence-interval')?.value || '1').trim();
+    const ttsTargets = (row.querySelector('.alarm-edit-tts-targets')?.value || '').trim();
+    const wakeTextDynamic = Boolean(row.querySelector('.alarm-edit-wake-dynamic')?.checked);
+    const wakeTextIncludeWeather = Boolean(row.querySelector('.alarm-edit-wake-weather')?.checked);
+    const wakeTextIncludeNews = Boolean(row.querySelector('.alarm-edit-wake-news')?.checked);
     const reactivate = Boolean(row.querySelector('.alarm-edit-reactivate')?.checked);
     const selectedWeekdays = Array.from(row.querySelectorAll('.alarm-edit-weekday:checked')).map((el) => String(el.value || '').trim().toLowerCase());
 
@@ -1302,6 +1304,10 @@ class SmartAssistPanel extends HTMLElement {
           message: message,
           scheduled_for: scheduledFor,
           recurrence: recurrence,
+          tts_targets: ttsTargets,
+          wake_text_dynamic: wakeTextDynamic,
+          wake_text_include_weather: wakeTextIncludeWeather,
+          wake_text_include_news: wakeTextIncludeNews,
           reactivate: reactivate,
         },
         WS_CALL_TIMEOUT_MS,
