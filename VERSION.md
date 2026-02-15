@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.21.1 | 2026-02-15 |
+| Smart Assist | 1.21.2 | 2026-02-15 |
 
 ## Version History
+
+### v1.21.2 (2026-02-15) - Translation Cleanup for Simple Alarm UX
+
+**Fixes:**
+- Removed obsolete conversation settings labels/descriptions for advanced alarm backend controls in base strings
+- Removed matching obsolete translation keys from English and German locale files
+- Kept only strings used by the simplified alarm configuration flow
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.21.1 (2026-02-15) - Alarm Backend UX Simplification
 

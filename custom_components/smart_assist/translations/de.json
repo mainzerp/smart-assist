@@ -135,21 +135,7 @@
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung aktivieren",
             "enable_cache_warming": "Automatisches Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
-            "cancel_intent_agent": "Als Cancel Intent Handler verwenden",
-            "enable_advanced_alarm_backends": "Erweiterte Alarm-Backend-Steuerung aktivieren",
-            "enable_managed_alarm_automation": "Managed Alarm-Automation aktivieren",
-            "managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall (Sekunden)",
-            "managed_alarm_auto_repair": "Managed Alarm Auto-Reparatur",
-            "alarm_execution_mode": "Alarm-Ausfuehrungsmodus",
-            "direct_alarm_enable_notification": "Direkter Alarm: Persistent-Notification Backend",
-            "direct_alarm_enable_notify": "Direkter Alarm: Notify-Service Backend",
-            "direct_alarm_notify_service": "Direkter Alarm Notify-Service (domain.service)",
-            "direct_alarm_enable_tts": "Direkter Alarm: TTS Backend",
-            "direct_alarm_tts_service": "Direkter Alarm TTS-Service (domain.service)",
-            "direct_alarm_tts_target": "Direkter Alarm TTS Ziel-entity_id (optional)",
-            "direct_alarm_enable_script": "Direkter Alarm: Script Backend",
-            "direct_alarm_script_entity_id": "Direkter Alarm Script entity_id (script.*)",
-            "direct_alarm_backend_timeout_seconds": "Direkter Alarm Backend-Timeout (Sekunden)"
+            "cancel_intent_agent": "Als Cancel Intent Handler verwenden"
           },
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
@@ -171,21 +157,7 @@
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
-            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet.",
-            "enable_advanced_alarm_backends": "Wenn deaktiviert, nutzt Smart Assist das einfache Standard-Alarmverhalten. Aktiviere dies, um Managed/Direct/Hybrid-Backend-Details zu konfigurieren.",
-            "enable_managed_alarm_automation": "Opt-in Funktion: Smart Assist verwaltet nur eigene, verifizierte Alarm-Automationen. Nutzer-Automationen werden nie geaendert.",
-            "managed_alarm_reconcile_interval": "Wie oft Managed Alarm-Besitz und Verknuepfung abgeglichen werden.",
-            "managed_alarm_auto_repair": "Wenn aktiviert, versucht Smart Assist fehlende eigene Managed-Automationen wiederherzustellen.",
-            "alarm_execution_mode": "Waehle die Alarm-Ausfuehrung: managed_only (nur Managed Automation), direct_only (nur interne direkte Backends) oder hybrid (direkt plus Managed-Abgleich).",
-            "direct_alarm_enable_notification": "Aktiviert das direkte Backend fuer Persistent Notifications bei Alarmfeuer.",
-            "direct_alarm_enable_notify": "Aktiviert das direkte Backend fuer einen Notify-Service bei Alarmfeuer.",
-            "direct_alarm_notify_service": "Notify-Service im Format domain.service (z. B. notify.notify).",
-            "direct_alarm_enable_tts": "Aktiviert das direkte Backend fuer einen TTS-Service bei Alarmfeuer.",
-            "direct_alarm_tts_service": "TTS-Service im Format domain.service (z. B. tts.speak).",
-            "direct_alarm_tts_target": "Optionales Ziel entity_id fuer den TTS-Service.",
-            "direct_alarm_enable_script": "Aktiviert das direkte Backend zum Ausfuehren eines Scripts bei Alarmfeuer.",
-            "direct_alarm_script_entity_id": "Script entity_id zum Aufruf (muss mit script. beginnen).",
-            "direct_alarm_backend_timeout_seconds": "Timeout pro Backend in Sekunden (1-30)."
+            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
           }
         },
         "prompt": {
@@ -237,20 +209,6 @@
             "enable_cache_warming": "Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall",
             "cancel_intent_agent": "Als Cancel Intent Handler verwenden",
-            "enable_advanced_alarm_backends": "Erweiterte Alarm-Backend-Steuerung aktivieren",
-            "enable_managed_alarm_automation": "Managed Alarm-Automation aktivieren",
-            "managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall (Sekunden)",
-            "managed_alarm_auto_repair": "Managed Alarm Auto-Reparatur",
-            "alarm_execution_mode": "Alarm-Ausfuehrungsmodus",
-            "direct_alarm_enable_notification": "Direkter Alarm: Persistent-Notification Backend",
-            "direct_alarm_enable_notify": "Direkter Alarm: Notify-Service Backend",
-            "direct_alarm_notify_service": "Direkter Alarm Notify-Service (domain.service)",
-            "direct_alarm_enable_tts": "Direkter Alarm: TTS Backend",
-            "direct_alarm_tts_service": "Direkter Alarm TTS-Service (domain.service)",
-            "direct_alarm_tts_target": "Direkter Alarm TTS Ziel-entity_id (optional)",
-            "direct_alarm_enable_script": "Direkter Alarm: Script Backend",
-            "direct_alarm_script_entity_id": "Direkter Alarm Script entity_id (script.*)",
-            "direct_alarm_backend_timeout_seconds": "Direkter Alarm Backend-Timeout (Sekunden)",
             "user_system_prompt": "System Prompt"
           },
           "data_description": {
@@ -274,21 +232,7 @@
             "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
             "user_system_prompt": "Persoenlichkeit und Anweisungen fuer diesen Konversations-Agenten.",
-            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet.",
-            "enable_advanced_alarm_backends": "Wenn deaktiviert, nutzt Smart Assist das einfache Standard-Alarmverhalten. Aktiviere dies, um Managed/Direct/Hybrid-Backend-Details zu konfigurieren.",
-            "enable_managed_alarm_automation": "Opt-in Funktion: Smart Assist verwaltet nur eigene, verifizierte Alarm-Automationen. Nutzer-Automationen werden nie geaendert.",
-            "managed_alarm_reconcile_interval": "Wie oft Managed Alarm-Besitz und Verknuepfung abgeglichen werden.",
-            "managed_alarm_auto_repair": "Wenn aktiviert, versucht Smart Assist fehlende eigene Managed-Automationen wiederherzustellen.",
-            "alarm_execution_mode": "Waehle die Alarm-Ausfuehrung: managed_only (nur Managed Automation), direct_only (nur interne direkte Backends) oder hybrid (direkt plus Managed-Abgleich).",
-            "direct_alarm_enable_notification": "Aktiviert das direkte Backend fuer Persistent Notifications bei Alarmfeuer.",
-            "direct_alarm_enable_notify": "Aktiviert das direkte Backend fuer einen Notify-Service bei Alarmfeuer.",
-            "direct_alarm_notify_service": "Notify-Service im Format domain.service (z. B. notify.notify).",
-            "direct_alarm_enable_tts": "Aktiviert das direkte Backend fuer einen TTS-Service bei Alarmfeuer.",
-            "direct_alarm_tts_service": "TTS-Service im Format domain.service (z. B. tts.speak).",
-            "direct_alarm_tts_target": "Optionales Ziel entity_id fuer den TTS-Service.",
-            "direct_alarm_enable_script": "Aktiviert das direkte Backend zum Ausfuehren eines Scripts bei Alarmfeuer.",
-            "direct_alarm_script_entity_id": "Script entity_id zum Aufruf (muss mit script. beginnen).",
-            "direct_alarm_backend_timeout_seconds": "Timeout pro Backend in Sekunden (1-30)."
+            "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
           }
         }
       },
@@ -300,12 +244,7 @@
         "groq_api_key_required": "Groq API-Schluessel wird fuer den Groq Provider benoetigt.",
         "openrouter_api_key_required": "OpenRouter API-Schluessel wird fuer den OpenRouter Provider benoetigt.",
         "ollama_not_configured": "Ollama ist nicht konfiguriert. Bitte fuege Ollama in den Haupteinstellungen hinzu.",
-        "invalid_managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall muss zwischen 30 und 3600 Sekunden liegen.",
-        "invalid_alarm_execution_mode": "Alarm-Ausfuehrungsmodus ist ungueltig.",
-        "invalid_direct_alarm_timeout": "Direkter Alarm Backend-Timeout muss zwischen 1 und 30 Sekunden liegen.",
-        "invalid_direct_alarm_notify_service": "Direkter Alarm Notify-Service muss domain.service Format haben.",
-        "invalid_direct_alarm_tts_service": "Direkter Alarm TTS-Service muss domain.service Format haben.",
-        "invalid_direct_alarm_script_entity_id": "Direkter Alarm Script entity_id muss mit script. beginnen."
+        "invalid_managed_alarm_reconcile_interval": "Managed Alarm-Abgleichsintervall muss zwischen 30 und 3600 Sekunden liegen."
       }
     },
     "ai_task": {
