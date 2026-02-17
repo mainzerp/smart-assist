@@ -1,0 +1,2666 @@
+# Smart Assist - Version History
+
+## Current Version
+
+| Component    | Version | Date       |
+| ------------ | ------- | ---------- |
+| Smart Assist | 1.23.6  | 2026-02-17 |
+
+## Version History
+
+### v1.23.6 (2026-02-17) - Alarm Wake Text: Language-Neutral Handling
+
+**Fixes:**
+- Removed language-specific keyword parsing from alarm wake-text handling
+- Added language-neutral wake-text argument normalization in alarm tool
+- Enforced logical wake-text behavior: requesting weather/news context auto-enables dynamic wake text
+- Improved alarm tool parameter descriptions to guide explicit LLM wake-text argument output
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_tools.py -k "enables_dynamic_when_wake_context_is_requested or keeps_explicit_wake_text_flags" -q`: 2 passed
+
+**Files modified:**
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/manifest.json
+
+### v1.23.5 (2026-02-17) - Request History Input Visibility + UI Settings Fix
+
+**Fixes:**
+- Fixed dashboard request-history input rendering to support multiple payload field names (`input_text`, `input`, `user_input`) for backward compatibility
+- Added backend request-history entry normalization on load to map legacy input keys to `input_text`
+- Fixed missing Conversation Agent reconfigure settings for request-history content/retention/redaction options
+- Added missing DE/EN translation labels and descriptions for request-history settings in create/reconfigure forms
+- Changed default for `enable_request_history_content` back to enabled (`true`) for new agents
+
+**Validation:**
+- File-level diagnostics: no errors in updated Python/JS/JSON files
+- Local pytest execution for request-history tests is currently blocked on Windows host dependency (`fcntl` missing in Home Assistant test plugin stack)
+
+**Files modified:**
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/context/request_history.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.23.3 (2026-02-17) - Prompt & Tool Schema Hardening
+
+**Fixes and Improvements:**
+- Removed duplicate critical-action confirmation block from technical system prompt to avoid policy repetition and ambiguity
+- Standardized multiple tool parameter descriptions for clearer LLM routing and argument selection
+- Hardened base tool JSON schema generation with strict `additionalProperties: false`
+- Added first-class schema constraints support in `ToolParameter` (`minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems`, `default`)
+- Applied stricter constraints to key tool parameters (e.g., `max_results`, `max_events`, timer durations, alarm recurrence/snooze, unified control percentages, `rgb_color` array shape)
+- Aligned dynamic `send` tool schema with strict additional-property rejection
+- Added schema-guideline documentation for future tool development consistency
+- Added regression tests covering strict schema behavior and constraint emission
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`: 80 passed, 1 warning
+
+**Files modified:**
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/tools/base.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/tools/calendar_tools.py
+- custom_components/smart_assist/tools/memory_tools.py
+- custom_components/smart_assist/tools/music_assistant_tools.py
+- custom_components/smart_assist/tools/notification_tools.py
+- custom_components/smart_assist/tools/search_tools.py
+- custom_components/smart_assist/tools/timer_tools.py
+- custom_components/smart_assist/tools/unified_control.py
+- tests/test_tools.py
+- docs/SubAgent docs/tool-schema-guidelines-2026-02-17/tool-schema-guidelines-2026-02-17.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.23.2 (2026-02-15) - Full Project Code Review Remediation
+
+**Fixes:**
+- AI Task request history now records truthful `success`/`error` outcomes and keeps failure metadata structured
+- AI Task tool telemetry now records real execution timing and timeout/retry metadata
+- Added timeout guard for `HassNevermind` LLM handling with deterministic fallback to `OK`
+- Recurring alarm next-occurrence now honors recurrence timezone semantics with DST-stable local-time advancement
+- Request-history pruning now uses timezone-aware comparisons and debounced deferred save scheduling
+- Privacy-safe default for request-history content storage changed to disabled by default (`false`)
+- Conversation history redaction now enforces bounded pattern/text safeguards and bounded prune cadence
+- WebSocket alarm execution mode normalization simplified to direct-only
+
+**Validation:**
+- Targeted tests executed for AI task, request history, persistent alarms, websocket, cancel handler, and conversation redaction (see test summary in implementation output)
+
+**Files modified:**
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/request_history.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/websocket.py
+- tests/test_ai_task.py
+- tests/test_persistent_alarms.py
+- tests/test_request_history.py
+- tests/test_websocket.py
+- tests/test_init_cancel_handler.py
+- tests/test_conversation_history_redaction.py
+- README.md
+- ROADMAP.md
+- .github/instructions/project-definition.md
+- VERSION.md
+
+### v1.23.1 (2026-02-15) - Alarm Wake Text: Inject User System Prompt
+
+**Improvements:**
+- Dynamic alarm wake text generation now includes the user's system prompt (personality/instructions) from the conversation agent configuration
+- The alarm LLM stays in character and responds in the same tone, language, and style the user configured for their assistant
+- Renamed `_get_llm_client()` to `_get_llm_client_and_prompt()` returning both the LLM client and the user system prompt
+
+**Files modified:**
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- VERSION.md
+
+### v1.23.0 (2026-02-15) - Alarm Pipeline Audit: Managed Alarm Removal and Bug Fixes
+
+**Breaking Changes:**
+- Completely removed `managed_alarm_automation` subsystem (ManagedAlarmAutomationService, reconcile lifecycle, HA automation sync)
+- Removed `managed_only` and `hybrid` alarm execution modes -- only `direct_only` is now supported
+- Removed `CONF_ENABLE_ADVANCED_ALARM_BACKENDS`, `CONF_ENABLE_MANAGED_ALARM_AUTOMATION`, `CONF_MANAGED_ALARM_RECONCILE_INTERVAL`, `CONF_MANAGED_ALARM_AUTO_REPAIR` configuration options
+- Removed `wake_test_*` typo alias parameters from alarm tool (use canonical `wake_text_*` names)
+- Removed managed reconcile websocket action and dashboard reconcile button
+
+**Improvements:**
+- Simplified `_get_alarm_execution_config` to respect user settings for notification/notify/TTS/script toggles (no more hardcoded overrides)
+- Simplified alarm execution mode to always use direct engine
+- Removed dead satellite announce fallback block from direct alarm engine (F03)
+- Added `asyncio.wait_for` timeout guard on LLM `chat()` call in dynamic wake text generation (F07)
+- Added deferred save callback to `async_save()` debounce in persistent alarms to prevent data loss (F08)
+- Fixed all-day event timezone handling in calendar reminder parser (F14)
+
+**Bug Fixes:**
+- Fixed redeclared `delivery` variable shadow in direct alarm engine (F04)
+- Fixed `async_all()` to pass `"weather"` domain filter for weather state collection (F05)
+- Fixed type safety in `_collect_news_context` for non-list raw entries (F06)
+- Removed dead German `REMINDER_TEMPLATES` constant from calendar reminder (F15)
+- Removed double notification in `_process_due_persistent_alarms` (F09)
+
+**Code Quality:**
+- Added clarifying comment at `ddgs` import site (F10)
+- Added docstring to `_get_llm_client()` explaining `CONF_CANCEL_INTENT_AGENT` heuristic (F11)
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; .venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_persistent_alarms.py tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py tests/test_calendar_reminder.py tests/test_config_flow.py -v --tb=short`: 132 passed, 12 pre-existing errors (hass fixture)
+
+**Files deleted:**
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- tests/test_managed_alarm_automation.py
+
+**Files modified:**
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/config_validators.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/calendar_reminder.py
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- tests/test_persistent_alarms.py
+- tests/test_direct_alarm_engine.py
+- tests/test_tools.py
+- tests/test_websocket.py
+- tests/test_config_flow.py
+- README.md
+- ROADMAP.md
+- VERSION.md
+
+### v1.22.16 (2026-02-15) - Tool Arg Key Whitespace Normalization
+
+**Fixes:**
+- Tool dispatch now normalizes argument keys by removing whitespace before calling tool handlers
+- Prevents failures like `unexpected keyword argument 'wake_ text_include_news'` when LLM emits malformed key names
+- Keeps retry flow stable by passing normalized argument keys consistently across attempts
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_tools.py -q`: 41 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/tools/base.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.15 (2026-02-15) - Alarm Tool Typo Alias Hotfix
+
+**Fixes:**
+- Alarm tool now tolerates common LLM typo aliases `wake_test_*` and maps them to canonical `wake_text_*` wake-text options
+- Prevents `unexpected keyword argument 'wake_test_include_weather'` failures during alarm creation when the model emits the typo variant
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_tools.py -q`: 40 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.14 (2026-02-15) - Alarm Dashboard: Resolved Satellites Preview
+
+**Fixes:**
+- Added websocket alarm payload fields `source_satellite_id` and `resolved_satellites` for dashboard visibility
+- Added backend resolver that maps `delivery.tts_targets` (`media_player.*`) to deduplicated `assist_satellite.*` entities via entity registry
+- Added read-only `Resolved satellites` preview field in alarm dashboard edit row to show effective announce routing targets
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py -q`: 9 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.13 (2026-02-15) - Multi-Satellite Alarm Announce
+
+**Fixes:**
+- Added multi-satellite alarm announce routing for `tts.speak` alarms: `tts_targets` media_player entries are resolved to matching `assist_satellite` entities
+- Direct alarm now executes one `assist_satellite.announce` call per resolved satellite target (deduplicated)
+- Keeps fallback behavior for non-satellite scenarios where announce targets cannot be resolved
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 62 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 75 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.12 (2026-02-15) - Preserve Satellite Voice/Provider on Alarm Fire
+
+**Fixes:**
+- Direct alarm TTS now prefers `assist_satellite.announce` for source-satellite delivery (with satellite media_player targets)
+- This preserves the Assist pipeline's configured provider and voice instead of falling back to generic `tts.speak` engine selection
+- Kept existing `tts.speak` path for non-satellite target scenarios
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py tests/test_tools.py -q`: 61 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 75 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.11 (2026-02-15) - Alarm Fire Diagnostics
+
+**Fixes:**
+- Added direct alarm diagnostics log for resolved TTS execution details: service, engine entity, selected voice, and target list
+- Added dynamic wake context diagnostics log showing requested vs actually used weather/news context flags
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py -q`: 21 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.10 (2026-02-15) - Alarm Voice + News Reliability
+
+**Fixes:**
+- Alarm delivery metadata now stores `source_tts_voice` from conversation runtime context (input/satellite attributes)
+- Direct alarm `tts.speak` payload now forwards voice via `options.voice` when source voice is known
+- News enrichment now uses DDGS fallback when `WebSearchTool` returns no results, improving dynamic wake text reliability
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 60 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 75 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.9 (2026-02-15) - Prefer Source Agent TTS Engine
+
+**Fixes:**
+- Alarm delivery metadata now stores `source_conversation_agent_id` at creation time
+- Conversation agent tracks last known runtime `tts.*` engine from request context (input/satellite attributes)
+- Direct alarm `tts.speak` now prefers the source conversation agent's last known TTS engine before global fallback resolver
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py tests/test_tools.py -q`: 58 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 74 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.8 (2026-02-15) - tts.speak Engine Target Fix
+
+**Fixes:**
+- Fixed direct alarm `tts.speak` calls by adding required TTS engine target (`entity_id`) in addition to `media_player_entity_id`
+- Added automatic resolver for `tts.*` entities used by `tts.speak`
+- Added explicit validation error (`tts_engine_required`) when no TTS engine entity can be resolved
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 57 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 74 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- tests/test_direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.7 (2026-02-15) - Stricter Post-Fire Snooze Window
+
+**Fixes:**
+- Tightened implicit post-fire snooze matching window from 30 to 5 minutes
+- Applied consistently across conversation alarm context hints, streaming retry heuristics, alarm tool snooze fallback, and websocket snooze fallback
+- Added regression test to ensure snooze without explicit alarm id does not target older fired alarms
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_tools.py tests/test_websocket.py tests/test_streaming.py -q`: 62 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 74 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.6 (2026-02-15) - Alarm TTS Target Diagnostics
+
+**Fixes:**
+- Added explicit warning log in direct alarm TTS `tts.speak` path when no target can be resolved
+- Log now includes alarm id plus `source_device_id`, `source_satellite_id`, and configured fallback target for faster field diagnostics
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_websocket.py -q`: 18 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.5 (2026-02-15) - Alarm TTS Target Routing Fix
+
+**Fixes:**
+- Fixed direct alarm TTS payload for `tts.speak`: targets are now sent as `media_player_entity_id` (instead of `entity_id`)
+- Added defensive validation for `tts.speak` to fail clearly when no target is resolvable
+- Alarm creation now auto-prefills per-alarm `delivery.tts_targets` from source device/satellite context when explicit targets are not provided
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin -o asyncio_mode=auto tests/test_direct_alarm_engine.py tests/test_tools.py tests/test_websocket.py -q`: 55 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 73 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.4 (2026-02-15) - Alarm Delete Runtime Hardening
+
+**Fixes:**
+- Hardened websocket alarm `delete` event payload to avoid runtime dependency on module-level `dt_util`
+- `updated_at` in delete event now uses the deleted alarm's stored timestamp (or `None`) instead of calling `dt_util.now()` in this path
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py tests/test_persistent_alarms.py -q`: 28 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 72 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.3 (2026-02-15) - Alarm Delete WebSocket Hotfix
+
+**Fixes:**
+- Fixed `NameError` in websocket alarm `delete` action by adding missing `dt_util` import used for delete event timestamps
+- Verified delete action flow with targeted websocket/persistent alarm tests
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py tests/test_persistent_alarms.py -q`: 28 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 72 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.2 (2026-02-15) - Alarm Dashboard: Delete Obsolete Alarms
+
+**Fixes:**
+- Added permanent alarm deletion support in persistent alarm storage (`delete_alarm`) by alarm id/display id
+- Extended websocket alarm action handling with `delete` action, persistence save, and update signaling for dashboard refresh
+- Added `Delete` button in alarm dashboard table with confirmation prompt for removing obsolete alarms
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py tests/test_persistent_alarms.py -q`: 26 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.1 (2026-02-15) - Alarm Dashboard: Wake Options + No Managed Column
+
+**Fixes:**
+- Added alarm dashboard edit fields for per-alarm `tts_targets` and dynamic wake text options (`dynamic`, `include_weather`, `include_news`)
+- Extended websocket alarm payload/action handling so dashboard edits persist wake text options in alarm delivery metadata
+- Removed `Managed` column from alarm dashboard table (simple-mode UX)
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_websocket.py tests/test_direct_alarm_engine.py tests/test_persistent_alarms.py -q`: 34 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.22.0 (2026-02-15) - Dynamic LLM Wake Text on Alarm Fire
+
+**New Features:**
+- Added per-alarm dynamic wake text generation via LLM at fire time (`wake_text_dynamic`)
+- Added optional per-alarm context flags for weather and latest headlines (`wake_text_include_weather`, `wake_text_include_news`)
+- Added persistent per-alarm wake text options in alarm delivery metadata with backward-compatible defaults
+- Kept robust fallback to static alarm message when LLM or context retrieval is unavailable
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_direct_alarm_engine.py tests/test_persistent_alarms.py -q`: 26 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- tests/test_direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.21.2 (2026-02-15) - Translation Cleanup for Simple Alarm UX
+
+**Fixes:**
+- Removed obsolete conversation settings labels/descriptions for advanced alarm backend controls in base strings
+- Removed matching obsolete translation keys from English and German locale files
+- Kept only strings used by the simplified alarm configuration flow
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.21.1 (2026-02-15) - Alarm Backend UX Simplification
+
+**Fixes:**
+- Removed advanced alarm backend controls from conversation create/reconfigure settings UI
+- Enforced simple alarm runtime mode (`direct_only`) and disabled advanced backend steering internally
+- Enabled direct alarm TTS by default in simple mode so alarms can speak on source-routed targets
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_direct_alarm_engine.py tests/test_persistent_alarms.py tests/test_websocket.py -q`: 32 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.21.0 (2026-02-15) - Per-Alarm TTS Target Routing
+
+**New Features:**
+- Added per-alarm TTS target support in `alarm` tool via optional `tts_targets` parameter (comma-separated `media_player.*` entity ids)
+- Added per-alarm delivery metadata persistence (`source_device_id`, `source_satellite_id`, `tts_targets`)
+- Added automatic default TTS routing for alarms to the originating request device/satellite when no explicit per-alarm target is provided
+- Added multi-target TTS dispatch per alarm when multiple targets are configured
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_direct_alarm_engine.py tests/test_persistent_alarms.py -q`: 24 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- tests/test_direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.20.6 (2026-02-15) - Store API Compatibility Fix
+
+**Fixes:**
+- Added backward-compatible persistent alarm store initialization for Home Assistant versions where `Store.__init__` does not accept `async_migrate_func`
+- Preserved migration support by attaching migration callback via internal store hook when constructor keyword is unavailable
+- Prevented startup crash `TypeError: Store.__init__() got an unexpected keyword argument 'async_migrate_func'`
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest tests/test_persistent_alarms.py -q`: 18 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.20.5 (2026-02-15) - Persistent Alarm Storage Migration Hotfix
+
+**Fixes:**
+- Added Home Assistant `Store` migration callback for persistent alarms to prevent startup failure on older storage versions
+- Eliminated `NotImplementedError` during `async_load()` when storage major version differs
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest tests/test_persistent_alarms.py -q`: 18 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.20.4 (2026-02-15) - Remove Managed Alarm Settings from Config UI
+
+**Fixes:**
+- Removed managed alarm automation controls from conversation subentry settings and reconfigure forms
+- Kept advanced alarm backend toggle and direct alarm engine settings unchanged
+- Removed managed reconcile interval validation from config flow input handling
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.20.3 (2026-02-15) - Inline Recurrence Preview
+
+**Improvements:**
+- Added live recurrence preview line in inline alarm editor
+- Preview updates dynamically when frequency, interval, or weekday selection changes
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.20.2 (2026-02-15) - Weekly Day Picker in Inline Alarm Edit
+
+**Improvements:**
+- Added weekday checkboxes (Mo-Su) for weekly recurrence in inline alarm editor
+- Added validation requiring at least one weekday when `weekly` recurrence is selected
+- Included selected weekdays in dashboard edit payload for recurrence updates
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.20.1 (2026-02-15) - Inline Alarm Edit UX
+
+**Improvements:**
+- Replaced prompt-based alarm editing in dashboard with inline table form editing
+- Added inline Save/Cancel controls and field validation for recurrence interval
+- Kept existing websocket `alarm_action=edit` contract unchanged
+
+**Validation:**
+- `powershell -File tests/run_windows_quickcheck.ps1`: 71 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.20.0 (2026-02-15) - Alarm V2 Simplification (Simple Default + Edit + Recurrence)
+
+**New Features:**
+- Added Alarm V2 recurrence support with persisted recurrence metadata and next-occurrence scheduling
+- Added dashboard alarm editing via websocket `alarm_action=edit` and panel row `Edit` action
+- Added alarm tool support for recurrence set/edit parameters and explicit edit action
+- Added simple default alarm backend UX with explicit advanced opt-in toggle for managed/direct/hybrid backend controls
+
+**Compatibility:**
+- Preserved one-shot alarm behavior and lifecycle events (`smart_assist_alarm_fired`, `smart_assist_alarm_updated`)
+- Kept existing advanced backend settings backward-compatible for existing entries
+- Added storage migration-safe defaults for legacy alarms without recurrence metadata
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_persistent_alarms.py
+- tests/test_websocket.py
+- tests/test_tools.py
+- tests/test_direct_alarm_engine.py
+- tests/test_config_flow.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.19.0 (2026-02-15) - Direct Alarm Engine (Internal Execution Mode)
+
+**New Features:**
+- Added direct internal alarm execution engine with per-backend outcome capture and timeout isolation
+- Added execution modes `managed_only`, `direct_only`, and `hybrid` for managed/direct coexistence
+- Added optional direct backends for `persistent_notification`, `notify`, `tts`, and `script`
+- Added direct execution metadata on alarms (`last_state`, `last_executed_at`, `last_error`, backend results, fire marker)
+- Extended websocket/dashboard payloads with direct execution visibility and mode-aware managed reconcile availability
+
+**Compatibility/Safety:**
+- Preserved canonical lifecycle source-of-truth at `PersistentAlarmManager.pop_due_alarms()`
+- Preserved lifecycle events (`smart_assist_alarm_fired`, `smart_assist_alarm_updated`) regardless of backend outcome
+- Kept managed automation behavior unchanged for `managed_only`; skipped managed write reconcile in `direct_only`
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/config_validators.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/prompt_builder.py
+- tests/test_direct_alarm_engine.py
+- tests/test_persistent_alarms.py
+- tests/test_websocket.py
+- tests/test_tools.py
+- tests/test_config_flow.py
+- tests/test_managed_alarm_automation.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.18.3 (2026-02-15) - Official Automation API Compatibility Fix
+
+**Fixes:**
+- Refined managed automation capability detection to require actual write services (`upsert/create/edit/update/delete/remove`)
+- Prevented false-positive write capability when only official runtime control services exist (`reload`, `toggle`, `trigger`, `turn_off`, `turn_on`)
+- Ensured environments with only official automation actions are classified as `unsupported_in_ha` instead of `service_call_failed`
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_managed_alarm_automation.py tests/test_websocket.py`: 11 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.18.2 (2026-02-15) - Managed Automation Unsupported-API Fallback
+
+**Fixes:**
+- Added explicit managed sync error category `unsupported_in_ha` when Home Assistant exposes no writable `automation.*` services
+- Prevented misleading `service_call_failed` classification for environments without automation write API support
+- Kept managed automation opt-in behavior unchanged and continued event-based alarm handling as compatibility fallback
+
+**Tests:**
+- Added managed automation regression test for runtimes without automation service registry support
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_managed_alarm_automation.py tests/test_websocket.py`: 11 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- tests/test_managed_alarm_automation.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.18.1 (2026-02-15) - Managed Automation Diagnostics Logging
+
+**Fixes:**
+- Added explicit warning logs when managed alarm automation tries unsupported service operations (`automation.upsert/create/edit/update/delete/remove` not available)
+- Added clear warning logs for failed upsert/remove capability detection so `service_call_failed` can be diagnosed directly in HA logs
+- Preserved existing managed automation safety behavior and event-based alarm fallback unchanged
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_managed_alarm_automation.py tests/test_websocket.py`: 10 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.18.0 (2026-02-15) - Managed Alarm Automation (Opt-In, Ownership-Safe)
+
+**New Features:**
+- Added opt-in managed alarm automation configuration with reconcile interval and auto-repair controls
+- Added `ManagedAlarmAutomationService` for ownership-verified reconcile/upsert/remove lifecycle with failure categorization
+- Added per-alarm managed sync metadata (`managed_enabled`, sync state, last error, ownership verification, automation entity linkage)
+- Added dashboard/websocket visibility for managed status and admin `managed_reconcile_now` action
+- Preserved existing event-based alarm behavior (`smart_assist_alarm_fired`, `smart_assist_alarm_updated`) as compatibility fallback
+
+**Safety:**
+- Managed automation mutation is restricted to verifiable Smart Assist-owned artifacts only
+- Ownership mismatch never mutates user automations and surfaces explicit sync failure state
+- Managed sync failures are non-blocking for alarm create/snooze/cancel/fired lifecycle
+
+**Tests:**
+- Extended persistent alarm tests for managed metadata defaults and sync-state helpers
+- Added managed automation service tests for ownership verification, idempotent reconcile, upsert/remove safety, and mismatch handling
+- Extended websocket tests for managed alarm payload fields and manual reconcile action
+- Added config validator tests for managed reconcile interval bounds
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_persistent_alarms.py tests/test_managed_alarm_automation.py tests/test_websocket.py tests/test_config_flow.py`: 30 passed, 12 errors (`hass` fixture unavailable in this run mode for broader `test_config_flow.py` cases)
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_persistent_alarms.py tests/test_managed_alarm_automation.py tests/test_websocket.py tests/test_config_flow.py::TestManagedAlarmConfigValidation`: 30 passed
+- `powershell -File tests/run_windows_quickcheck.ps1`: 66 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/context/managed_alarm_automation.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/config_validators.py
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_persistent_alarms.py
+- tests/test_managed_alarm_automation.py
+- tests/test_websocket.py
+- tests/test_config_flow.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.17.0 (2026-02-15) - Alarm Governance + Dashboard Alarm Management
+
+**New Features:**
+- Added human-readable unique `display_id` for persistent alarms while preserving immutable machine `id` compatibility
+- Added dual alarm lookup (`id` and `display_id`) across manager/tool/websocket paths with additive migration from storage v1 to v2
+- Added post-fire conversational snooze routing for relative follow-ups (e.g., "noch 5 minuten", "5 more minutes") with safe recent-fired disambiguation
+- Added alarm lifecycle event contract `smart_assist_alarm_updated` and expanded fired payload metadata (`display_id`, `status`, `fire_count`)
+- Added dashboard **Alarms** tab with alarm summary cards, full list view, and row actions (`Snooze 5m`, `Snooze 10m`, `Cancel`)
+- Added websocket contracts: `smart_assist/alarms_data`, `smart_assist/alarm_action`, dashboard `alarms_summary`, and subscription `update_type: "alarms"`
+- Enforced alarm automation safety stance in docs: event-driven integration only; no mutation of user-created HA automations
+
+**Tests:**
+- Extended persistent alarm tests for display ID uniqueness/migration, dual lookup, fired-snooze reactivation, and recent fired filtering
+- Added streaming heuristic tests for post-fire relative snooze context gating
+- Added websocket tests for alarms endpoints/actions and dashboard summary contracts
+- Extended prompt-builder tests for explicit post-fire snooze policy instructions
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin tests/test_persistent_alarms.py tests/test_streaming.py tests/test_websocket.py tests/test_prompt_builder.py`: 36 passed
+- `tests/run_windows_quickcheck.ps1`: 65 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- tests/test_persistent_alarms.py
+- tests/test_streaming.py
+- tests/test_websocket.py
+- tests/test_prompt_builder.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.16.0 (2026-02-15) - Persistent Alarms (Restart-Safe Absolute-Time)
+
+**New Features:**
+- Added storage-backed persistent alarm manager with create/list/cancel/snooze/due-resolution lifecycle
+- Added dedicated `alarm` tool for absolute-time alarms while preserving existing native `timer` behavior
+- Added lifecycle wiring to load/save alarms on setup/unload and periodic due-alarm reconciliation
+- Added fired-alarm event emission via `smart_assist_alarm_fired` for automation compatibility
+- Added streaming guardrail heuristic to prevent false alarm confirmations when no `alarm` tool call occurred
+
+**Tests:**
+- Added/updated targeted tests for persistent alarm manager behavior, alarm tool contracts, and streaming alarm guardrails
+
+**Validation:**
+- `tests/test_persistent_alarms.py tests/test_streaming.py tests/test_tools.py`: 52 passed
+- `tests/run_windows_quickcheck.ps1`: 59 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/context/persistent_alarms.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/__init__.py
+- custom_components/smart_assist/context/__init__.py
+- custom_components/smart_assist/tools/__init__.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/const.py
+- tests/test_persistent_alarms.py
+- tests/test_tools.py
+- README.md
+- ROADMAP.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.15.1 (2026-02-15) - AI Task Structured Output Follow-up Fixes
+
+**Bug Fixes:**
+- Fixed AI Task tool-loop compatibility regressions after structured-output rollout
+- Restored robust tool execution path compatibility for registries/mocks that don't accept retry/latency kwargs
+- Hardened AI Task chat invocation compatibility for existing async mock/test call patterns
+
+**Validation:**
+- `tests/test_ai_task.py`: 27 passed
+- Windows quickcheck script: 54 passed
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/utils.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.15.0 (2026-02-15) - AI Task Structured Output Contracts
+
+**New Features:**
+- Added schema-constrained structured output for `ai_task.generate_data` when `task.structure` is provided
+- Added deterministic local JSON extraction + constrained schema validation before returning automation data
+- Added native structured-output provider attempt with single fallback retry to non-native mode
+- Added localized concise structured-output failure messages (EN/DE)
+
+**Tests:**
+- Added AI Task tests for structured success, fenced JSON extraction, invalid JSON, schema mismatch, unchanged unstructured path, and native fallback retry
+
+**Docs:**
+- Added structured output usage section with two automation examples in README
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/llm/base_client.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/llm/ollama_client.py
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_ai_task.py
+- README.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.10 (2026-02-15) - Dashboard Idle Blank Resilience Hardening
+
+**Bug Fixes:**
+- Added WebSocket request timeout protection for dashboard, calendar, history, analytics, and prompt loads to prevent stuck in-progress states after idle/reconnect instability
+- Added stale-request self-healing logic that clears long-running fetch locks and triggers automatic re-subscribe + forced refresh recovery
+- Added render error boundary fallback to avoid blank panel states on rare runtime render exceptions
+- Hardened scroll container caching/restoration to skip stale or detached container references safely
+
+**Observability:**
+- Added lightweight frontend resilience counters (`_wsTimeoutCount`, `_renderErrorCount`, `_lastSuccessfulFetchAt`) for easier field diagnosis
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.9 (2026-02-14) - Per-Entity Avg Response + Cleaner Top Overview
+
+**Dashboard UI:**
+- Added `Avg Response` display per agent/task row in Overview
+- Removed `Cache Hit Rate` card from the top aggregate Overview section
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.8 (2026-02-14) - AI Task Registered Tools in Overview
+
+**Bug Fixes:**
+- Added `get_registered_tool_names()` to AI Task entities so dashboard overview can display `Registered Tools (N)` for task rows
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.7 (2026-02-14) - Overview Includes AI Task Rows
+
+**Bug Fixes:**
+- Overview now includes AI Task rows (not only conversation agents), so entries visible in Request History are also represented in Overview
+- Dashboard task payload now exposes registered tools for AI Tasks, enabling `Registered Tools (N)` cards for task rows
+
+**Files modified:**
+
+- custom_components/smart_assist/websocket.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.6 (2026-02-14) - Dashboard History Visibility & Per-Agent Overview
+
+**Bug Fixes:**
+- History tab now loads unfiltered request history/tool analytics by default, so AI Task entries are visible alongside conversation entries
+
+**Dashboard UI:**
+- Overview now renders per-agent sections for `Token Usage`, `Cache Performance`, and `Registered Tools (N)` instead of showing these blocks only for the currently selected agent
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.5 (2026-02-14) - AI Task History Dashboard Logging
+
+**Bug Fixes:**
+- AI Task executions are now written to `RequestHistoryStore`, so they appear in History dashboard lists and tool analytics
+- AI Task tool-call telemetry now includes execution timing, timeout/retry metadata, and iteration counts for analytics parity
+
+**Tests:**
+- Added targeted AI Task test to verify request-history entry creation for task runs
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.4 (2026-02-14) - AI Task Task-Object Compatibility Fix
+
+**Bug Fixes:**
+- Fixed AI Task `unknown error` during automation execution when Home Assistant provides task objects without `task_name`
+- `_async_generate_data` now safely reads task metadata via fallback attributes and handles variant task object shapes
+
+**Tests:**
+- Added targeted AI Task regression test for missing `task_name` attribute on task object
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.3 (2026-02-14) - AI Task Initial Status Fix
+
+**Bug Fixes:**
+- AI Task entities now expose an initial `ready` state when first added, instead of showing `unknown` before the first task execution
+- AI Task automation execution now handles empty/invalid instructions safely instead of bubbling an `unknown error`
+
+**Tests:**
+- Added targeted AI Task test for initial `ready` status on entity add
+- Added targeted AI Task test for empty instructions handling in `_async_generate_data`
+
+**Files modified:**
+
+- custom_components/smart_assist/ai_task.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.2 (2026-02-14) - Release Metadata Sync
+
+**Bug Fixes:**
+- Updated integration manifest version to match the latest release metadata
+
+**Files modified:**
+
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.14.1 (2026-02-14) - AI Task Runtime-Control UI Labels
+
+**Bug Fixes:**
+- Added missing AI Task form labels and descriptions for `tool_max_retries` and `tool_latency_budget_ms` in base strings and EN/DE translations
+- AI Task Settings and Reconfigure screens now fully expose runtime retry/timeout controls with clear localized text
+
+**Compatibility & Behavior:**
+- Runtime behavior remains unchanged: AI Task already enforced retries/timeouts and emitted structured tool metadata (`timed_out`, `retries_used`, `attempts`, `latency_budget_ms`, `execution_time_ms`)
+
+**Files modified:**
+
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- VERSION.md
+
+### v1.14.0 (2026-02-14) - AI Task Control Opt-In + Lock Guard
+
+**New Features:**
+- Added two AI Task-level safety switches: `task_allow_control` and `task_allow_lock_control`
+- AI Task settings and reconfigure forms now expose both switches with synced EN/DE/base translations
+- AI Task tool execution now enforces policy at runtime:
+  - blocks all `control` tool calls when control opt-in is disabled
+  - blocks `lock.*` control attempts when control is enabled but lock control is disabled
+
+**Compatibility & Behavior:**
+- Conversation critical confirmation flow remains unchanged
+- Tool registry now applies control-tool suppression only in AI Task context when control opt-in is disabled
+- AI Task settings and reconfigure flows expose `tool_max_retries` and `tool_latency_budget_ms` for runtime parity with conversation agents
+
+**Tests:**
+- Added targeted AI Task tests for disabled control, lock-domain blocking, allowed non-lock control, allowed lock control, and subentry-data wiring to tool registry
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/tools/__init__.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_ai_task.py
+- VERSION.md
+
+### v1.13.18 (2026-02-14) - Reliability & Safety Gate
+
+**Reliability & Safety:**
+- Added per-agent runtime controls for tool execution: `tool_max_retries` and `tool_latency_budget_ms` (config flow + translations + runtime enforcement)
+- Tool execution now records structured metadata (`timed_out`, `retries_used`, `attempts`, `latency_budget_ms`, `execution_time_ms`)
+- Implemented runtime confirmation gate for critical `control` actions (locks/alarms/covers): pending action is stored and only executed after explicit user confirmation; explicit denial cancels safely
+
+**Observability / Dashboard:**
+- Request history telemetry extended with timeout/retry fields on tool calls
+- Tool analytics now includes `failure_rate`, `timeout_calls`, and `timeout_rate`
+- History tab analytics table now shows per-tool failure rate and timeout rate
+
+**Error Safety:**
+- Added shared `sanitize_user_facing_error()` utility and applied it across tool and LLM error boundaries
+- Replaced raw backend/provider payload surfaces with normalized user-safe messages in task, tool, and provider client paths
+
+**Tests:**
+- Added/updated targeted tests for tool retries/timeouts, critical-action confirmation flow, timeout analytics, websocket analytics payloads, prompt wording alignment, and LLM error sanitization
+
+**Files modified:**
+
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/tools/base.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/context/conversation.py
+- custom_components/smart_assist/context/request_history.py
+- custom_components/smart_assist/www/smart-assist-panel.js
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/utils.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/llm/base_client.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/conversation.py
+- tests/test_tools.py
+- tests/test_streaming.py
+- tests/test_request_history.py
+- tests/test_ai_task.py
+- tests/test_websocket.py
+- tests/test_prompt_builder.py
+- tests/test_llm_clients.py
+- VERSION.md
+
+### v1.13.17 (2026-02-14) - Timer Tool-Call Guardrail
+
+**Bug Fixes:**
+- Added streaming guardrail to prevent false timer confirmations when no `timer` tool call was made
+- On first LLM pass, timer-like requests without tool calls now trigger a forced retry with explicit timer-tool instruction
+
+**Tests:**
+- Added `tests/test_streaming.py` for timer request detection and retry decision heuristics
+
+**Files modified:**
+
+- custom_components/smart_assist/streaming.py, tests/test_streaming.py, VERSION.md
+
+### v1.13.16 (2026-02-14) - Satellite Memory Recall Fallback & Resolver Hardening
+
+**Bug Fixes:**
+- Hardened user resolution for satellite mappings via normalized key/value matching (trim + lowercase)
+- Added resolver miss diagnostics to show mapping lookup context in debug logs
+- Improved memory recall on shared satellites: when resolved user is `default` and personal list is empty, tool now performs read-only cross-user fallback retrieval
+
+**Tests:**
+- Added regression tests for normalized satellite mapping resolution
+- Added tests for cross-user memory retrieval helpers used by fallback behavior
+
+**Files modified:**
+
+- custom_components/smart_assist/context/user_resolver.py, custom_components/smart_assist/context/memory.py, custom_components/smart_assist/tools/memory_tools.py, tests/test_memory.py, VERSION.md
+
+### v1.13.15 (2026-02-13) - Tool Validation & Error UX Fix
+
+**Bug Fixes:**
+- Fixed provider-side tool validation failures when LLM sends `null` for optional tool parameters (e.g. `get_entities.name_filter = null`)
+- Optional tool parameters now emit nullable JSON schema (`anyOf: [type, null]`) instead of hard-failing strict validation
+- Conversation error responses no longer expose raw backend/API payloads to users or TTS output
+
+**UX:**
+- Error fallback is now short, user-friendly, and localized (German/English)
+
+**Files modified:**
+
+- custom_components/smart_assist/tools/base.py, custom_components/smart_assist/conversation.py, VERSION.md
+
+### v1.13.14 (2026-02-13) - Natural Confirmation Wording Tuning
+
+**Prompt Quality:**
+- Response-style rule loosened to give the LLM slightly more natural confirmation flexibility after tool execution
+- Confirmation guidance now prefers short conversational sentences and discourages clipped abbreviations
+
+**Files modified:**
+
+- custom_components/smart_assist/prompt_builder.py, VERSION.md
+
+### v1.13.13 (2026-02-13) - Dashboard Data-Flow & Refactor Improvements
+
+**Performance & Reliability:**
+- Dashboard websocket path further optimized with shared lookup/response helpers and standardized fallback payloads
+- Request history analytics now use server-side caching (`tool_analytics`, `summary_stats`) with automatic invalidation on add/clear/prune/load
+- Dashboard frontend now coalesces high-frequency subscription renders via `requestAnimationFrame` to reduce render churn under burst updates
+
+**Maintainability:**
+- Frontend panel refactored with additional modular helpers for header/tab rendering, overview/history rendering, and event attachment groups
+- Backend websocket handlers refactored with shared helper utilities for prompt target resolution, store lookups, and memory mutation flow
+
+**Documentation:**
+- README dashboard section updated with explicit push-vs-poll, tab-scoped loading, stale-data behavior, and analytics caching notes
+
+**Files modified:**
+
+- custom_components/smart_assist/www/smart-assist-panel.js, custom_components/smart_assist/websocket.py, custom_components/smart_assist/context/request_history.py, README.md, VERSION.md
+
+### v1.13.12 (2026-02-13) - Prompt/Tool Determinism Hardening
+
+**Prompt & Routing Reliability:**
+- Consolidated system prompt routing into a single mode-aware policy block for `smart_discovery` vs `full_index`
+- Added explicit intent-class-first routing, strict `await_response` contract language, and deterministic one-step error recovery guidance
+- Moved response style rules later in prompt assembly so policy/routing instructions are prioritized first
+
+**Runtime Contract Alignment:**
+- Removed question-mark continuation fallback in conversation handling; continuation now follows `await_response` signaling policy
+
+**Tool Schema & Description Clarity:**
+- Standardized routing/constraint wording for key tools: `get_entities`, `control`, `timer`, `music_assistant`, `send`, `await_response`
+- Added explicit cross-field/action-dependent constraint wording (e.g., `entity_id` XOR `entity_ids`, timer duration requirements, music query requirements)
+- Fixed registry diagnostics naming mismatch: `control_entity` -> `control`
+
+**Files modified:**
+
+- prompt_builder.py, conversation.py, tools/__init__.py, tools/entity_tools.py, tools/unified_control.py, tools/timer_tools.py, tools/music_assistant_tools.py, tools/notification_tools.py, tools/conversation_tools.py, tests/test_prompt_builder.py, tests/test_tools.py, docs/prompt.md
+
+### v1.13.11 (2026-02-13) - Reliability, Privacy & Dashboard Hardening
+
+**Bug Fixes:**
+- Music Assistant play now waits for service execution confirmation (`blocking=True`) to avoid false positive success
+- Calendar event confirmation now consistently uses the matched calendar entity/name
+- WebSocket layer no longer relies on private memory/reminder internals for dashboard and memory operations
+
+**Performance:**
+- Calendar fetch in both prompt context and dashboard WebSocket now uses bounded parallelism with per-calendar timeout handling
+
+**Privacy & Data Lifecycle:**
+- Added request history controls: `enable_request_history_content`, `history_retention_days`, `history_redact_patterns`
+- Conversation history persistence now supports pattern-based redaction and optional metadata-only storage
+- Request history now supports retention pruning by age before appending new entries
+
+**Maintainability:**
+- Added public APIs on managers (`MemoryManager.get_summary/get_user_details/async_force_save`, `CalendarReminderTracker.get_event_status`, `RequestHistoryStore.async_force_save`)
+- Validator error handling narrowed to explicit network/timeout/JSON parsing failures
+- Datetime usage normalized to `dt_util.now()` in cache warming and conversation session tracking
+- Removed unnecessary `aiohttp` dependency from `manifest.json` requirements
+
+**Tests:**
+- Updated `UserResolver` tests to async/await and public auth mocking (`async_get_user`)
+- Added `tests/test_request_history.py` for retention pruning behavior
+
+- Files modified: tools/music_assistant_tools.py, tools/calendar_tools.py, websocket.py, context/memory.py, context/calendar_reminder.py, context/request_history.py, prompt_builder.py, conversation.py, context/conversation.py, config_validators.py, config_subentry_flows.py, const.py, tests/test_memory.py, tests/test_request_history.py, manifest.json
+
+### v1.13.10 (2026-02-13) - Music Playback Fix
+
+**Improvements:**
+- Music Assistant tool now supports `get_players`, `pause`, `resume`, `stop` actions for direct transport control
+- Multi-layer satellite-aware player resolution: explicit mapping > auto-match > MA scan > fallback
+- Structured satellite-to-media-player mappings parsed from User System Prompt (similar to Calendar Mappings)
+- `[Current Media Player]` injected into LLM context when satellite mapping resolves a player
+- Prompt now instructs LLM to search before playing when unsure, and to use `[Current Media Player]` from context
+- `query` parameter made optional (not needed for get_players/pause/resume/stop)
+
+- Files modified: prompt_builder.py, tools/music_assistant_tools.py, tools/base.py, tools/__init__.py, conversation.py
+
+### v1.13.9 (2026-02-13) - Calendar User Filtering
+
+**Improvements:**
+- Calendar reminders are now filtered per user identity
+- Users define "Calendar Mappings:" in the User System Prompt to map calendars to users or mark them as shared
+- Unrecognized users and unmapped calendars fall back to showing everything (safe default)
+
+- Files modified: context/calendar_reminder.py
+
+### v1.13.8 (2026-02-11) - Prompt Simplification & Hallucination Fix
+
+**Bug Fixes:**
+- Fix: Severe LLM hallucinations (garbled/repetitive output after tool calls) caused by prompt complexity and destabilizing patterns
+- Removed [CANCEL] prefix mechanism from system prompt -- replaced with nevermind tool for cleaner cancel detection
+- Replaced all markdown headings in system prompt with plain-text labels to avoid format conflicts
+- Removed all emphasis markers (CRITICAL, MANDATORY, IMPORTANT, bold) from system prompt
+- Condensed 6 instruction sections (Entity Discovery, Entity Control, Calendar, Music, User Memory, Agent Memory) -- ~380 token reduction
+- Added "5-15 words max" response constraint after tool execution
+- Shortened tool descriptions (unified_control, timer command) to reduce token overhead
+
+**Internal:**
+- New NevermindTool in conversation_tools.py for cancel/abort signaling via tool call
+- streaming.py handles nevermind tool calls (similar to await_response pattern)
+- conversation.py: `_detect_cancel_prefix()` replaced with `_detect_nevermind_from_tool_calls()`
+
+- Files modified: prompt_builder.py, conversation.py, streaming.py, conversation_tools.py, tools/__init__.py, timer_tools.py, unified_control.py
+
+### v1.13.7 (2026-02-11) - Group vs Area Prompt Fix
+
+**Improvements:**
+- Prompt: Area/room requests now always batch-control individual entities instead of substituting a group
+- Prompt: Groups treated as regular entities -- no special handling, HA manages member propagation
+- Entity tool: Removed aggressive group-only hint, replaced with neutral batch tip
+
+- Files modified: prompt_builder.py, entity_tools.py
+
+### v1.13.6 (2026-02-11) - Dashboard Stability & Cancel Detection
+
+**Bug Fixes:**
+- Fix: Dashboard no longer goes blank after extended use (WS reconnection, connection change detection, subscription retry, concurrent fetch guards)
+- Cancel intent detection now LLM-based via [CANCEL] prefix instead of exact-match phrase list
+
+**UI:**
+- History tab: "Cancel" and "System" badges in Status column
+- History tab: Tools column wider with 50-char truncation
+- Dashboard always refreshes data when tab becomes visible (even with auto-refresh disabled)
+
+**Internal:**
+- `is_nevermind` and `is_system_call` fields tracked in request history
+- `_resubscribe()` method for clean subscription teardown and re-creation
+- Concurrent fetch guards for `_fetchData()`, `_loadHistory()`, `_loadPrompt()`
+
+- Files modified: conversation.py, prompt_builder.py, request_history.py, smart-assist-panel.js
+
+### v1.13.5 (2026-02-11) - History Tab Improvements *[superseded by v1.13.6]*
+
+**UI:**
+- History tab: Tools column wider (min-width 180px, truncation increased to 50 chars)
+- History tab: "Cancel" badge shown for nevermind/cancel intents
+- History tab: "System" badge shown for system-triggered actions (timer callbacks)
+
+**Internal:**
+- New `is_nevermind` and `is_system_call` fields tracked in request history entries
+- Cancel intent detection via `_is_cancel_intent()` static method (EN + DE phrases)
+
+- Files modified: request_history.py, conversation.py, smart-assist-panel.js
+
+### v1.13.4 (2026-02-11) - Timer Reminder Quality Fix
+
+**Bug Fixes:**
+- Fix: Timer reminders now deliver a friendly, reformulated announcement instead of echoing the original request verbatim
+- Timer tool `command` description updated to instruct LLM to use direct statements for reminders
+- Timer callbacks detected early in conversation pipeline and wrapped with context for proper LLM handling
+
+- Files modified: conversation.py, timer_tools.py
+
+### v1.13.3 (2026-02-11) - Timer Announcement Fix
+
+**Bug Fixes:**
+- Fix: Timer command responses are now announced on the originating satellite via `assist_satellite.announce` (HA Core discards the `ConversationResult` from timer callbacks, so Smart Assist now detects silent calls and proactively announces)
+
+- Files modified: conversation.py
+
+### v1.13.2 (2026-02-11) - Timer Fix & Dashboard Scroll Fix
+
+**Bug Fixes:**
+- Fix: Timer commands now execute correctly when timer expires (was routing to built-in Assist agent instead of Smart Assist due to missing `conversation_agent_id`)
+- Fix: Dashboard scroll position properly preserved during auto-refresh (uses actual scroll container instead of `window`, skips loading renders during refresh)
+
+**UI:**
+- Prompt tab metric cards now show estimated token counts alongside character counts
+
+**Docs:**
+- README and info.md updated with History/Prompt tabs, Ollama provider, Entity Discovery Mode
+- Roadmap overhauled with v1.12.0-v1.13.1 completed features and new future feature proposals
+
+- Files modified: tools/base.py, tools/timer_tools.py, conversation.py, www/smart-assist-panel.js, README.md, info.md, ROADMAP.md
+
+### v1.13.1 (2026-02-11) - Prompt & Tool Token Optimization
+
+**Performance:**
+- System prompt condensed ~38% (~700-800 tokens saved per request)
+- Tool definitions condensed across 13 tools (~1120 tokens saved per request)
+- Total: ~1800-1920 fewer prompt tokens per request with identical behavior
+
+**Bug Fixes:**
+- Dashboard scroll position preserved during auto-refresh (no more jump-to-top)
+
+**Code Quality:**
+- Removed dead GetTimeTool class from search_tools.py
+
+- Files modified: prompt_builder.py, all tools/*.py, www/smart-assist-panel.js
+
+### v1.13.0 (2026-02-11) - Prompt Preview Tab & Music Prompt Fix
+
+**New Features:**
+- Dashboard: New "Prompt" tab shows the full system prompt and user custom instructions for each agent
+- WebSocket: New `smart_assist/system_prompt` command to retrieve built prompts
+- Prompt preview displays agent name, prompt lengths, and formatted sections with visual headers
+
+**Improvements:**
+- Prompt: Clarified music_assistant vs control tool usage for playback transport (stop/pause/resume/volume)
+
+- Files modified: websocket.py, www/smart-assist-panel.js, prompt_builder.py
+
+### v1.12.6 (2026-02-10) - Code Review v2 Fixes (Phase 5-8)
+
+**Bug Fixes:**
+- Fix: Memory access_count no longer inflated on every request (removed injection-time bump from get_injection_text/get_agent_injection_text)
+- Fix: Remaining datetime.now() in memory.py injection methods replaced with dt_util.now()
+- Fix: GetTimeTool in search_tools.py now uses dt_util.now() instead of datetime.now()
+- Fix: ai_task.py get_entity_index() tuple unpacking corrected
+- Fix: Empty-response retry nudge message removed from working_messages after successful iteration (prevents token waste)
+- Fix: Cache warming data no longer overwritten on timer start (uses setdefault)
+
+**Performance:**
+- Perf: GetEntitiesTool now uses shared EntityManager from conversation entity (avoids redundant entity iteration per tool call)
+- Perf: Entity index hash now includes friendly_name and area_name (renames invalidate cache correctly)
+
+**Code Quality:**
+- Refactor: OpenRouter chat_stream/chat_stream_full deduplicated into shared _stream_request() method (~190 lines removed)
+- Refactor: Groq chat_stream/chat_stream_full deduplicated into shared _stream_request() method (~170 lines removed)
+- Refactor: conversation.py split into 3 files: conversation.py (722 lines), prompt_builder.py (558 lines), streaming.py (353 lines)
+- Removed: RunScriptTool dead code from scene_tools.py
+- Removed: Unused CONF_ENABLE_PROMPT_CACHING constant from const.py
+- Removed: Unused asyncio import from ai_task.py
+- Added: execute_tools_parallel utility function in utils.py (used by ai_task.py)
+- Added: Ollama as AI Task provider option in config_subentry_flows.py
+
+- Files modified: conversation.py, prompt_builder.py (new), streaming.py (new), context/memory.py, context/entity_manager.py, tools/entity_tools.py, tools/__init__.py, tools/scene_tools.py, tools/search_tools.py, llm/openrouter_client.py, llm/groq_client.py, llm/ollama_client.py, ai_task.py, utils.py, const.py, config_subentry_flows.py, __init__.py
+
+### v1.12.5 (2026-02-10) - Code Review Fixes (Phase 1-3)
+
+- Fix: tokens_used in record_conversation now uses per-request tokens instead of hardcoded 0
+- Fix: Replaced private auth API (_store._users) with async_get_user() in user_resolver.py
+- Fix: Replaced deprecated asyncio.get_event_loop().run_in_executor() with hass.async_add_executor_job() in search_tools.py
+- Fix: datetime.now() replaced with dt_util.now() for HA timezone consistency (conversation.py, memory.py)
+- Fix: Hardcoded German strings replaced with English in calendar_tools.py and calendar_reminder.py
+- Fix: Fragile duration string-parsing replaced with integer-based duration_mins in entity_tools.py
+- Fix: WebSocket send_message wrapped in try/except for closed connections in websocket.py
+- Perf: Entity index caching with 30s TTL in entity_manager.py (avoids rebuilding on every request)
+- Quality: Removed ~340 lines of dead legacy tool classes from entity_tools.py
+- Quality: Moved 5 inline imports to module level in conversation.py (re, time, timedelta, dt_util)
+- Files modified: conversation.py, user_resolver.py, search_tools.py, memory.py, entity_tools.py, calendar_tools.py, calendar_reminder.py, entity_manager.py, websocket.py
+
+### v1.12.4 (2026-02-10) - Prevent Redundant Domain Search
+
+- Fix: LLM no longer searches additional domains (e.g. switch) when the first domain search (e.g. light) already returned results
+- Prompt clarified: fallback domain search is ONLY for zero-result cases
+- Reduces iterations from 3 to 2 for room commands like "Kueche ausschalten"
+- Files modified: `conversation.py`
+
+### v1.12.3 (2026-02-10) - Group Entity Priority in Tool Hints
+
+- Fix: When get_entities finds a GROUP entity, only show group control tip (not batch tip with all IDs)
+- Previously: batch tip included group+members, causing LLM to batch-control individual entities instead of using the group
+- Now: GROUP entity hint says "use control(entity_id=group) - do NOT control individual members separately"
+- Batch tip (entity_ids) only shown when NO group entity exists
+- Files modified: `tools/entity_tools.py`
+
+### v1.12.2 (2026-02-10) - Dynamic Area List in Prompt
+
+- Reverted v1.12.1 hardcoded language in prompt examples (language-neutral again)
+- Reverted hardcoded English->German translation fallback in get_entities
+- New: System prompt now includes dynamic AVAILABLE AREAS list from Home Assistant area registry
+- LLM sees exact area names and matches user intent to correct area - works for any language
+- Minimal token cost (~20-30 tokens for typical setups)
+- Files modified: `conversation.py`, `tools/entity_tools.py`
+
+### v1.12.1 (2026-02-10) - Area Name Language Fix (reverted in v1.12.2)
+
+- Fix: LLM no longer translates area names to English (e.g. "kitchen" instead of "Kueche") when calling get_entities
+- Fix: Prompt examples now use local language area names to correctly prime the LLM
+- Added: Translation fallback in get_entities area matching (English->German) as safety net
+- Impact: Room commands now resolve in 2 iterations instead of 4 (no wasted retry)
+- Files modified: `conversation.py`, `tools/entity_tools.py`
+
+### v1.12.0 (2026-02-10) - Batch Control and Smart Entity Discovery
+
+**Feature: Batch Entity Control**
+- New `entity_ids` (array) parameter on `control` tool for controlling multiple entities in a single call
+- Room-level commands ("Kueche ausschalten") now complete in 2 LLM iterations instead of N+1
+- Prevents LLM from forgetting entities during sequential tool calls
+- Backward compatible: `entity_id` (singular) continues to work for single-entity commands
+
+**Feature: Enhanced Entity Discovery**
+- `get_entities` now includes current state (`[on]`/`[off]`) and group indicator (`[GROUP, N members]`) in results
+- Smart control hints: group-aware tip and batch control suggestion with entity IDs
+- Area matching improved: exact match first, substring fallback
+
+**Enhanced: Group-Aware Decision Logic**
+- System prompt teaches LLM 3-tier decision: GROUP entity (preferred) > batch entity_ids > single entity_id
+- Entity Control section updated with GROUP ENTITIES and BATCH CONTROL rules
+- Entity tracking updated to handle both `entity_id` and `entity_ids` from tool calls
+
+- Files modified: `tools/base.py`, `tools/unified_control.py`, `tools/entity_tools.py`, `conversation.py`
+
+### v1.11.10 (2026-02-10) - Smart Discovery Reliability
+
+- Fix: LLM no longer returns empty responses in smart_discovery mode (e.g. "Kueche ausschalten")
+- Enhanced: Entity Discovery prompt moved to position #2 (HIGHEST PRIORITY) with step-by-step workflow and concrete example
+- Enhanced: Entity Control section now includes discovery reminder in smart_discovery mode
+- Added: Empty-response retry mechanism -- if LLM returns empty on first iteration, a nudge message triggers re-evaluation
+- Added: Discovery mode hint injected into user message context for additional priming
+- Files modified: `conversation.py`
+
+### v1.11.9 (2026-02-10) - Prompt Improvements
+
+- Improved: Response confirmations now encourage natural, varied phrasing instead of rigid examples
+- Fix: Calendar reminder transition phrase no longer hardcoded in German ("Uebrigens") -- now language-neutral with variation hint
+- Removed: Pre-injected entity states (`[States: ...]`) from user message context -- LLM now uses `get_entities` tool for all state lookups
+- Files modified: `conversation.py`
+
+### v1.11.8 (2026-02-10) - Group Entity LLM Tool Call Fix
+
+- Fix: LLM now always calls the control tool for group entities, even when context shows "on" state
+- Fix: Group entities display member breakdown (e.g., "GROUP(5 members: 3 on, 2 off)") so LLM understands mixed states
+- Enhanced: System prompt strengthened with [CRITICAL] rules to prevent tool call skipping based on context states
+- Enhanced: Context states now explicitly labeled as "info only - always use control tool for actions"
+- Impact: Eliminates cases where LLM says "already on/off" without actually calling the tool
+- Files modified: `context/entity_manager.py`, `conversation.py`, `tools/entity_tools.py`, `VERSION.md`
+
+### v1.11.7 (2026-02-09) - Dashboard Button Layout
+
+- Manual Refresh button moved left, icon-only with border
+- Auto-Refresh button icon-only (no text label), pulse dot indicator when active
+- Both buttons now visually consistent with outlined style
+- Files modified: `www/smart-assist-panel.js`, `VERSION.md`
+
+### v1.11.6 (2026-02-09) - Dashboard UI Polish
+
+- Fix: Added consistent spacing (margin-bottom) between all dashboard cards
+- Improved: Auto-Refresh button redesigned with reload icon, active interval display, and tooltip
+- Files modified: `www/smart-assist-panel.js`, `VERSION.md`
+
+### v1.11.5 (2026-02-09) - Dashboard Auto-Refresh
+
+- Feature: Dashboard now auto-refreshes data on a configurable interval (default: 30 seconds, ON by default)
+- Toggle button ("Auto") with pulsing green dot indicator when active
+- Interval dropdown: 5s, 10s, 30s, 60s
+- Settings persisted in localStorage (smart_assist_auto_refresh, smart_assist_auto_refresh_interval)
+- Auto-refresh pauses when browser tab is hidden and resumes (with immediate fetch) on return
+- Intervals properly cleaned up on component disconnect
+- Files modified: `www/smart-assist-panel.js`, `VERSION.md`
+
+### v1.11.4 (2026-02-09) - Group Entity Handling Fix
+
+- Fix: Group entities (e.g., light groups) no longer incorrectly report "already on/off" when only some members are in the desired state
+- The "already on" early-return optimization now detects group entities and always forwards the service call to Home Assistant
+- `get_entity_state` now includes individual member states for group entities, giving the LLM full visibility
+- System prompt updated with group entity handling guidance
+- Files modified: `tools/unified_control.py`, `tools/entity_tools.py`, `conversation.py`
+
+### v1.11.3 (2026-02-08) - History Tab Refresh Fix
+
+- Fix: Refresh button now also reloads History tab data (request history + tool analytics)
+- Previously, Refresh only reloaded main dashboard data; History tab required switching away and back
+- Files modified: `www/smart-assist-panel.js`
+
+### v1.11.2 (2026-02-08) - Full Index Mode Fix
+
+- Fix: NameError (`caching_enabled` undefined) in `_build_system_prompt` when Entity Discovery mode is set to "full index"
+- The `caching_enabled` variable was a leftover from v1.9.2 when the prompt caching toggle was removed
+- Now always uses the "check ENTITY INDEX first" instruction for full index mode
+- Files modified: `conversation.py`
+
+### v1.11.1 (2026-02-08) - Pipeline Trace Fix
+
+- Fix: Tool calls in non-streaming LLM iterations (iteration 2+) now appear in HA pipeline traces
+- Previously only iteration 1 (streaming) tool calls were visible in pipeline events; subsequent tool calls like `control` were invisible despite executing correctly
+- Added `_wrap_response_as_delta_stream()` helper to report non-streaming tool calls via `chat_log.async_add_delta_content_stream()`
+- Files modified: `conversation.py`
+
+### v1.11.0 (2026-02-08) - Request History and Tool Analytics
+
+**Feature: Per-Request History Log**
+
+- Track individual request metrics: timestamp, tokens (prompt/completion/cached), response time, tools used, success/error status
+- Persistent storage via HA Storage API (FIFO eviction at 500 entries)
+- Paginated history browser in dashboard History tab
+- Per-agent filtering support
+- Debounced saves (30s) with forced flush on shutdown
+
+**Feature: Tool Usage Analytics**
+
+- Track tool call frequency, success rates, and average execution times
+- Analytics computed on-demand from request history (no dual storage)
+- Summary cards: logged requests, avg response time, avg tokens/request, total tool calls
+- Tool analytics table: name, calls, success rate, avg time, last used
+- Clear history button with optional agent filter
+
+**Technical Changes**
+
+- New module: `context/request_history.py` (RequestHistoryStore, RequestHistoryEntry, ToolCallRecord, ToolAnalytics)
+- Per-request token tracking via `_last_prompt_tokens`, `_last_completion_tokens`, `_last_cached_tokens` on LLMMetrics
+- Tool execution timing injected via `ToolRegistry.execute()` wrapper
+- `_call_llm_streaming_with_tools()` now returns 4-tuple (content, await_response, iterations, tool_records)
+- History recorded in `_build_result()` after response delivery (no latency impact)
+- 3 new WebSocket commands: `smart_assist/request_history`, `smart_assist/tool_analytics`, `smart_assist/request_history_clear`
+- Dashboard: new History tab with tool analytics table, request history table, pagination, clear
+- Files modified: `const.py`, `tools/base.py`, `llm/base_client.py`, `llm/openrouter_client.py`, `llm/groq_client.py`, `llm/ollama_client.py`, `conversation.py`, `websocket.py`, `__init__.py`, `www/smart-assist-panel.js`
+- Files created: `context/request_history.py`
+
+### v1.10.1 (2026-02-08) - Cancel Handler Agent Selection
+
+- Feature: Per-agent "Use as cancel intent handler" toggle in conversation agent settings
+- Cancel intent handler now prefers the explicitly selected agent instead of picking the first available
+- Falls back to first available agent if no agent is explicitly selected
+- Updated README.md and info.md with cancel intent handler documentation
+- Files modified: `__init__.py`, `const.py`, `config_subentry_flows.py`, `manifest.json`, `strings.json`, `en.json`, `de.json`, `README.md`, `info.md`
+
+### v1.10.0 (2026-02-08) - Cancel Intent Handler
+
+**Feature: Cancel Intent Handler (LLM-powered)**
+
+- New custom `HassNevermind` intent handler that returns a spoken TTS confirmation
+- Fixes HA Core bug where the built-in handler returns empty speech, causing voice satellites to hang
+- Layer 1: Intent handler intercepts hassil-matched cancels ("Cancel", "Abbrechen", "Nevermind") and uses the LLM to generate a brief, natural acknowledgment in the correct language
+- Layer 2: System prompt instruction teaches the LLM to recognize cancel intent for phrases hassil does not match (e.g. "vergiss es", "lass mal", "schon gut") -- prevents the LLM from asking "What should I cancel?"
+- Falls back to "OK" when no LLM client is available
+- Toggleable via global options (Settings > Integrations > Smart Assist > Configure)
+- Enabled by default
+- No hardcoded translations or phrase lists -- the LLM handles all languages
+- Files modified: `__init__.py`, `const.py`, `config_flow.py`, `conversation.py`, `strings.json`, `en.json`, `de.json`
+
+### v1.9.3 (2026-02-08) - Config UI Polish
+
+- Fix: Added descriptions to all switch/toggle entries in config UI (settings + reconfigure)
+- Fix: Grouped related config fields logically: LLM, Response, Entities, Features, Memory, Performance
+- All 4 config forms updated (Conversation settings/reconfigure, AI Task settings/reconfigure)
+- Translations updated (strings.json, en.json, de.json)
+
+### v1.9.2 (2026-02-07) - UI Simplification
+
+- Fix: Language field now defaults to `auto` instead of empty string (description: 'auto' = uses HA language)
+- Fix: Removed `Enable prompt caching` switch -- caching is now always active (auto-detected per provider)
+- Fix: Removed `Extended cache TTL` switch -- auto-enabled for Anthropic models (detected from model name prefix)
+- Fix: Removed `Enable prompt caching` switch from AI Task settings -- always active
+- Reduced caching UI from 3 switches to 1 (`Enable cache warming` only)
+- Backend auto-detection: Groq always caches, OpenRouter per model, Anthropic extended TTL from model prefix
+- Old config values preserved in const.py for backward compatibility (existing installs unaffected)
+
+### v1.9.1 (2026-02-07) - Agent Memory Refinements
+
+- Fix: Removed `entity_mapping` category from agent memory to preserve discovery-first principle
+- Fix: Agent memory ranking changed to recency-first (newest memories injected first)
+- Fix: Eliminated access_count feedback loop that locked old memories at top
+- Feature: Auto-expire agent memories older than 30 days with access_count < 3
+- Prompt now explicitly forbids saving entity mappings or entity IDs in agent memory
+- access_count still tracked for auto-expire decisions, but no longer determines injection order
+
+### v1.9.0 (2026-02-07) - Agent Memory (Auto-Learning)
+
+**Feature: Agent Auto-Learning**
+
+- New agent-level memory: LLM saves its own observations and patterns
+- Agent memory injected as `[AGENT MEMORY]` block in every conversation (independent of user)
+- New memory category: `observation` (in addition to existing ones)
+- Memory tool supports new `scope: "agent"` for agent-specific memories
+- LLM instructed to save only surprising/non-obvious discoveries
+- Max 50 agent memories, 15 injected per request
+- Configurable via `enable_agent_memory` toggle (default: on when memory is active)
+- German and English translations
+
+### v1.8.2 (2026-02-07) - Smart Discovery Fixes
+
+- Fix: Recent Entities context no longer used as entity discovery shortcut (only for pronoun resolution)
+- Fix: Control tool now checks state internally and returns "already on/off" - no extra get_entity_state call needed
+- Removed get_entity_state pre-check requirement from all Entity Lookup prompts
+- Saves 1 tool call per control action (~200-500ms faster)
+
+### v1.8.1 (2026-02-07) - Smart Discovery Prompt Fix
+
+- Fix: LLM now broadens search when initial domain yields no results (e.g. lights registered as `switch`)
+- Added domain fallback map: `light->switch`, `fan->switch`, `cover->switch`, `lock->switch`
+- LLM instructed to relax area/name filters on empty results
+- Added hallucination guard: LLM must not claim actions without calling `control` tool
+
+### v1.8.0 (2026-02-08) - Token-Efficient Entity Discovery
+
+**Feature: Smart Discovery Mode**
+
+- New "Entity Discovery Mode" setting in agent configuration
+- **Full Index** (default): All entities listed in system prompt (current behavior)
+- **Smart Discovery**: No entity index in prompt -- entities discovered on-demand via `get_entities` tool
+- LLM uses domain, area, and name context from user requests to narrow entity searches
+- System prompt instructs LLM to always discover entities before controlling them
+- `get_entities` tool description adapts based on selected mode
+- 100% token savings on entity index (0 tokens vs. 400-4500+ tokens depending on installation size)
+- Trade-off: 1-2 extra tool calls per request (~200-500ms) for entity discovery
+
+**Configuration**
+
+- Available in conversation agent Settings and Reconfigure flows
+- SelectSelector with dropdown: "Full Index" or "Smart Discovery"
+- German and English translations
+
+### v1.7.2 (2026-02-08) - Dashboard Calendar Fix
+
+**Fix: Calendar Tab Resetting to "Disabled"**
+
+- Calendar tab no longer resets to "Calendar context is disabled" after each conversation
+- Root cause: WebSocket subscription updates only sent agents/tasks/memory data, omitting calendar
+- `forward_update` now includes calendar data via async task
+- Frontend merges subscription data (`Object.assign`) instead of replacing `_data` entirely
+
+### v1.7.1 (2026-02-08) - Memory Management UI
+
+**Feature: Memory User Management**
+
+- Rename users: Change display name directly from the dashboard Memory tab
+- Merge users: Move all memories from one user profile to another (deduplication, stats merge)
+- Delete individual memories from the expanded memory details view
+- Added `rename_user()` and `merge_users()` methods to MemoryManager
+- Added WebSocket commands: `smart_assist/memory_rename_user`, `smart_assist/memory_merge_users`, `smart_assist/memory_delete`
+
+**Bug Fix: Cache Warming Calendar Announcements**
+
+- Cache warming no longer marks calendar reminders as "announced"
+- Added `peek_reminders()` read-only method to CalendarReminderTracker
+- Cache warming uses `dry_run=True` to prevent premature reminder consumption
+
+**Bug Fix: First Seen Not Populated in Dashboard**
+
+- `record_conversation()` was defined but never called
+- Added call in `_build_result()` so first interaction date is now tracked per user
+
+**Bug Fix: Calendar Reminder Placement**
+
+- Proactive reminders no longer appear at the start of LLM responses
+- LLM now answers the user's question first, then appends the reminder at the end
+
+**Feature: Persistent Calendar Reminder State**
+
+- Calendar reminder tracker now uses HA Storage API (`.storage/smart_assist.calendar_reminders`)
+- Announced/completed reminder stages survive HA restarts
+- Prevents duplicate reminders after reboot
+
+### v1.7.0 (2026-02-08) - Dashboard & UI
+
+**Feature: Custom Sidebar Panel**
+
+- Added `frontend.py` - Registers a custom sidebar panel in HA using `async_register_built_in_panel`
+- Panel appears in HA sidebar with "Smart Assist" title and `mdi:brain` icon
+- Static path `/api/smart_assist/panel/` serves the panel JS from `www/` directory
+- Panel requires admin access, auto-removed on integration unload
+- Uses vanilla HTMLElement + Shadow DOM for maximum HA compatibility
+
+**Feature: WebSocket API**
+
+- Added `websocket.py` - Real-time data API for the dashboard frontend
+- `smart_assist/dashboard_data` - Returns all agents, tasks, metrics, cache warming data, memory summary, and calendar events
+- `smart_assist/memory_details` - Returns detailed memory entries for a specific user (expandable in UI)
+- `smart_assist/subscribe` - Real-time subscription for metric updates via HA dispatcher signals
+- All commands require admin authentication
+- Iterates config subentries to build per-agent and per-task data
+
+**Feature: Dashboard Panel (Web Component)**
+
+- Added `www/smart-assist-panel.js` - Vanilla Web Component with Shadow DOM (~680 lines)
+- Three tabs: Overview, Memory, Calendar
+- Overview Cards: Total requests, success rate, avg response time, total tokens, cache hit rate
+- Token Usage: Horizontal bar chart comparing prompt, completion, and cached tokens
+- Cache Performance: Hit/miss counters, hit rate gauge, cache warming status display
+- Registered Tools: Visual tag grid showing all tools per agent
+- Memory Browser: User table with expandable rows showing individual memories by category
+- Calendar Tab: Upcoming events table with reminder status badges (upcoming/pending/announced/passed)
+  - Summary cards: event count, calendar entities, pending reminders, announced reminders
+  - Events fetched from all HA calendar entities for next 28 hours
+  - Status derived from `CalendarReminderTracker` completed stages
+- Agent Selector: Tab bar to switch between agents when multiple exist
+- Auto-refresh via WebSocket subscription + manual refresh button
+- Full HA theme integration via CSS custom properties (dark/light mode)
+- Responsive design with narrow mode breakpoints
+
+**Integration Changes**
+
+- `__init__.py`: Registers WebSocket commands and frontend panel on setup, removes panel on unload
+- `manifest.json`: Added `frontend` dependency, version bumped to 1.7.0
+
+### v1.6.1 (2026-02-07) - Memory Tool Registration Fix
+
+**Fix: Memory tool not registering despite being enabled in UI**
+
+- `create_tool_registry` was reading `enable_memory` and `enable_web_search` from the parent `ConfigEntry`, but these settings are stored in `ConfigSubentry.data`
+- Since `DEFAULT_ENABLE_MEMORY = False` and the parent entry never had the key, the memory tool was never registered
+- Added `subentry_data` parameter to `_get_config()` and `create_tool_registry()`
+- `_get_config` now checks `subentry_data` first, then `entry.options`, then `entry.data`
+- `conversation.py` passes `self._subentry.data` when creating tool registry
+- Debug log now also shows `memory_enabled` status for easier diagnostics
+
+### v1.6.0 (2026-02-07) - Memory & Personalization
+
+**Feature: Persistent User Memory**
+
+- Added `MemoryManager` class for long-term memory storage via HA Storage API
+- Memories persist across restarts in `.storage/smart_assist_memory`
+- 5 memory categories: preference, named_entity, pattern, instruction, fact
+- Per-user (max 100) and global (max 50) memory scopes
+- LRU eviction when limits are reached, deduplication on save
+- Debounced async save (30s) to minimize disk writes
+- Memory injection: Top 20 memories injected into system prompt per request
+- Hybrid model: injected memories for context + `memory` tool for CRUD
+
+**Feature: Multi-User Identity Resolution**
+
+- Added `UserResolver` with 5-layer identification strategy:
+  1. HA authenticated user (Companion App)
+  2. Session identity switch ("This is Anna" via `switch_user` action)
+  3. Satellite-to-user mapping (configured per satellite)
+  4. Presence heuristic (single person home -> auto-identify)
+  5. Fallback to `default` profile
+- `ConversationSession` tracks `active_user_id` per conversation
+- User identity displayed in dynamic context block as `[Current User: Name]`
+
+**Feature: Memory Tool (LLM-facing)**
+
+- New `memory` tool with 6 actions: save, list, update, delete, search, switch_user
+- LLM can save new preferences, recall existing memories, and manage profiles
+- `switch_user` action updates session identity and loads correct memory profile
+- Tool registered conditionally when memory is enabled
+
+**Config: Memory Settings**
+
+- Added `enable_memory` toggle to conversation agent settings (new + reconfigure)
+- Added `enable_presence_heuristic` toggle for presence-based user detection (default: off)
+- Default memory: disabled (opt-in)
+- Added constants: `CONF_ENABLE_MEMORY`, `CONF_ENABLE_PRESENCE_HEURISTIC`, `CONF_USER_MAPPINGS`
+- Storage constants: `MEMORY_STORAGE_KEY`, `MEMORY_STORAGE_VERSION`, `MEMORY_MAX_PER_USER` (100), `MEMORY_MAX_GLOBAL` (50), `MEMORY_MAX_CONTENT_LENGTH` (100), `MEMORY_MAX_INJECTION` (20)
+- German and English translations added
+
+### v1.5.2 (2026-02-06) - Timer Fix & Roadmap
+
+**Fix: Timer intents failing with device_id=None**
+
+- Added `_device_id` attribute to `BaseTool` for conversation context propagation
+- Added `set_device_id()` method to `ToolRegistry` to propagate device_id to all tools
+- Conversation handler now sets device_id on tools before execution
+- All `ha_intent.async_handle` calls in `TimerTool` now pass `device_id`
+- Fixes `Device does not support timers: device_id=None` error when using voice satellites
+- Timers now correctly associate with the satellite device that initiated the request
+
+**Documentation: Roadmap Extraction**
+
+- Moved Roadmap section from VERSION.md into dedicated [ROADMAP.md](ROADMAP.md)
+- Reorganized completed milestones (v1.1-v1.5) into clean summary
+- Added new feature ideas from research (MCP Server, Token-Efficient Discovery, RAG, etc.)
+- Renumbered planned versions: v1.6-v1.10
+
+### v1.5.1 (2026-02-06) - Hassfest Fix
+
+**Fix: Missing `intent` dependency in manifest.json**
+
+- Added `intent` to `dependencies` in `manifest.json`
+- Required because `timer_tools.py` imports from `homeassistant.helpers.intent`
+- Fixes hassfest validation error in HACS CI pipeline
+
+### v1.5.0 (2026-02-04) - Code Quality Refactoring
+
+**Architecture: BaseLLMClient Inheritance**
+
+- All 3 LLM clients (OpenRouter, Groq, Ollama) now extend `BaseLLMClient`
+- Eliminated ~340 lines of duplicated code across clients
+- Shared session management, retry logic, metrics tracking, and lifecycle methods
+- `GroqClient` uses custom `_get_session_timeout()` for provider-specific timeouts
+- `OllamaClient` uses `OllamaMetrics(LLMMetrics)` for extended metrics
+- Removed phantom `GroqMetrics` import from `__init__.py`
+- `LLMClient` type alias now points to `BaseLLMClient` instead of `Union`
+- `LLMClientError` now extends `LLMError` for consistent exception hierarchy
+- `api_key` parameter now optional (default `""`) for Ollama compatibility
+- Added `_get_session_timeout()` overridable method in base class
+- OpenRouter debug logging now guarded with `isEnabledFor(DEBUG)` check
+- Replaced `hashlib.md5` with `hashlib.sha256` in debug hash computation
+
+**Refactoring: Config Flow Module Split**
+
+- Split `config_flow.py` (1521 lines) into 3 focused modules:
+  - `config_flow.py` (357 lines): Main flow handler and entry point
+  - `config_validators.py` (300 lines): API validation and model fetching
+  - `config_subentry_flows.py` (827 lines): Subentry flow handlers
+
+**Fix: Timer Tools Compatibility**
+
+- Fixed `AttributeError: module 'intent' has no attribute 'IntentNotRegistered'`
+- Replaced direct exception import with runtime class name check
+- Compatible with all HA versions (pre/post timer intent changes)
+
+**Code Quality Improvements**
+
+- Replaced magic numbers with named constants (`TTS_STREAM_MIN_CHARS`, `MAX_TOOL_ITERATIONS`, `SESSION_MAX_MESSAGES`, `SESSION_RECENT_ENTITIES_MAX`, `SESSION_EXPIRY_MINUTES`)
+- Extracted `_is_german()` helper to prevent false positives in language detection
+- Fixed `ToolResult(error=...)` to use correct `message` parameter
+- Removed unused `ControlCoverTool` (covered by `UnifiedControlTool`)
+- Removed unused `ToolParameterType` enum from `tools/base.py`
+- Removed unused `Enum` import from `tools/base.py`
+- Fixed `hass.data` nested dict initialization with `setdefault()` chain
+- Fixed tool error messages using correct `tool_call_id` and `name` instead of `"error"`
+- Replaced `hashlib.md5` with `hashlib.sha256` in entity_manager and calendar_reminder
+- Moved `datetime` import to module level in `conversation.py`
+- Added `test_utils.py` with 35 test cases for utility functions
+
+### v1.4.11 (2026-02-03) - Documentation Update
+
+**Documentation: Ollama Limitations**
+
+- Updated README.md and info.md to document Ollama as third provider
+- Added note that Ollama cache metrics are not available (API limitation)
+- Updated provider comparison table to include Ollama
+- Added Ollama settings section with num_ctx, keep_alive, timeout explanations
+
+### v1.4.10 (2026-02-03) - Always Send Tools to Ollama
+
+**Improvement: Tools Always Sent to Ollama**
+
+- Tools are now always sent to Ollama regardless of model
+- Ollama handles model capabilities internally
+- Removed blocking `supports_tools()` check
+- Known model list now only used for debug logging
+- Any Ollama model can now potentially use tool calling
+
+### v1.4.9 (2026-02-03) - Expanded Tool-Capable Models
+
+**Feature: Added More Models to Tool-Calling List**
+
+- Added `gpt-oss` (OpenAI open-weight reasoning models)
+- Added `qwen3` (Alibaba Qwen 3)
+- Added `granite3` (IBM Granite)
+- Added `phi4` (Microsoft Phi-4)
+- Added `deepseek-r1` (DeepSeek reasoning models)
+- Added `gemma3` (Google Gemma 3)
+- These models now get native tool calling support in Ollama
+
+### v1.4.8 (2026-02-03) - Improved Reconfigure UI
+
+**Improvement: Better Field Grouping in Reconfigure**
+
+- Ollama settings now prefixed with "Ollama:" for clear grouping
+- Improved description with status list format
+- Clearer field labels
+
+### v1.4.7 (2026-02-03) - Fix Reconfigure Error
+
+**Fix: 500 Internal Server Error in Reconfigure**
+
+- Fixed SelectOptionDict not imported error
+- Reconfigure flow now works correctly
+
+### v1.4.6 (2026-02-03) - Ollama Settings in Reconfigure
+
+**Feature: Ollama Settings Configurable via Reconfigure**
+
+- Added Context Window Size (num_ctx) to reconfigure form
+- Added Keep Model Loaded (keep_alive) dropdown to reconfigure form
+- Added Request Timeout to reconfigure form
+- Users can now adjust Ollama settings without removing and re-adding the integration
+
+### v1.4.5 (2026-02-03) - Tool Call Compatibility Fix
+
+**Fix: UnifiedControlTool 'state' Parameter Alias**
+
+- Added `state` as an alias for `action` parameter in UnifiedControlTool
+- Some models (especially local/non-native tool calling) pass `state` instead of `action`
+- Maps `state: "on"/"off"` to `action: "turn_on"/"turn_off"` automatically
+- Improves compatibility with models that don't strictly follow tool schemas
+
+### v1.4.4 (2026-02-03) - Reconfigure Flow Ollama Support
+
+**Fix: Ollama Not Showing in Reconfigure Dropdown**
+
+- Added Ollama to the LLM provider options in reconfigure flow
+- Users can now switch to Ollama when reconfiguring conversation agents
+- Added validation to ensure Ollama is configured before selection
+- Added `ollama_not_configured` error message to all translation files
+
+### v1.4.3 (2026-02-03) - Ollama Cache Warming Fix
+
+**Fix: Cache Warming Error**
+
+- Added optional `cached_prefix_length` parameter to `chat_stream()` method
+- Parameter is ignored (Ollama handles caching via KV cache)
+- Fixes `unexpected keyword argument 'cached_prefix_length'` error during cache warming
+
+### v1.4.2 (2026-02-03) - Ollama Bug Fixes
+
+**Fix: Ollama keep_alive Duration Parsing Error**
+
+- Fixed `time: missing unit in duration "-1"` error
+- Added `_format_keep_alive()` helper to send -1 as integer instead of string
+- Ollama API now correctly receives keep_alive values
+
+**Fix: Missing chat_stream_full Method**
+
+- Added `chat_stream_full()` method to OllamaClient
+- Required for TTS streaming in conversation system
+- Returns structured delta events compatible with Groq/OpenRouter clients
+
+### v1.4.1 (2026-02-03) - Reasoning Model Output Cleanup
+
+**Fix: Filter `<think>` Tags from Reasoning Models**
+
+- Added `THINKING_BLOCK_PATTERN` to filter `<think>...</think>` reasoning blocks
+- Affects DeepSeek-R1, QwQ, Qwen with thinking, and other Chain-of-Thought models
+- TTS output now clean without internal reasoning steps being spoken
+- Regex is case-insensitive and handles multi-line content
+
+### v1.4.0 (2026-02-03) - Ollama Integration
+
+**Feature: Local LLM Support with Ollama**
+
+- Added Ollama as third LLM provider for local, private inference
+- No API key required - runs entirely on your hardware
+- Full tool calling support (llama3.1+, mistral, qwen2.5, command-r)
+- Automatic model discovery from local Ollama installation
+- Configurable context window size (num_ctx)
+- Model persistence with keep_alive setting (-1 = stay loaded)
+- KV cache optimization for faster repeated queries
+
+**Configuration Options**
+
+- Ollama server URL (default: http://localhost:11434)
+- Model selection with size information
+- Keep-alive duration for model persistence
+- Context window size (1024-131072 tokens)
+- Request timeout (30-600 seconds)
+
+**Privacy Benefits**
+
+- All data stays local - no cloud transmission
+- No API costs - only electricity
+- 100% availability - no service dependencies
+- Full control over model versions
+
+### v1.3.1 (2026-02-03) - Async Fix
+
+**Fix: SyntaxError in conversation.py**
+
+- Fixed `await` outside async function error
+- Made `_build_messages_for_llm` async to support thread-safe tool registry
+- No changes to prompt caching behavior or static-to-dynamic message order
+
+### v1.3.0 (2026-02-03) - OpenRouter Integration
+
+**Feature: Dual LLM Provider Support**
+
+- Added OpenRouter as alternative LLM provider alongside Groq
+- Access to 200+ models (Claude, GPT-4, Llama, Mistral, Gemini, etc.)
+- Provider selection in Conversation Agent and AI Task configuration
+- Dynamic model list fetched from provider APIs
+- OpenRouter-specific provider routing (choose specific cloud providers)
+- Automatic provider detection based on configured API keys
+
+**Code Quality Improvements**
+
+- Added asyncio.Lock for thread-safe tool registry initialization
+- Created BaseLLMClient abstract class for LLM client code reuse
+- Centralized LLM constants (retry logic, timeouts)
+- Added ToolParameterType enum for type-safe tool definitions
+- Added async context manager support for LLM clients
+- Unified logging with exc_info=True pattern
+- Fixed mutable default argument anti-pattern
+- Created test infrastructure (pytest fixtures, unit tests)
+- Fixed 63 markdown linting errors in documentation
+
+### v1.2.9 (2026-02-01) - TTS Delta Listener Fix
+
+**Fix: TTS Streaming After Non-Streaming Iterations**
+
+- Non-streaming responses now notify ChatLog's delta_listener
+- TTS stream receives content even when using non-streaming fallback
+- Fixes TTS hanging on Companion App after tool calls (web_search + send)
+
+### v1.2.8 (2026-02-01) - TTS Companion App Fix
+
+**Fix: TTS Hanging on Companion App After Tool Calls**
+
+- Only use streaming in the first LLM iteration
+- Subsequent iterations (after tool calls) use non-streaming
+- Prevents TTS pipeline issues when ChatLog receives multiple streams
+- Companion App now correctly plays TTS after web_search + send
+
+### v1.2.7 (2026-02-01) - TTS Fallback Fix
+
+**Fix: TTS Not Working After Non-Streaming Fallback**
+
+- Fixed TTS not playing when streaming falls back to non-streaming
+- Fallback response is now properly added to ChatLog for TTS
+- Ensures voice confirmation after multi-tool execution (web_search + send)
+
+### v1.2.6 (2026-02-01) - Streaming State Fix
+
+**Fix: "Invalid State" Error After Multi-Tool Execution**
+
+- Fixed error when LLM performs multiple tool calls (e.g., web_search then send)
+- ChatLog streaming now falls back to non-streaming on subsequent iterations
+- Prevents "invalid state" exception from HA ChatLog API
+- Ensures user gets confirmation after successful tool execution
+
+### v1.2.5 (2026-01-31) - Language Consistency Fix
+
+**Fix: LLM No Longer Mixes Languages in Responses**
+
+- Strengthened language instruction in system prompt with [CRITICAL] marker
+- Removed English examples from follow-up behavior section that LLM was copying
+- Language instruction now explicitly covers follow-ups, confirmations, and errors
+- Added instruction to never mix languages in responses
+
+### v1.2.4 (2026-01-31) - Concise Send Responses
+
+**Improvement: LLM Responds Briefly After Sending**
+
+- Updated system prompt to instruct LLM to respond briefly after send actions
+- Example: "Sent to your Pixel" instead of repeating the sent content
+- User will see the content on their device, no need to read it aloud
+
+### v1.2.3 (2026-01-31) - TTS URL Removal
+
+**Improvement: URLs Always Removed from TTS Output**
+
+- URLs are now always removed from spoken responses, regardless of clean_responses setting
+- Prevents TTS from reading out long URLs like "https colon slash slash..."
+- Added `remove_urls_for_tts()` utility function
+
+### v1.2.2 (2026-01-31) - Chat History Fix for Tool Results
+
+**Fix: Tool Results Now Included in Conversation History**
+
+- Fixed issue where tool call results (e.g., web search results) were lost between conversation turns
+- LLM now receives full context including previous tool calls and their results
+- Enables proper follow-up conversations after tool executions (e.g., "send me the link" after a web search)
+- Added debug logging for chat history entry types
+
+### v1.2.1 (2026-01-31) - Send Tool Debug Logging
+
+**Improvement: Debug Logging for Send Tool**
+
+- Added debug logging for available notification targets (mobile apps, other services)
+- Logs target resolution when send tool is called
+- Helps troubleshoot device matching issues
+
+### v1.2.0 (2026-01-31) - Send Tool for Notifications
+
+**New Feature: Universal Send Tool**
+
+Added `send` tool for sending content (links, messages) to notification targets:
+- Dynamically discovers all `notify.*` services (mobile apps, Telegram, email, groups, etc.)
+- LLM sees available targets in tool description
+- Can send links, reminders, or any text content
+- Supports single and multiple URLs with actionable notifications
+
+Example flow:
+1. LLM has useful information or links to share
+2. LLM offers: "Soll ich dir die Links schicken?"
+3. User responds: "Ja, auf Patrics Handy" or "Schick es an Telegram"
+4. LLM calls `send` tool with content and target
+5. User receives notification with clickable links
+
+Features:
+- Automatic URL extraction from content
+- Single URL: notification clickable to open link
+- Multiple URLs: action buttons for up to 3 links
+- Fuzzy matching for target names (e.g., "patrics_handy" matches "mobile_app_patrics_iphone")
+- Works with any HA notify service (mobile_app, telegram, email, groups, etc.)
+
+### v1.1.3 (2026-01-30) - Follow-up Loop Protection
+
+**Fix: Prevent Infinite Follow-up Loops**
+
+Added protection against endless clarification loops when satellite is triggered by false positive (e.g., TV audio):
+- Tracks consecutive follow-up questions per conversation session
+- After 3 consecutive follow-ups without meaningful action, conversation aborts
+- Returns "I did not understand. Please try again." instead of another question
+- Counter resets after any successful tool execution
+
+How it works:
+1. Satellite triggered by TV audio (false positive wake word)
+2. LLM receives unintelligible input, asks for clarification (followup #1)
+3. Satellite listens again, captures more TV audio (followup #2)
+4. After 3rd failed attempt, Smart Assist aborts and stops listening
+
+This prevents the satellite from getting stuck in an infinite loop of questions when triggered accidentally.
+
+### v1.1.2 (2026-01-30) - Entity History Periods Aggregation
+
+**Improvement: Better History Output for Binary Entities**
+
+Added `periods` aggregation option to `get_entity_history` tool:
+- Calculates on/off time ranges for switches, lights, locks, etc.
+- Returns human-readable periods: "from 15:18 to 19:45 (4h 27min)"
+- Includes total on-time calculation
+- Supports states: on, playing, home, open, unlocked, active, heating, cooling
+
+Example output:
+```
+switch.keller was on during 24h:
+  from 15:18 to 19:45 (4h 27min)
+  from 20:01 to 20:03 (2min)
+  Total on time: 4h 29min
+```
+
+LLM can now say "Das Licht war von 15:18 bis 19:45 Uhr an" instead of just listing state changes.
+
+### v1.1.1 (2026-01-30) - Recorder Dependency Fix
+
+**Bugfix: Missing Recorder Dependency**
+
+- Added `recorder` to manifest.json dependencies
+- Required for `get_entity_history` tool to access historical states
+- Fixes GitHub Actions CI validation error
+
+### v1.1.0 (2026-01-30) - Entity History Queries & Multi-Turn Context
+
+**New Feature: Entity History Queries**
+
+New `get_entity_history` tool allows querying historical entity states:
+- Time periods: 1h, 6h, 12h, 24h, 48h, 7d
+- Aggregation modes: raw (all changes), summary (min/max/avg), last_change
+- Supports numeric sensors (temperature, humidity) with statistics
+- Supports discrete state entities (lights, switches) with occurrence counts
+
+Example queries:
+- "How was the temperature yesterday?"
+- "When was the light last on?"
+- "What was the average humidity in the last 6 hours?"
+
+**New Feature: Multi-Turn Context Improvements**
+
+Enhanced pronoun resolution for natural conversations:
+- Tracks last 5 entities interacted with per conversation
+- Injects `[Recent Entities]` context for LLM pronoun resolution
+- System prompt instructs LLM to use context for "it", "that", "the same one"
+
+Example conversation:
+1. User: "Turn on the kitchen light" -> Tracks light.kitchen
+2. User: "Make it brighter" -> LLM resolves "it" = light.kitchen
+3. User: "What's the temperature?" -> Tracks sensor.kitchen_temp
+4. User: "Turn that off" -> LLM resolves "that" = light.kitchen (most recent controllable)
+
+**Implementation Details:**
+- `GetEntityHistoryTool` in entity_tools.py - Uses HA recorder/history API
+- `RecentEntity` dataclass in context/conversation.py - Tracks entity_id, friendly_name, action, timestamp
+- `ConversationSession.recent_entities` - deque with maxlen=5
+- Context placed in dynamic section to preserve prompt caching
+
+### v1.0.30 (2026-01-30) - Auto-Detect Questions for Conversation Continuation
+
+**Improvement: Question Detection Fallback**
+
+- Auto-detects when LLM response ends with `?` but forgot to call `await_response` tool
+- Automatically enables `continue_conversation` for questions
+- Ensures user can always respond to questions, even if LLM doesn't follow instructions perfectly
+
+### v1.0.29 (2026-01-30) - Fix Duplicate Tool Calls
+
+**Fix: Duplicate Tool Call Execution**
+
+- Added deduplication of tool calls by ID before execution
+- LLM sometimes sends duplicate tool calls (same ID), now only one is executed
+- Changed Music Assistant `play_media` to non-blocking to prevent hanging
+- Prevents processing loop getting stuck when Music Assistant takes too long
+
+### v1.0.28 (2026-01-30) - Conditional Music Instructions
+
+**Improvement: Dynamic Prompt Injection Based on Tool Availability**
+
+- Music/Radio Playback instructions now only appear in system prompt when `music_assistant` tool is registered
+- Simpler, clearer instructions without conditional logic for the LLM
+- Added `has_tool()` method to ToolRegistry for checking tool availability
+- Fixed duplicate MusicAssistantTool registration bug
+
+### v1.0.27 (2026-01-30) - Clearer Music Assistant Instructions
+
+**Improvement: Explicit Tool Selection for Music**
+
+- System prompt now explicitly tells LLM to check available tools
+- Clear priority: 1) music_assistant tool if available, 2) control tool as fallback
+- Clearer separation: control for lights/switches/etc, music_assistant for music/radio
+- Improved satellite-to-player mapping reference
+
+### v1.0.26 (2026-01-30) - Music Assistant Detection & System Prompt
+
+**Fix: Music Assistant Tool Detection**
+
+- Improved detection logic with 3 methods:
+  1. Check `hass.data` for music_assistant key
+  2. Check for MA player attributes (mass_player_id, mass_player_type)
+  3. Check if `music_assistant.play_media` service exists
+- Added debug logging for detection method
+- Added fallback logging when not detected
+
+**New: Music/Radio Playback Instructions in System Prompt**
+
+- Added instructions for when to use `music_assistant` tool
+- LLM now knows to use music_assistant for songs, artists, albums, playlists, radio
+- References satellite-to-player mapping from user system prompt
+
+### v1.0.25 (2026-01-30) - Satellite Context for Media Playback
+
+**New Feature: Current Assist Satellite in Context**
+
+- Satellite entity_id is now included in the dynamic context
+- LLM knows which Assist satellite initiated the request
+- Enables automatic media player mapping based on user system prompt
+
+How it works:
+- ConversationInput.satellite_id is passed through to message builder
+- Added `[Current Assist Satellite: assist_satellite.xxx]` to dynamic context
+- User can define mappings in system prompt (satellite -> media_player)
+
+Example user system prompt:
+```
+Satellite to Media Player Mappings:
+- assist_satellite.satellite_kuche_assist_satellit -> media_player.ma_satellite_kuche
+- assist_satellite.satellite_flur_assist_satellit -> media_player.ma_satellite_flur
+```
+
+Now "play music" without specifying player will use the correct mapped player.
+
+### v1.0.24 (2026-01-30) - Music Assistant Integration
+
+**New Feature: MusicAssistantTool**
+
+- New `music_assistant` tool for advanced music control
+- Uses Music Assistant integration for multi-provider support
+- Actions: play, search, queue_add
+
+Features:
+- Play music from any provider (Spotify, YouTube Music, local files, etc.)
+- Internet radio support (TuneIn, Radio Browser, etc.)
+- Radio mode for endless dynamic playlists based on seed track/artist
+- Queue management (play, replace, next, add)
+- Search across all configured providers
+
+Parameters:
+- `action`: play, search, queue_add
+- `query`: Search term (song, artist, album, playlist, radio station)
+- `media_type`: track, album, artist, playlist, radio
+- `artist`, `album`: Optional filters
+- `player`: Target media player entity_id
+- `enqueue`: play, replace, next, add
+- `radio_mode`: Enable endless similar music
+
+Examples:
+- Play song: `action=play, query="Bohemian Rhapsody", media_type=track`
+- Play radio: `action=play, query="SWR3", media_type=radio`
+- Radio mode: `action=play, query="Queen", media_type=artist, radio_mode=true`
+- Add to queue: `action=queue_add, query="Another One Bites the Dust"`
+
+Tool is automatically available when Music Assistant is installed.
+
+### v1.0.23 (2026-01-30) - Timer Reminders and Delayed Commands
+
+**New Feature: conversation_command Support**
+
+- Timer tool now supports `command` parameter for delayed actions
+- Execute any voice command when timer finishes
+- Enables voice reminders without separate reminder system
+- Uses native Assist `conversation_command` slot
+
+Examples:
+- Reminder: `timer(action=start, minutes=30, command="Remind me to drink water")`
+- Delayed action: `timer(action=start, hours=1, command="Turn off the lights")`
+- Combined: `timer(action=start, minutes=10, name="Pizza", command="Check the oven")`
+
+### v1.0.22 (2026-01-30) - Unified Timer Tool with Native Intents
+
+**Improvement: Simplified Timer Management**
+
+- Single `timer` tool now uses native Assist intents (HassStartTimer, etc.)
+- No Timer Helper entities required - uses built-in Assist voice timers
+- Removed separate voice_timer tool - one unified timer tool
+- Actions: start, cancel, pause, resume, status
+- Parameters: hours, minutes, seconds, name
+
+### v1.0.21 (2026-01-30) - Native Voice Timer Support
+
+**New Feature: VoiceTimerTool**
+
+- New `voice_timer` tool using native Assist intents
+- Uses HassStartTimer, HassCancelTimer, HassPauseTimer, etc.
+- Does NOT require Timer Helper entities - uses built-in Assist voice timers
+- Actions: start, cancel, pause, resume, status, add_time, remove_time
+- Parameters: hours, minutes, seconds, name, area
+- Always available (not domain-dependent)
+
+**Two Timer Options:**
+1. `voice_timer` - Native Assist voice timers (satellite-specific, no entities)
+2. `timer` - Timer Helper entities (for automations, requires timer domain)
+
+### v1.0.20 (2026-01-30) - Timer Tool
+
+- New `timer` tool for managing HA timer helpers
+- Actions: start, cancel, pause, finish, change
+- Auto-finds available timer if not specified
+- Duration format: HH:MM:SS (e.g., "00:05:00" for 5 minutes)
+- Requires timer helper to be configured in HA
+
+### v1.0.19 (2026-01-30) - Calendar: Only Show Upcoming Events
+
+- Fixed: "What's on my calendar today?" no longer returns past events
+- get_calendar_events now starts from current time, not midnight
+- Past events from today are filtered out
+
+### v1.0.18 (2026-01-30) - Double Cache Warming at Startup
+
+**Improvement: Faster Initial Response**
+
+- Cache warming now runs TWICE at startup
+- First warmup creates the cache, second warmup uses it
+- Immediate benefit from prompt caching on first user request
+- warmup_count sensor now reflects both warmups
+
+### v1.0.17 (2026-01-30) - TTS Response Format Rules
+
+**Improvement: TTS-Optimized Output**
+
+- Added rule: Use plain text only - no markdown, no bullet points, no formatting
+- Added rule: Responses are spoken aloud (TTS) - avoid URLs, special characters, abbreviations
+- Cleaner audio output from voice assistants
+
+### v1.0.16 (2026-01-30) - English System Prompt Examples
+
+**Improvement: Consistent Language**
+
+- Changed examples in system prompt from German to English
+- LLMs understand English instructions better
+- Example now uses "Is there anything else I can help with?" instead of German
+
+### v1.0.15 (2026-01-30) - Mandatory await_response for Questions
+
+**Improvement: Stronger System Prompt**
+
+- Added explicit rule: EVERY question MUST use await_response tool
+- Clear WRONG vs CORRECT examples in system prompt
+- Rule: If response ends with "?", must call await_response
+- LLM should no longer ask questions without tool call
+
+### v1.0.14 (2026-01-30) - await_response with Message Parameter
+
+**Improvement: Tool Redesign**
+
+- Added required `message` parameter to await_response tool
+- LLM now passes the question text directly in the tool call
+- Conversation handler extracts message from tool arguments
+- No more reliance on LLM outputting text before tool call
+- System prompt updated with new tool usage examples
+
+Example: `await_response(message="Which room?", reason="clarification")`
+
+### v1.0.13 (2026-01-30) - Simplified await_response Tool
+
+**Improvement: Tool Definition**
+
+- Simplified await_response tool description to match other working tools
+- Changed reason parameter from optional to required
+- Removed verbose instructions from tool description
+- Cleaner system prompt with example flow
+- Removed text fallback workaround (pure tool-based solution)
+
+### v1.0.12 (2026-01-30) - Text Fallback for await_response
+
+**Bugfix: Model Compatibility**
+
+- Fixed issue where some models (e.g., gpt-oss-120b) output `await_response({...})` as text instead of a proper tool call
+- Added regex detection to extract await_response from text output
+- Text is cleaned (await_response removed) and conversation continuation is properly set
+- Satellites now correctly enter listening mode even when model uses text syntax
+
+### v1.0.11 (2026-01-30) - await_response Fix for Satellites
+
+**Bugfix: Voice Assistant Satellites**
+
+- Fixed issue where satellites (e.g., ESP32-S3) would not enter listening mode after `await_response`
+- Root cause: LLM called `await_response` tool without providing speech text first
+- Speech was empty, so no audio was played, and satellite never transitioned to listening mode
+
+**Improvements:**
+
+- Updated system prompt with explicit instruction to ALWAYS include text BEFORE calling `await_response`
+- Enhanced `await_response` tool description with clear examples of correct/incorrect usage
+- Added warning log when `await_response` is called without response text
+
+### v1.0.10 (2026-01-29) - await_response Tool
+
+**Refactor: Conversation Continuation**
+
+- Replaced text marker `[AWAIT_RESPONSE]` with `await_response` tool
+- LLM now calls a tool to signal "keep microphone open" instead of adding text markers
+- Prevents LLM from inventing markers like `[Keine weitere Aktion nötig]` or `[No action needed]`
+- Deterministic, debuggable (tool calls visible in logs)
+- System prompt updated with clear tool usage instructions
+- Proactive follow-up: LLM can now ask "Is there anything else I can help with?"
+
+**Benefits:**
+- No more random action status tags in TTS output
+- Cleaner, more predictable conversation flow
+- Better for AI Tasks that need user confirmation
+
+### v1.0.9 (2026-01-29) - TTS Cleanup for Action Tags
+
+- Removed action status tags from TTS output (e.g., [Keine weitere Aktion nötig], [No action needed])
+- These LLM action indicators are now stripped before speech synthesis
+
+### v1.0.8 (2026-01-29) - Cache Warming Sensor Update Fix
+
+- Fixed sensors not updating after cache warming (missing dispatcher signal)
+- Fixed Groq client double-counting usage metrics (usage sent twice in stream)
+- Cache warming requests now correctly contribute to all metric sensors
+
+### v1.0.7 (2026-01-29) - Cached Tokens Tracking Fix
+
+- Fixed cached_tokens metric not being tracked in OpenRouter client
+- Cache warming now correctly contributes to average cached tokens sensor
+- Note: For device grouping issues, please remove and re-add the Smart Assist integration
+
+### v1.0.6 (2026-01-29) - Per-Agent Metrics (Bugfix)
+
+**Bugfixes**
+
+- Fixed sensor subentry grouping: sensors now correctly appear only under their respective agent/task device
+- Fixed Cache Warming sensor state class (string status, not measurement)
+
+### v1.0.5 (2026-01-29) - Per-Agent Metrics
+
+**Improvements**
+
+- **Per-Agent Sensors**: Metrics are now tracked per Conversation Agent and AI Task instead of aggregated
+  - Each agent/task now has its own set of sensors (response time, requests, tokens, cache hits, etc.)
+  - Sensors are grouped under the respective device in Home Assistant
+- **Average Cached Tokens Sensor**: New sensor showing average cached tokens per request
+  - Formula: `cached_tokens / successful_requests`
+  - Helps track caching efficiency per agent
+- **Cache Warming Status Sensor**: New sensor for agents with cache warming enabled
+  - Shows warming status: "active", "warming", "inactive"
+  - Attributes: last_warmup, next_warmup, warmup_count, warmup_failures, interval_minutes
+- **AI Task Metrics**: AI Task entities now also have their own metric sensors
+  - Average Response Time, Total Requests, Success Rate, Total Tokens
+- Cache warming now tracks success/failure counts and timestamps
+- Dispatcher signals changed from entry-level to subentry-level for better isolation
+
+### v1.0.4 (2026-01-28) - API Key Reconfigure
+
+**New Feature**
+
+- Added reconfigure flow for parent entry to update API keys
+- Go to Settings -> Integrations -> Smart Assist -> Configure to change API keys
+- Both Groq and OpenRouter API keys can be updated without removing the integration
+
+### v1.0.3 (2026-01-28) - API Key Storage Fix
+
+**Bugfix**
+
+- Fixed API key incorrectly being copied to subentry data during reconfigure
+- This caused "Invalid API Key" errors after reconfiguring a conversation agent
+- API keys are now correctly read from parent entry only
+
+### v1.0.2 (2026-01-28) - Reliability Improvements
+
+**HTTP Client Reliability Enhancements**
+
+- Added granular timeouts (connect=10s, sock_connect=10s, sock_read=30s)
+- Session auto-renewal after 4 minutes to prevent stale HTTP connections
+- Explicit timeout error handling with separate exception handler
+- Improved error logging: all failures now logged with attempt count
+- Final failure always logged at ERROR level with full context
+
+### v1.0.1 (2026-01-28) - Bugfixes
+
+**Bugfixes**
+
+- Fixed Media Player select_source for devices without SELECT_SOURCE feature
+- Added legacy API key location fallback for config migrations
+- Reduced 401 log level to DEBUG when fetching Groq models (expected behavior)
+- Restored info.md for HACS repository description
+
+### v1.0.0 (2026-01-28) - Initial Release
+
+**Smart Assist** is a fast, LLM-powered smart home assistant for Home Assistant with automatic prompt caching.
+
+#### Core Features
+
+- **Groq Integration**: Direct Groq API with automatic prompt caching (2-hour TTL)
+- **Natural Language Control**: Control your smart home with natural language
+- **Unified Control Tool**: Single efficient tool for all entity types (lights, switches, climate, covers, media players, fans)
+- **Parallel Tool Execution**: Execute multiple tool calls concurrently for faster responses
+- **Full Streaming**: Real-time token streaming to TTS, even during tool execution
+- **Prompt Caching**: ~90% cache hit rate with Groq for faster responses
+
+#### Calendar Integration
+
+- **Read Events**: Query upcoming events from all calendars
+- **Create Events**: Create timed or all-day events with fuzzy calendar matching
+- **Proactive Reminders**: Staged context injection (24h, 4h, 1h before events)
+
+#### AI Task Platform
+
+- **Automation Integration**: Use LLM in automations via ai_task.generate_data service
+- **Background Tasks**: Summarize data, generate reports without user interaction
+- **Full Tool Support**: All tools available in automation context
+
+#### Performance and Telemetry
+
+- **Cache Warming**: Optional periodic cache refresh for instant responses
+- **Metrics Sensors**: Track token usage, response times, cache hit rates
+  - Average Response Time (ms)
+  - Request Count
+  - Success Rate (%)
+  - Token Usage
+  - Cache Hits
+  - Cache Hit Rate (%)
+
+#### Additional Features
+
+- **Web Search**: DuckDuckGo integration for real-time information
+- **Multi-Language**: Supports any language (auto-detect from HA or custom)
+- **Debug Logging**: Detailed logging for troubleshooting
+
+#### Available Tools
+
+| Tool                    | Description                                |
+| ----------------------- | ------------------------------------------ |
+| get_entities            | Query available entities by domain/area    |
+| get_entity_state        | Get detailed entity state with attributes  |
+| control                 | Unified control for all entity types       |
+| run_scene               | Activate scenes                            |
+| trigger_automation      | Trigger automations                        |
+| get_calendar_events     | Query upcoming calendar events             |
+| create_calendar_event   | Create new calendar events                 |
+| get_weather             | Current weather information                |
+| web_search              | DuckDuckGo web search                      |
+
+#### Supported Models
+
+| Model                             | Description                 |
+| --------------------------------- | --------------------------- |
+| llama-3.3-70b-versatile           | Llama 3.3 70B (Recommended) |
+| openai/gpt-oss-120b               | GPT-OSS 120B                |
+| openai/gpt-oss-20b                | GPT-OSS 20B (Faster)        |
+| moonshotai/kimi-k2-instruct-0905  | Kimi K2                     |
+
+#### Requirements
+
+- Home Assistant 2024.1 or newer
+- Python 3.12+
+- Groq API key
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full feature roadmap.
+
+---
+
+## Technology Stack
+
+| Technology       | Version  | Purpose                    |
+| ---------------- | -------- | -------------------------- |
+| Python           | 3.12+    | Core language              |
+| Home Assistant   | 2024.1+  | Smart home platform        |
+| aiohttp          | 3.8.0+   | Async HTTP client          |
+| Groq API         | latest   | LLM inference              |
+| DuckDuckGo ddgs  | 7.0.0+   | Web search integration     |
+
+## License
+
+MIT License - see LICENSE for details.
