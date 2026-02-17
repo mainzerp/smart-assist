@@ -133,6 +133,9 @@
             "enable_memory": "Enable user memory & personalization",
             "enable_agent_memory": "Enable agent auto-learning",
             "enable_presence_heuristic": "Enable presence-based user detection",
+            "enable_request_history_content": "Store request history content",
+            "history_retention_days": "Request history retention (days)",
+            "history_redact_patterns": "Request history redaction patterns",
             "enable_cache_warming": "Enable automatic cache warming",
             "cache_refresh_interval": "Cache refresh interval (minutes)",
             "cancel_intent_agent": "Use as cancel intent handler"
@@ -155,6 +158,9 @@
             "enable_memory": "Allows the assistant to remember user preferences, names, and instructions across conversations.",
             "enable_agent_memory": "Allows the assistant to learn from interactions and save its own observations (patterns, habits, system insights). Requires memory to be enabled.",
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home.",
+            "enable_request_history_content": "If enabled, user input and responses are stored in request history. If disabled, content fields remain empty.",
+            "history_retention_days": "How many days request history entries are kept before automatic cleanup.",
+            "history_redact_patterns": "Optional terms or regex patterns (one per line or comma-separated) replaced with [REDACTED] in stored history content.",
             "enable_cache_warming": "Keeps the prompt cache warm by sending periodic requests. Incurs small additional API costs.",
             "cache_refresh_interval": "How often to refresh the cache (in minutes). Set below the cache TTL.",
             "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used."
@@ -206,6 +212,9 @@
             "enable_memory": "Enable user memory",
             "enable_agent_memory": "Enable agent auto-learning",
             "enable_presence_heuristic": "Presence-based user detection",
+            "enable_request_history_content": "Store request history content",
+            "history_retention_days": "Request history retention (days)",
+            "history_redact_patterns": "Request history redaction patterns",
             "enable_cache_warming": "Enable cache warming",
             "cache_refresh_interval": "Cache refresh interval",
             "cancel_intent_agent": "Use as cancel intent handler",
@@ -231,6 +240,9 @@
             "enable_memory": "Allows the assistant to remember user preferences, names, and instructions across conversations.",
             "enable_agent_memory": "Allows the assistant to learn from interactions and save its own observations (patterns, habits, system insights). Requires memory to be enabled.",
             "enable_presence_heuristic": "Automatically detect which user is speaking based on who is home. Only works when exactly one person is home.",
+            "enable_request_history_content": "If enabled, user input and responses are stored in request history. If disabled, content fields remain empty.",
+            "history_retention_days": "How many days request history entries are kept before automatic cleanup.",
+            "history_redact_patterns": "Optional terms or regex patterns (one per line or comma-separated) replaced with [REDACTED] in stored history content.",
             "user_system_prompt": "Personality and instructions for this conversation agent.",
             "cancel_intent_agent": "Use this agent to generate the spoken cancel/nevermind confirmation. Only one agent should have this enabled. If none is selected, the first available agent is used."
           }

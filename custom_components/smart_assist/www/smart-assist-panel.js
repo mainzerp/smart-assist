@@ -989,6 +989,7 @@ class SmartAssistPanel extends HTMLElement {
         const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '-';
         const tokens = (e.prompt_tokens || 0) + (e.completion_tokens || 0);
         const toolNames = (e.tools_used || []).map(function(t) { return t.name; }).join(', ') || '-';
+        const inputText = String(e.input_text || e.input || e.user_input || '');
         const statusCls = e.success ? 'success' : 'error';
         const statusLabel = e.success ? 'OK' : 'Error';
         var statusBadges = '<span class="cal-status ' + statusCls + '">' + statusLabel + '</span>';
@@ -999,9 +1000,9 @@ class SmartAssistPanel extends HTMLElement {
           + '<td style="white-space:nowrap;font-size:12px;">' + time + '</td>'
           + '<td>' + this._esc(e.agent_name || '-') + '</td>'
           + '<td>' + this._esc(e.user_id || '-') + '</td>'
-          + '<td title="' + this._esc(e.input_text || '') + '">'
-          + this._esc((e.input_text || '').substring(0, 60))
-          + ((e.input_text || '').length > 60 ? '...' : '') + '</td>'
+          + '<td title="' + this._esc(inputText) + '">'
+          + this._esc(inputText.substring(0, 60))
+          + (inputText.length > 60 ? '...' : '') + '</td>'
           + '<td>' + this._fmt(tokens) + '</td>'
           + '<td>' + Math.round(e.response_time_ms || 0) + '</td>'
           + '<td title="' + this._esc(toolNames) + '">'

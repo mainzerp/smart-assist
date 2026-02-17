@@ -133,6 +133,9 @@
             "enable_memory": "Benutzer-Gedaechtnis & Personalisierung aktivieren",
             "enable_agent_memory": "Agent Auto-Learning aktivieren",
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung aktivieren",
+            "enable_request_history_content": "Request-History Inhalte speichern",
+            "history_retention_days": "Request-History Aufbewahrung (Tage)",
+            "history_redact_patterns": "Request-History Redaction-Muster",
             "enable_cache_warming": "Automatisches Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall (Minuten)",
             "cancel_intent_agent": "Als Cancel Intent Handler verwenden"
@@ -155,6 +158,9 @@
             "enable_memory": "Erlaubt dem Assistenten, sich Benutzer-Praeferenzen, Namen und Anweisungen ueber Gespraeche hinweg zu merken.",
             "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
+            "enable_request_history_content": "Wenn aktiviert, werden Eingaben/Antworten in der Request-History gespeichert. Wenn deaktiviert, bleiben Inhaltsspalten leer.",
+            "history_retention_days": "Wie viele Tage Request-History-Eintraege aufbewahrt werden, bevor sie automatisch geloescht werden.",
+            "history_redact_patterns": "Optionale Begriffe oder Regex-Muster (eine pro Zeile oder kommagetrennt), die in History-Inhalten durch [REDACTED] ersetzt werden.",
             "enable_cache_warming": "Haelt den Prompt-Cache durch periodische Anfragen warm. Verursacht geringe zusaetzliche API-Kosten.",
             "cache_refresh_interval": "Wie oft der Cache aktualisiert wird (in Minuten). Unter dem Cache-TTL setzen.",
             "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
@@ -206,6 +212,9 @@
             "enable_memory": "Benutzer-Gedaechtnis aktivieren",
             "enable_agent_memory": "Agent Auto-Learning aktivieren",
             "enable_presence_heuristic": "Praesenzbasierte Benutzererkennung",
+            "enable_request_history_content": "Request-History Inhalte speichern",
+            "history_retention_days": "Request-History Aufbewahrung (Tage)",
+            "history_redact_patterns": "Request-History Redaction-Muster",
             "enable_cache_warming": "Cache-Warming aktivieren",
             "cache_refresh_interval": "Cache-Aktualisierungsintervall",
             "cancel_intent_agent": "Als Cancel Intent Handler verwenden",
@@ -231,6 +240,9 @@
             "enable_memory": "Erlaubt dem Assistenten, sich Benutzer-Praeferenzen, Namen und Anweisungen ueber Gespraeche hinweg zu merken.",
             "enable_agent_memory": "Erlaubt dem Assistenten, aus Interaktionen zu lernen und eigene Beobachtungen zu speichern (Muster, Gewohnheiten, Systemerkenntnisse). Erfordert aktiviertes Gedaechtnis.",
             "enable_presence_heuristic": "Erkennt automatisch anhand der Anwesenheit, welcher Benutzer spricht. Funktioniert nur, wenn genau eine Person zuhause ist.",
+            "enable_request_history_content": "Wenn aktiviert, werden Eingaben/Antworten in der Request-History gespeichert. Wenn deaktiviert, bleiben Inhaltsspalten leer.",
+            "history_retention_days": "Wie viele Tage Request-History-Eintraege aufbewahrt werden, bevor sie automatisch geloescht werden.",
+            "history_redact_patterns": "Optionale Begriffe oder Regex-Muster (eine pro Zeile oder kommagetrennt), die in History-Inhalten durch [REDACTED] ersetzt werden.",
             "user_system_prompt": "Persoenlichkeit und Anweisungen fuer diesen Konversations-Agenten.",
             "cancel_intent_agent": "Diesen Agenten fuer die gesprochene Abbruch-Bestaetigung verwenden. Nur ein Agent sollte diese Option aktiviert haben. Wenn keiner ausgewaehlt ist, wird der erste verfuegbare Agent verwendet."
           }

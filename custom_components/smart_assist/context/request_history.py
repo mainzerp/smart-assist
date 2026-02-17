@@ -204,14 +204,47 @@ class RequestHistoryStore:
             return self._entries
         return [entry for entry in self._entries if entry.get("agent_id") == agent_id]
 
+    @staticmethod
+    def _normalize_loaded_entry(entry: Any) -> tuple[dict[str, Any], bool]:
+        """Normalize loaded entry shape for backward compatibility."""
+        if not isinstance(entry, dict):
+            return {}, True
+
+        normalized = dict(entry)
+        changed = False
+
+        if "input_text" not in normalized:
+            legacy_input = normalized.get("input")
+            if legacy_input is None:
+                legacy_input = normalized.get("user_input")
+            if legacy_input is not None:
+                normalized["input_text"] = str(legacy_input)
+                changed = True
+
+        if "input_text" not in normalized:
+            normalized["input_text"] = ""
+            changed = True
+
+        return normalized, changed
+
     async def async_load(self) -> None:
         """Load history from storage."""
         stored = await self._store.async_load()
         if stored is not None:
-            self._entries = stored.get("entries", [])
+            raw_entries = stored.get("entries", [])
+            normalized_entries: list[dict[str, Any]] = []
+            changed = False
+            for entry in raw_entries:
+                normalized_entry, entry_changed = self._normalize_loaded_entry(entry)
+                if normalized_entry:
+                    normalized_entries.append(normalized_entry)
+                changed = changed or entry_changed
+            self._entries = normalized_entries
             self._max_entries = stored.get(
                 "max_entries", REQUEST_HISTORY_MAX_ENTRIES
             )
+            if changed:
+                self._dirty = True
             _LOGGER.info("Loaded request history: %d entries", len(self._entries))
         else:
             self._entries = []

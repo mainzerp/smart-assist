@@ -640,6 +640,22 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_ENABLE_MEMORY): BooleanSelector(),
             vol.Required(CONF_ENABLE_AGENT_MEMORY): BooleanSelector(),
             vol.Required(CONF_ENABLE_PRESENCE_HEURISTIC): BooleanSelector(),
+            vol.Required(
+                CONF_ENABLE_REQUEST_HISTORY_CONTENT,
+                default=DEFAULT_ENABLE_REQUEST_HISTORY_CONTENT,
+            ): BooleanSelector(),
+            vol.Required(
+                CONF_HISTORY_RETENTION_DAYS,
+                default=DEFAULT_HISTORY_RETENTION_DAYS,
+            ): NumberSelector(
+                NumberSelectorConfig(min=1, max=365, step=1, mode=NumberSelectorMode.BOX)
+            ),
+            vol.Optional(
+                CONF_HISTORY_REDACT_PATTERNS,
+                default=DEFAULT_HISTORY_REDACT_PATTERNS,
+            ): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+            ),
             # Group: Performance
             vol.Required(CONF_ENABLE_CACHE_WARMING): BooleanSelector(),
             vol.Required(CONF_CACHE_REFRESH_INTERVAL): NumberSelector(
