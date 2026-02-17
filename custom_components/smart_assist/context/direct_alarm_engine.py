@@ -248,7 +248,7 @@ class DirectAlarmEngine:
                         successful += 1
                     except Exception as err:
                         _LOGGER.warning(
-                            "Direct alarm satellite announce failed for %s on %s: %s",
+                            "Direct alarm satellite announce failed for %s on %s: %r",
                             alarm.get("id"),
                             satellite_entity_id,
                             err,
@@ -256,13 +256,18 @@ class DirectAlarmEngine:
                         failed += 1
 
                 if successful == 0:
-                    return self._failure_result(DIRECT_ALARM_ERROR_SERVICE_FAILED, "satellite_announce_all_failed")
-
-                result = self._ok_result("assist_satellite.announce")
-                result["targets"] = satellite_targets
-                result["target_success_count"] = successful
-                result["target_failure_count"] = failed
-                return result
+                    _LOGGER.warning(
+                        "Direct alarm satellite announce failed for all targets on %s. Falling back to %s.%s.",
+                        alarm.get("id"),
+                        domain,
+                        service,
+                    )
+                else:
+                    result = self._ok_result("assist_satellite.announce")
+                    result["targets"] = satellite_targets
+                    result["target_success_count"] = successful
+                    result["target_failure_count"] = failed
+                    return result
 
         tts_engine_entity_id = (
             self._resolve_tts_engine_entity_id(alarm)
@@ -346,12 +351,14 @@ class DirectAlarmEngine:
         context_parts: list[str] = []
         used_weather_context = False
         used_news_context = False
-        if bool(wake_text.get("include_weather", False)):
+        requested_weather_context = bool(wake_text.get("include_weather", False))
+        requested_news_context = bool(wake_text.get("include_news", False))
+        if requested_weather_context:
             weather_context = self._collect_weather_context()
             if weather_context:
                 context_parts.append(f"Weather: {weather_context}")
                 used_weather_context = True
-        if bool(wake_text.get("include_news", False)):
+        if requested_news_context:
             news_context = await self._collect_news_context()
             if news_context:
                 context_parts.append(f"News: {news_context}")
@@ -390,6 +397,16 @@ class DirectAlarmEngine:
             else:
                 system_parts.append(
                     "Keep it concise and natural: max 2 short sentences."
+                )
+
+            if requested_news_context and not used_news_context:
+                system_parts.append(
+                    "No concrete news headlines are available. Do NOT claim specific news, "
+                    "headlines, or summaries."
+                )
+            if requested_weather_context and not used_weather_context:
+                system_parts.append(
+                    "No concrete weather data is available. Do NOT claim specific weather details."
                 )
             messages = [
                 ChatMessage(
@@ -485,7 +502,7 @@ class DirectAlarmEngine:
                 # ddgs is an optional runtime dependency; import failure is handled gracefully
                 from ddgs import DDGS
 
-                with DDGS() as ddgs_client:
+                with DDGS(impersonate="random") as ddgs_client:
                     return list(ddgs_client.text("latest news headlines", max_results=3))
             except Exception:
                 return []

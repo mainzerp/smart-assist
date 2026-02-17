@@ -54,7 +54,7 @@ class WebSearchTool(BaseTool):
             # Run in executor to avoid blocking
             def search() -> list[dict[str, Any]]:
                 # New ddgs API: DDGS().text() returns list directly
-                return DDGS().text(query, max_results=max_results)
+                return DDGS(impersonate="random").text(query, max_results=max_results)
 
             results = await self._hass.async_add_executor_job(search)
 
