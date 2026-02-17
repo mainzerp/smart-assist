@@ -278,19 +278,6 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | Cancel Intent Handler | Use LLM to respond to cancel/nevermind (fixes satellite hang) | true |
 | System Prompt | Custom instructions for assistant | - |
 
-## Prompt Caching
-
-Smart Assist supports prompt caching to reduce latency and costs.
-
-### Provider Caching Comparison
-
-| Provider | Caching Type | TTL | Models |
-| -------- | ------------ | --- | ------ |
-| **Groq** | Automatic | 2 hours | All models |
-| **OpenRouter** | Explicit | 5 min / 1 hour | some models |
-
-> **Recommendation**: For best caching performance, use **Groq** as your provider.
-
 ### Cache Statistics
 
 The integration provides sensors for monitoring cache performance:
