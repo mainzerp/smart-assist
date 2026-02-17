@@ -68,7 +68,7 @@ class AlarmTool(BaseTool):
         ToolParameter(
             name="message",
             type="string",
-            description="Optional alarm message announced when fired",
+            description="Optional spoken message when alarm fires. Use this for the actual spoken text only (not for dynamic/weather/news directives).",
             required=False,
         ),
         ToolParameter(
@@ -132,19 +132,19 @@ class AlarmTool(BaseTool):
         ToolParameter(
             name="wake_text_dynamic",
             type="boolean",
-            description="Optional: generate wake text dynamically via LLM when alarm fires.",
+            description="Optional: generate wake text dynamically via LLM when alarm fires. If weather/news context is requested, this should be true.",
             required=False,
         ),
         ToolParameter(
             name="wake_text_include_weather",
             type="boolean",
-            description="Optional: include current weather in dynamic wake text.",
+            description="Optional: include current weather in dynamic wake text (use only together with dynamic wake text).",
             required=False,
         ),
         ToolParameter(
             name="wake_text_include_news",
             type="boolean",
-            description="Optional: include latest headlines in dynamic wake text.",
+            description="Optional: include latest headlines in dynamic wake text (use only together with dynamic wake text).",
             required=False,
         ),
     ]
@@ -198,6 +198,15 @@ class AlarmTool(BaseTool):
                 parsed_tts_targets = self._parse_tts_targets(tts_targets)
                 if not parsed_tts_targets:
                     parsed_tts_targets = self._resolve_default_tts_targets()
+                (
+                    wake_text_dynamic,
+                    wake_text_include_weather,
+                    wake_text_include_news,
+                ) = self._normalize_wake_text_args(
+                    wake_text_dynamic,
+                    wake_text_include_weather,
+                    wake_text_include_news,
+                )
                 wake_text_options = self._build_wake_text_options(
                     wake_text_dynamic,
                     wake_text_include_weather,
@@ -339,6 +348,15 @@ class AlarmTool(BaseTool):
                 if tts_targets is not None:
                     delivery_updates["tts_targets"] = self._parse_tts_targets(tts_targets)
 
+                (
+                    wake_text_dynamic,
+                    wake_text_include_weather,
+                    wake_text_include_news,
+                ) = self._normalize_wake_text_args(
+                    wake_text_dynamic,
+                    wake_text_include_weather,
+                    wake_text_include_news,
+                )
                 wake_text_options = self._build_wake_text_options(
                     wake_text_dynamic,
                     wake_text_include_weather,
@@ -515,6 +533,22 @@ class AlarmTool(BaseTool):
         if include_news is not None:
             updates["include_news"] = bool(include_news)
         return updates
+
+    def _normalize_wake_text_args(
+        self,
+        dynamic: bool | None,
+        include_weather: bool | None,
+        include_news: bool | None,
+    ) -> tuple[bool | None, bool | None, bool | None]:
+        """Normalize wake-text arguments into a consistent payload.
+
+        Language understanding remains model-side. This normalization only
+        enforces a logical relationship: requesting weather/news implies
+        dynamic wake text generation.
+        """
+        if (include_weather is True or include_news is True) and dynamic is not True:
+            dynamic = True
+        return dynamic, include_weather, include_news
 
     def _build_recurrence_payload(
         self,
