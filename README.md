@@ -239,24 +239,25 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | Option | Description | Default |
 | ------ | ----------- | ------- |
 | Language | Response language (empty = auto-detect from HA) | Auto |
+| Clean Responses | Remove markdown artifacts for cleaner TTS output | false |
+| Ask Follow-up | Assistant asks clarifying questions when needed | true |
 | Exposed Only | Use only exposed entities | true |
 | Confirm Critical | Confirm locks/alarms before action | true |
+| Tool Max Retries | Maximum retry attempts for failed tool calls per request | 1 |
+| Tool Latency Budget (ms) | Per-tool timeout budget in milliseconds | 8000 |
 | Max History | Conversation history length | 10 |
 | Web Search | Enable DuckDuckGo search | true |
 | Calendar Context | Inject proactive calendar reminders | false |
+| Enable Memory | Enable user memory & personalization | false |
+| Enable Agent Memory | Enable agent auto-learning (requires memory) | true |
+| Enable Presence Heuristic | Auto-detect speaking user by presence (single person home) | false |
 | Request History Content | Store request/response/tool argument content in history (disable = metadata only) | false |
 | History Retention (days) | Auto-prune request history entries older than this limit | 30 |
 | History Redact Patterns | Comma/newline-separated regex or text patterns replaced with [REDACTED] before persistence | (empty) |
 | Entity Discovery Mode | Entity lookup strategy: "Full Index" (all in prompt) or "Smart Discovery" (on-demand via tools) | Full Index |
-| Direct Alarm Notification Backend | Internal persistent notification direct backend | true |
-| Direct Alarm Notify Backend | Internal `notify.*` service direct backend | false |
-| Direct Alarm Notify Service | Notify service called by direct backend | `notify.notify` |
-| Direct Alarm TTS Backend | Internal TTS service direct backend | false |
-| Direct Alarm TTS Service | TTS service called by direct backend | `tts.speak` |
-| Direct Alarm TTS Target | Optional target `entity_id` for direct TTS service | (empty) |
-| Direct Alarm Script Backend | Internal `script.turn_on` direct backend | false |
-| Direct Alarm Script Entity | Script entity called by direct backend (`script.*`) | (empty) |
-| Direct Alarm Backend Timeout | Per-backend timeout for direct execution (seconds) | 8 |
+| Cache Warming | Periodic cache refresh for prompt cache | false |
+| Refresh Interval | Cache refresh interval (minutes) | 4 |
+| Use as Cancel Intent Handler | Select this agent for spoken cancel/nevermind confirmation | false |
 
 ### Caching Settings
 
@@ -289,10 +290,6 @@ Smart Assist supports prompt caching to reduce latency and costs.
 | **OpenRouter** | Explicit | 5 min / 1 hour | some models |
 
 > **Recommendation**: For best caching performance, use **Groq** as your provider.
-### How It Works (Groq)
-
-1. **Prefix Matching**: Groq caches the prefix of your prompt (system prompt, tools, entity index)
-2. **Automatic**: No configuration needed - caching happens automatically
 
 ### Cache Statistics
 
@@ -394,6 +391,7 @@ Smart Assist provides these tools to the LLM:
 | `run_scene` | Activate scenes |
 | `trigger_automation` | Trigger automations |
 | `timer` | Set, cancel, or list voice timers (native Assist timers) |
+| `alarm` | Set/list/cancel/snooze/edit persistent absolute-time alarms |
 | `music_assistant` | Play music/radio via Music Assistant (auto-detected) |
 | `get_calendar_events` | Query upcoming calendar events |
 | `create_calendar_event` | Create new calendar events (fuzzy calendar matching) |
@@ -402,19 +400,9 @@ Smart Assist provides these tools to the LLM:
 | `send` | Send links, text, or messages to any notification target |
 | `memory` | Save, recall, update, delete user/global/agent memories and switch user identity |
 | `await_response` | Keep microphone open for follow-up questions |
+| `nevermind` | Cancel or dismiss the current interaction cleanly |
 
-## Supported Models
-
-### Groq Models
-
-| Model | Description |
-| ----- | ----------- |
-| `openai/gpt-oss-120b` | GPT-OSS 120B - Recommended |
-| `openai/gpt-oss-20b` | GPT-OSS 20B - Faster, smaller |
-| `llama-3.3-70b-versatile` | Llama 3.3 70B |
-| `moonshotai/kimi-k2-instruct-0905` | Kimi K2 |
-
-See [Groq Models](https://console.groq.com/docs/models) for the full list.
+Some tools are conditionally available based on configuration or installed integrations (for example `music_assistant`, `memory`, `web_search`, calendar/weather/scene/automation tools).
 
 ## Requirements
 
@@ -435,20 +423,6 @@ Enable debug logging in Advanced settings to see:
 - Cache hit/miss statistics
 - Tool execution details
 - Entity control actions
-
-### Common Issues
-
-**Low cache hit rate?**
-
-- Groq uses load-balanced servers with separate caches
-- Cache hits are not 100% guaranteed but typically ~90%
-- Ensure consistent tool usage across requests
-
-**Slow responses?**
-
-- Check cache hit rate in sensors
-- Enable cache warming for consistent performance
-- Verify Groq API status
 
 ## License
 
