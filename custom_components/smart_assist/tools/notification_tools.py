@@ -165,6 +165,7 @@ class SendTool(BaseTool):
                     "type": "object",
                     "properties": properties,
                     "required": required,
+                    "additionalProperties": False,
                 },
             },
         }

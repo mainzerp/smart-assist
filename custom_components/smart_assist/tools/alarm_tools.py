@@ -37,7 +37,7 @@ class AlarmTool(BaseTool):
         ToolParameter(
             name="action",
             type="string",
-            description="Alarm action",
+            description="Alarm operation: set (create), list, cancel, snooze, status, or edit.",
             required=True,
             enum=["set", "list", "cancel", "snooze", "status", "edit"],
         ),
@@ -88,6 +88,7 @@ class AlarmTool(BaseTool):
             type="number",
             description="Snooze duration in minutes. Required for action=snooze.",
             required=False,
+            minimum=1,
         ),
         ToolParameter(
             name="active_only",
@@ -113,6 +114,8 @@ class AlarmTool(BaseTool):
             type="number",
             description="Optional recurrence interval (default 1).",
             required=False,
+            minimum=1,
+            maximum=365,
         ),
         ToolParameter(
             name="recurrence_byweekday",

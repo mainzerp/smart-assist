@@ -41,7 +41,7 @@ class TimerTool(BaseTool):
         ToolParameter(
             name="action",
             type="string",
-            description="Timer action",
+            description="Timer operation: start, cancel, pause, resume, or status.",
             required=True,
             enum=["start", "cancel", "pause", "resume", "status"],
         ),
@@ -50,18 +50,21 @@ class TimerTool(BaseTool):
             type="number",
             description="Duration hours. Required with action=start when minutes and seconds are not provided; ignored for non-start actions.",
             required=False,
+            minimum=0,
         ),
         ToolParameter(
             name="minutes",
             type="number",
             description="Duration minutes. Required with action=start when hours and seconds are not provided; ignored for non-start actions.",
             required=False,
+            minimum=0,
         ),
         ToolParameter(
             name="seconds",
             type="number",
             description="Duration seconds. Required with action=start when hours and minutes are not provided; ignored for non-start actions.",
             required=False,
+            minimum=0,
         ),
         ToolParameter(
             name="name",

@@ -50,6 +50,7 @@ class UnifiedControlTool(BaseTool):
             description="Multiple entity IDs for batch control. Required when entity_id is not provided; do not pass with entity_id.",
             required=False,
             items={"type": "string"},
+            min_items=1,
         ),
         ToolParameter(
             name="action",
@@ -63,18 +64,25 @@ class UnifiedControlTool(BaseTool):
             type="number",
             description="Brightness % (0-100)",
             required=False,
+            minimum=0,
+            maximum=100,
         ),
         ToolParameter(
             name="color_temp",
             type="number",
             description="Color temp in Kelvin (2000-6500)",
             required=False,
+            minimum=2000,
+            maximum=6500,
         ),
         ToolParameter(
             name="rgb_color",
             type="array",
             description="RGB as [R,G,B] (0-255)",
             required=False,
+            items={"type": "number", "minimum": 0, "maximum": 255},
+            min_items=3,
+            max_items=3,
         ),
         ToolParameter(
             name="temperature",
@@ -99,6 +107,8 @@ class UnifiedControlTool(BaseTool):
             type="number",
             description="Volume % (0-100)",
             required=False,
+            minimum=0,
+            maximum=100,
         ),
         ToolParameter(
             name="source",
@@ -111,6 +121,8 @@ class UnifiedControlTool(BaseTool):
             type="number",
             description="Position % (0=closed, 100=open)",
             required=False,
+            minimum=0,
+            maximum=100,
         ),
     ]
 

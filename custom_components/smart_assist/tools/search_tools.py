@@ -29,6 +29,8 @@ class WebSearchTool(BaseTool):
             type="number",
             description="Max results (1-5)",
             required=False,
+            minimum=1,
+            maximum=5,
         ),
     ]
 

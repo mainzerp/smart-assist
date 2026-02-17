@@ -23,7 +23,7 @@ class GetCalendarEventsTool(BaseTool):
         ToolParameter(
             name="time_range",
             type="string",
-            description="Time range",
+            description="Calendar window to query: today, tomorrow, this_week, or next_7_days.",
             required=True,
             enum=["today", "tomorrow", "this_week", "next_7_days"],
         ),
@@ -36,9 +36,11 @@ class GetCalendarEventsTool(BaseTool):
         ToolParameter(
             name="max_events",
             type="number",
-            description="Max events (default: 10)",
+            description="Maximum number of returned events (default: 10).",
             required=False,
             default=10,
+            minimum=1,
+            maximum=50,
         ),
     ]
 

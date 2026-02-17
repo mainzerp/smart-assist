@@ -344,11 +344,6 @@ Sending Content:
 Use 'send' tool for links/text/messages to devices. Offer when you have useful content.
 - After sending, confirm briefly ("Sent to [device].") -- do NOT repeat content in voice response.""")
 
-    parts.append("""
-Critical Actions:
-Always require explicit confirmation before: locking doors, arming alarms, disabling security.
-If user has not confirmed, ask for confirmation and wait.""")
-
     # Memory instructions (if enabled)
     if entity._memory_enabled:
         parts.append("""

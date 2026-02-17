@@ -26,7 +26,13 @@ class ToolParameter:
     required: bool = True
     enum: list[str] | None = None
     default: Any = None
-    items: dict[str, str] | None = None  # For array types: {"type": "string"}
+    items: dict[str, Any] | None = None
+    minimum: int | float | None = None
+    maximum: int | float | None = None
+    min_length: int | None = None
+    max_length: int | None = None
+    min_items: int | None = None
+    max_items: int | None = None
 
 
 @dataclass
@@ -84,6 +90,7 @@ class BaseTool(ABC):
                     "type": "object",
                     "properties": properties,
                     "required": required,
+                    "additionalProperties": False,
                 },
             },
         }
@@ -97,6 +104,20 @@ class BaseTool(ABC):
             value_schema["enum"] = param.enum
         if param.items:
             value_schema["items"] = param.items
+        if param.default is not None:
+            value_schema["default"] = param.default
+        if param.minimum is not None:
+            value_schema["minimum"] = param.minimum
+        if param.maximum is not None:
+            value_schema["maximum"] = param.maximum
+        if param.min_length is not None:
+            value_schema["minLength"] = param.min_length
+        if param.max_length is not None:
+            value_schema["maxLength"] = param.max_length
+        if param.min_items is not None:
+            value_schema["minItems"] = param.min_items
+        if param.max_items is not None:
+            value_schema["maxItems"] = param.max_items
 
         if param.required:
             schema = dict(value_schema)

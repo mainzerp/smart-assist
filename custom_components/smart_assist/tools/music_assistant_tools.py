@@ -42,7 +42,7 @@ class MusicAssistantTool(BaseTool):
         ToolParameter(
             name="action",
             type="string",
-            description="Action",
+            description="Music operation: play, search, queue_add, get_players, pause, resume, or stop.",
             required=True,
             enum=["play", "search", "queue_add", "get_players", "pause", "resume", "stop"],
         ),
