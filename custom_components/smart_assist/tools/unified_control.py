@@ -23,7 +23,7 @@ class UnifiedControlTool(BaseTool):
     
     This consolidated tool handles:
     - Basic on/off/toggle for all entities
-    - Light-specific: brightness, color, color_temp
+    - Light-specific: brightness, color, color_temp_kelvin
     - Climate-specific: temperature, hvac_mode, preset
     - Media-specific: play, pause, volume, source
     - Cover-specific: open, close, position
@@ -68,9 +68,17 @@ class UnifiedControlTool(BaseTool):
             maximum=100,
         ),
         ToolParameter(
+            name="color_temp_kelvin",
+            type="number",
+            description="Color temperature in Kelvin (2000-6500).",
+            required=False,
+            minimum=2000,
+            maximum=6500,
+        ),
+        ToolParameter(
             name="color_temp",
             type="number",
-            description="Color temp in Kelvin (2000-6500)",
+            description="Deprecated alias for color_temp_kelvin (still supported).",
             required=False,
             minimum=2000,
             maximum=6500,
@@ -156,6 +164,7 @@ class UnifiedControlTool(BaseTool):
         entity_ids: list[str] | None = None,
         action: str | None = None,
         brightness: int | None = None,
+        color_temp_kelvin: int | None = None,
         color_temp: int | None = None,
         rgb_color: list[int] | None = None,
         temperature: float | None = None,
@@ -175,6 +184,15 @@ class UnifiedControlTool(BaseTool):
         if action is None:
             return ToolResult(success=False, message="Missing required parameter: 'action'")
 
+        # Prefer explicit Kelvin parameter; keep color_temp as backward-compatible alias
+        if color_temp_kelvin is not None and color_temp is not None and color_temp_kelvin != color_temp:
+            _LOGGER.debug(
+                "Both color_temp_kelvin (%s) and color_temp (%s) provided; using color_temp_kelvin",
+                color_temp_kelvin,
+                color_temp,
+            )
+        effective_color_temp = color_temp_kelvin if color_temp_kelvin is not None else color_temp
+
         # Batch mode: entity_ids takes priority
         if entity_ids and len(entity_ids) > 0:
             results: list[str] = []
@@ -182,7 +200,7 @@ class UnifiedControlTool(BaseTool):
             for eid in entity_ids:
                 single_result = await self._execute_single(
                     entity_id=eid, action=action, brightness=brightness,
-                    color_temp=color_temp, rgb_color=rgb_color,
+                    color_temp_kelvin=effective_color_temp, rgb_color=rgb_color,
                     temperature=temperature, hvac_mode=hvac_mode, preset=preset,
                     volume=volume, source=source, position=position,
                 )
@@ -206,7 +224,7 @@ class UnifiedControlTool(BaseTool):
 
         return await self._execute_single(
             entity_id=entity_id, action=action, brightness=brightness,
-            color_temp=color_temp, rgb_color=rgb_color,
+            color_temp_kelvin=effective_color_temp, rgb_color=rgb_color,
             temperature=temperature, hvac_mode=hvac_mode, preset=preset,
             volume=volume, source=source, position=position,
         )
@@ -216,7 +234,7 @@ class UnifiedControlTool(BaseTool):
         entity_id: str,
         action: str,
         brightness: int | None = None,
-        color_temp: int | None = None,
+        color_temp_kelvin: int | None = None,
         rgb_color: list[int] | None = None,
         temperature: float | None = None,
         hvac_mode: str | None = None,
@@ -235,7 +253,7 @@ class UnifiedControlTool(BaseTool):
         if warn:
             warnings.append(warn)
         
-        color_temp, warn = self._validate_range(color_temp, 2000, 6500, "color_temp")
+        color_temp_kelvin, warn = self._validate_range(color_temp_kelvin, 2000, 6500, "color_temp_kelvin")
         if warn:
             warnings.append(warn)
         
@@ -262,7 +280,7 @@ class UnifiedControlTool(BaseTool):
             {
                 k: v for k, v in {
                     "brightness": brightness,
-                    "color_temp": color_temp,
+                    "color_temp_kelvin": color_temp_kelvin,
                     "rgb_color": rgb_color,
                     "temperature": temperature,
                     "hvac_mode": hvac_mode,
@@ -289,7 +307,7 @@ class UnifiedControlTool(BaseTool):
         is_group = isinstance(state.attributes.get("entity_id"), list)
         current = state.state
         if not is_group:
-            if action == "turn_on" and current == "on" and not any([brightness, color_temp, rgb_color, temperature, hvac_mode, preset, volume, source, position]):
+            if action == "turn_on" and current == "on" and not any([brightness, color_temp_kelvin, rgb_color, temperature, hvac_mode, preset, volume, source, position]):
                 return ToolResult(success=True, message=f"{entity_id} is already on.")
             if action == "turn_off" and current == "off":
                 return ToolResult(success=True, message=f"{entity_id} is already off.")
@@ -298,7 +316,7 @@ class UnifiedControlTool(BaseTool):
             # Route to domain-specific handler
             if domain == "light":
                 result = await self._control_light(
-                    entity_id, action, brightness, color_temp, rgb_color
+                    entity_id, action, brightness, color_temp_kelvin, rgb_color
                 )
             elif domain == "climate":
                 result = await self._control_climate(
@@ -349,7 +367,7 @@ class UnifiedControlTool(BaseTool):
         entity_id: str,
         action: str,
         brightness: int | None,
-        color_temp: int | None,
+        color_temp_kelvin: int | None,
         rgb_color: list[int] | None,
     ) -> ToolResult:
         """Light-specific control."""
@@ -367,9 +385,9 @@ class UnifiedControlTool(BaseTool):
             service_data["brightness_pct"] = max(0, min(100, brightness))
             details.append(f"brightness={brightness}%")
         
-        if color_temp is not None:
-            service_data["color_temp_kelvin"] = max(2000, min(6500, color_temp))
-            details.append(f"color_temp={color_temp}K")
+        if color_temp_kelvin is not None:
+            service_data["color_temp_kelvin"] = max(2000, min(6500, color_temp_kelvin))
+            details.append(f"color_temp_kelvin={color_temp_kelvin}K")
         
         if rgb_color is not None and len(rgb_color) == 3:
             service_data["rgb_color"] = rgb_color
