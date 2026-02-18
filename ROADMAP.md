@@ -1,6 +1,6 @@
 # Smart Assist - Roadmap
 
-> Last updated: 2026-02-18 (v1.23.10)
+> Last updated: 2026-02-18 (v1.23.11)
 
 ## Completed Milestones
 
@@ -60,6 +60,7 @@
 | Managed Alarm Automation (Opt-In) | v1.18.0 | (Removed in v1.20.0) Alarm execution consolidated to direct engine only. |
 | Direct Alarm Engine | v1.19.0 | Added direct internal alarm execution mode with backend fan-out (notification/notify/TTS/script) and dashboard/websocket direct execution outcome visibility. |
 | Full Code Review v2 Remediation | v1.23.10 | Delivered reliability/security hardening from full code review, unified tool execution path, Linux gate stabilization (including config flow + llm client blocked suites), and release metadata enforcement with strict tag parity gate. |
+| Tooling Hardening Quick Wins | v1.23.11 | Added strict `control` selector XOR runtime validation, improved `send` target ranking behavior, and sanitized structured `web_search` payloads to reduce prompt-injection propagation risk. |
 
 ---
 
