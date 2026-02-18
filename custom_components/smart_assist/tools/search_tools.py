@@ -13,7 +13,7 @@ from .base import BaseTool, ToolParameter, ToolResult
 _LOGGER = logging.getLogger(__name__)
 
 _INJECTION_RE = re.compile(
-    r"(?i)\b(ignore previous|forget your|you are now|system:|assistant:|<\|im_start\|>)\b.*?[.\n]"
+    r"(?i)(?:\b(?:ignore previous|forget your|you are now)\b|system:|assistant:|<\|im_start\|>).*?[.\n]"
 )
 _MAX_RESULT_LEN = 500
 
@@ -78,16 +78,24 @@ class WebSearchTool(BaseTool):
 
             # Format results
             formatted = []
+            sanitized_results: list[dict[str, Any]] = []
             for r in results:
                 title = _sanitize_search_result(r.get("title", ""))
                 body = _sanitize_search_result(r.get("body", ""))
                 href = r.get("href", "")
                 formatted.append(f"- {title}\n  {body}\n  URL: {href}")
+                sanitized_results.append(
+                    {
+                        "title": title,
+                        "body": body,
+                        "href": href,
+                    }
+                )
 
             return ToolResult(
                 success=True,
                 message=f"Search results for '{query}':\n\n" + "\n\n".join(formatted),
-                data={"results": results},
+                data={"results": sanitized_results, "count": len(sanitized_results)},
             )
 
         except Exception as err:

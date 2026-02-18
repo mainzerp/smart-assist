@@ -4,9 +4,28 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.10 | 2026-02-18 |
+| Smart Assist | 1.23.11 | 2026-02-18 |
 
 ## Version History
+
+### v1.23.11 (2026-02-18) - Tooling Hardening Quick Wins
+
+**Fixes & Improvements:**
+- Added strict XOR runtime validation for `control` tool selectors (`entity_id` vs `entity_ids`) to prevent ambiguous tool calls
+- Improved notification target resolution ranking in `send` tool so best unique candidates are selected more reliably
+- Sanitized structured `web_search` result payload (`data.results`) so consumers no longer receive raw, potentially prompt-injecting text
+- Hardened search result injection regex handling for `assistant:` / `system:` patterns
+
+**Validation:**
+- `tests/test_tools.py -k "rejects_entity_id_and_entity_ids_together or ambiguous_error_for_multiple_matches or prefers_best_ranked_match or web_search_data_payload_is_sanitized"`: 4 passed
+
+**Files modified:**
+- custom_components/smart_assist/tools/unified_control.py
+- custom_components/smart_assist/tools/notification_tools.py
+- custom_components/smart_assist/tools/search_tools.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.10 (2026-02-18) - Full Code Review v2 Remediation
 

@@ -184,6 +184,12 @@ class UnifiedControlTool(BaseTool):
         if action is None:
             return ToolResult(success=False, message="Missing required parameter: 'action'")
 
+        if entity_id and entity_ids:
+            return ToolResult(
+                success=False,
+                message="Pass exactly one of 'entity_id' or 'entity_ids', not both.",
+            )
+
         # Prefer explicit Kelvin parameter; keep color_temp as backward-compatible alias
         if color_temp_kelvin is not None and color_temp is not None and color_temp_kelvin != color_temp:
             _LOGGER.debug(

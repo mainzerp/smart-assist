@@ -206,25 +206,37 @@ class SendTool(BaseTool):
             return [target_lower]
         
         # 3. Fuzzy match - find services containing the target
-        matches: list[str] = []
+        candidates: list[tuple[int, str]] = []
         seen: set[str] = set()
         for service_name in notify_services:
             service_lower = service_name.lower()
-            # Check if target is contained in service name
-            if target_lower in service_lower:
-                if service_name not in seen:
-                    seen.add(service_name)
-                    matches.append(service_name)
+            device_part = service_lower.replace("mobile_app_", "", 1) if service_lower.startswith("mobile_app_") else ""
+
+            score: int | None = None
+
+            if target_lower == service_lower or target_lower == device_part:
+                score = 0
+            elif device_part and device_part.startswith(target_lower):
+                score = 1
+            elif service_lower.startswith(target_lower):
+                score = 1
+            elif target_lower in service_lower or (device_part and target_lower in device_part):
+                score = 2
+
+            if score is None:
                 continue
-            # Check if main part matches (e.g., 'patrics' matches 'mobile_app_patrics_iphone')
-            if service_lower.startswith("mobile_app_"):
-                device_part = service_lower.replace("mobile_app_", "")
-                if target_lower in device_part or device_part.startswith(target_lower):
-                    if service_name not in seen:
-                        seen.add(service_name)
-                        matches.append(service_name)
-        
-        return sorted(matches)
+
+            if service_name not in seen:
+                seen.add(service_name)
+                candidates.append((score, service_name))
+
+        if not candidates:
+            return []
+
+        candidates.sort(key=lambda item: (item[0], len(item[1]), item[1]))
+        best_score = candidates[0][0]
+        best_matches = [service for score, service in candidates if score == best_score]
+        return sorted(best_matches)
 
     async def execute(
         self,
