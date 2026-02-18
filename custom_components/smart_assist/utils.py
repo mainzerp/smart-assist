@@ -390,3 +390,88 @@ async def execute_tools_parallel(
             )
 
     return messages
+
+
+def extract_target_domains(arguments: dict[str, Any]) -> set[str]:
+    """Extract target domains from control-tool arguments.
+
+    Handles nested dicts and lists to catch all entity references.
+    """
+    domains: set[str] = set()
+
+    def _collect_entity_like(value: Any) -> None:
+        if isinstance(value, str):
+            if "." in value:
+                domains.add(value.split(".", 1)[0])
+            return
+
+        if isinstance(value, list):
+            for item in value:
+                _collect_entity_like(item)
+            return
+
+        if isinstance(value, dict):
+            for key in ("entity_id", "entity_ids", "target", "targets", "entity"):
+                if key in value:
+                    _collect_entity_like(value[key])
+
+    for key in ("entity_id", "entity_ids", "target", "targets", "entity"):
+        if key in arguments:
+            _collect_entity_like(arguments[key])
+
+    explicit_domain = arguments.get("domain")
+    if isinstance(explicit_domain, str) and explicit_domain:
+        domains.add(explicit_domain)
+
+    return domains
+
+
+def normalize_media_player_targets(targets: Any) -> list[str]:
+    """Normalize media player targets from list or comma-separated string.
+
+    Deduplicates, lowercases, and filters to media_player entities only.
+    """
+    if targets is None:
+        return []
+    if isinstance(targets, list):
+        raw_values = [str(item or "") for item in targets]
+    else:
+        raw_values = str(targets).split(",")
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in raw_values:
+        entity_id = value.strip().lower()
+        if not entity_id or not entity_id.startswith("media_player."):
+            continue
+        if entity_id in seen:
+            continue
+        seen.add(entity_id)
+        result.append(entity_id)
+    return result
+
+
+def resolve_media_players_by_satellite(
+    hass: Any,
+    satellite_id: str | None,
+) -> list[str]:
+    """Best-effort match from satellite id to media_player entities.
+
+    Splits the satellite name into parts and matches against all
+    media_player entity IDs using substring matching (parts >= 3 chars).
+    """
+    if not satellite_id:
+        return []
+
+    sat_name = str(satellite_id).lower().replace("assist_satellite.", "")
+    sat_parts = sat_name.replace("satellite_", "").replace("_assist_satellit", "").split("_")
+    candidates: list[str] = []
+
+    for state in hass.states.async_all("media_player"):
+        player_id = state.entity_id.lower()
+        for part in sat_parts:
+            if len(part) >= 3 and part in player_id:
+                candidates.append(state.entity_id)
+                break
+
+    return normalize_media_player_targets(candidates)

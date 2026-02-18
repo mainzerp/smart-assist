@@ -4,9 +4,37 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.6  | 2026-02-17 |
+| Smart Assist | 1.23.8  | 2026-02-18 |
 
 ## Version History
+
+### v1.23.8 (2026-02-18) - Code Quality: Critical Bug Fixes & Deduplication
+
+**Fixes:**
+- **CRITICAL:** Removed `from unittest.mock import AsyncMock` production import from `ai_task.py` - test framework dependency no longer in production code
+- **HIGH:** Fixed `CONF_TASK_ALLOW_CONTROL` / `CONF_TASK_ALLOW_LOCK_CONTROL` defaults from inline `True` to canonical `False` (matching `const.py`) - AI task agents no longer have unintended entity control access by default
+- Fixed caching attribute check in `conversation.py` (`'enable_caching'` -> `'_enable_caching'`) - prompt caching force-enable now properly activates for OpenRouter
+- Extracted `extract_target_domains()` to `utils.py`, removed duplicates from `ai_task.py` and `streaming.py`
+- Moved `_build_tool_calls()` to `BaseLLMClient` in `base_client.py`, removed duplicates from `openrouter_client.py` and `groq_client.py`
+- Extracted `normalize_media_player_targets()` and `resolve_media_players_by_satellite()` to `utils.py`, replaced duplicated implementations in `alarm_tools.py` and `direct_alarm_engine.py`
+
+**Validation:**
+- `$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; .venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_ai_task.py tests/test_ai_task_control_flags.py tests/test_streaming.py tests/test_tools.py tests/test_request_history.py tests/test_websocket.py tests/test_prompt_builder.py tests/test_memory.py tests/test_sensor.py -v --tb=short`: 171 passed, 1 pre-existing failure
+
+**Files modified:**
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/utils.py
+- custom_components/smart_assist/llm/base_client.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- tests/test_ai_task.py
+- tests/test_ai_task_control_flags.py
+- VERSION.md
 
 ### v1.23.6 (2026-02-17) - Alarm Wake Text: Language-Neutral Handling
 

@@ -50,6 +50,7 @@ from ..const import (
 )
 from ..llm import ChatMessage
 from ..llm.models import MessageRole
+from ..utils import normalize_media_player_targets, resolve_media_players_by_satellite
 from .persistent_alarms import PersistentAlarmManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -790,24 +791,7 @@ class DirectAlarmEngine:
 
     def _normalize_targets(self, targets: Any) -> list[str]:
         """Normalize targets from list or comma-separated string."""
-        if targets is None:
-            return []
-        if isinstance(targets, list):
-            raw_values = [str(item or "") for item in targets]
-        else:
-            raw_values = str(targets).split(",")
-
-        result: list[str] = []
-        seen: set[str] = set()
-        for value in raw_values:
-            entity_id = value.strip().lower()
-            if not entity_id or not entity_id.startswith("media_player."):
-                continue
-            if entity_id in seen:
-                continue
-            seen.add(entity_id)
-            result.append(entity_id)
-        return result
+        return normalize_media_player_targets(targets)
 
     def _resolve_media_players_by_device(self, device_id: str) -> list[str]:
         """Resolve media_player entity ids linked to the source device."""
@@ -826,25 +810,11 @@ class DirectAlarmEngine:
             and entry.entity_id.startswith("media_player.")
             and self._hass.states.get(entry.entity_id) is not None
         ]
-        return self._normalize_targets(players)
+        return normalize_media_player_targets(players)
 
     def _resolve_media_players_by_satellite(self, satellite_id: str) -> list[str]:
         """Best-effort match from satellite id to media_player entities."""
-        if not satellite_id:
-            return []
-
-        sat_name = satellite_id.lower().replace("assist_satellite.", "")
-        sat_parts = sat_name.replace("satellite_", "").replace("_assist_satellit", "").split("_")
-        candidates: list[str] = []
-
-        for state in self._hass.states.async_all("media_player"):
-            player_id = state.entity_id.lower()
-            for part in sat_parts:
-                if len(part) >= 3 and part in player_id:
-                    candidates.append(state.entity_id)
-                    break
-
-        return self._normalize_targets(candidates)
+        return resolve_media_players_by_satellite(self._hass, satellite_id)
 
     def _ok_result(self, message: str) -> dict[str, Any]:
         return {

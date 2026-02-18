@@ -456,26 +456,6 @@ class OpenRouterClient(BaseLLMClient):
         self._metrics.failed_requests += 1
         raise last_error or OpenRouterError("Unknown error after stream retries")
 
-    @staticmethod
-    def _build_tool_calls(pending: dict[int, dict[str, Any]]) -> list[ToolCall]:
-        """Build ToolCall list from accumulated pending tool call fragments."""
-        completed: list[ToolCall] = []
-        for idx in sorted(pending.keys()):
-            tc = pending[idx]
-            args = tc.get("arguments", "{}")
-            try:
-                args = json.loads(args) if isinstance(args, str) else args
-            except json.JSONDecodeError:
-                args = {}
-            completed.append(
-                ToolCall(
-                    id=tc.get("id", f"tool_{idx}"),
-                    name=tc.get("name", ""),
-                    arguments=args,
-                )
-            )
-        return completed
-
     async def chat_stream(
         self,
         messages: list[ChatMessage],

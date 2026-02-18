@@ -8,6 +8,7 @@ and metrics tracking.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -23,7 +24,7 @@ from ..const import (
     LLM_RETRY_MAX_DELAY,
 )
 from ..utils import sanitize_user_facing_error
-from .models import LLMError
+from .models import LLMError, ToolCall
 
 if TYPE_CHECKING:
     from .models import ChatMessage, ChatResponse
@@ -342,3 +343,23 @@ class BaseLLMClient(ABC):
     def max_tokens(self) -> int:
         """Get the max tokens setting."""
         return self._max_tokens
+
+    @staticmethod
+    def _build_tool_calls(pending: dict[int, dict[str, Any]]) -> list[ToolCall]:
+        """Build ToolCall list from accumulated pending tool call fragments."""
+        completed: list[ToolCall] = []
+        for idx in sorted(pending.keys()):
+            tc = pending[idx]
+            args = tc.get("arguments", "{}")
+            try:
+                args = json.loads(args) if isinstance(args, str) else args
+            except json.JSONDecodeError:
+                args = {}
+            completed.append(
+                ToolCall(
+                    id=tc.get("id", f"tool_{idx}"),
+                    name=tc.get("name", ""),
+                    arguments=args,
+                )
+            )
+        return completed

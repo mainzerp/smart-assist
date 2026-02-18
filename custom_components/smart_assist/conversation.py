@@ -236,7 +236,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         )
         
         # For OpenRouterClient, caching is always enabled (auto-detected by model)
-        if hasattr(self._llm_client, 'enable_caching'):
+        if hasattr(self._llm_client, '_enable_caching'):
             self._llm_client._enable_caching = True
         if hasattr(self._llm_client, '_cache_ttl_extended'):
             # Auto-enable extended TTL for Anthropic models

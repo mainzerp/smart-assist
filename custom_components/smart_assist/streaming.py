@@ -22,6 +22,7 @@ from .const import (
 )
 from .context.request_history import RequestHistoryStore, ToolCallRecord
 from .llm.models import ChatMessage, MessageRole, ToolCall
+from .utils import extract_target_domains
 
 if TYPE_CHECKING:
     from homeassistant.components.conversation import AssistantContentDeltaDict, ChatLog
@@ -198,29 +199,11 @@ def _is_explicit_denial(user_text: str) -> bool:
     return any(token in text for token in _DENY_TOKENS)
 
 
-def _extract_target_domains(arguments: dict[str, Any]) -> set[str]:
-    """Extract target domains from tool arguments."""
-    domains: set[str] = set()
-    for key in ("entity_id", "target", "entity"):
-        value = arguments.get(key)
-        if isinstance(value, str) and "." in value:
-            domains.add(value.split(".", 1)[0])
-    entity_ids = arguments.get("entity_ids")
-    if isinstance(entity_ids, list):
-        for item in entity_ids:
-            if isinstance(item, str) and "." in item:
-                domains.add(item.split(".", 1)[0])
-    explicit_domain = arguments.get("domain")
-    if isinstance(explicit_domain, str) and explicit_domain:
-        domains.add(explicit_domain)
-    return domains
-
-
 def _is_critical_tool_call(tool_call: ToolCall) -> bool:
     """Return True if tool call targets a critical control domain."""
     if tool_call.name != "control":
         return False
-    target_domains = _extract_target_domains(tool_call.arguments)
+    target_domains = extract_target_domains(tool_call.arguments)
     return any(domain in CRITICAL_DOMAINS for domain in target_domains)
 
 
@@ -552,7 +535,7 @@ async def call_llm_streaming_with_tools(
                             "tool_name": critical_call.name,
                             "arguments": critical_call.arguments,
                             "created_at": iteration,
-                            "target_domains": list(_extract_target_domains(critical_call.arguments)),
+                            "target_domains": list(extract_target_domains(critical_call.arguments)),
                         },
                     )
                     confirmation_question = (

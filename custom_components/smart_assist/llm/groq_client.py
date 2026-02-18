@@ -217,23 +217,6 @@ class GroqClient(BaseLLMClient):
                 sanitize_user_facing_error(err, fallback="Streaming error")
             ) from err
 
-    @staticmethod
-    def _build_tool_calls(pending: dict[int, dict[str, Any]]) -> list[ToolCall]:
-        """Build ToolCall list from accumulated pending tool call fragments."""
-        completed: list[ToolCall] = []
-        for idx in sorted(pending.keys()):
-            tc = pending[idx]
-            try:
-                args = json.loads(tc.get("arguments", "{}"))
-            except json.JSONDecodeError:
-                args = {}
-            completed.append(ToolCall(
-                id=tc.get("id", ""),
-                name=tc.get("name", ""),
-                arguments=args,
-            ))
-        return completed
-
     async def chat_stream(
         self,
         messages: list[ChatMessage],

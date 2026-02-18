@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Release](https://img.shields.io/github/release/mainzerp/smart-assist.svg)](https://github.com/mainzerp/smart-assist/releases)
 
-**Fast, LLM-powered smart home assistant for Home Assistant with automatic Prompt Caching.**
+**Fast, LLM-powered smart home assistant for Home Assistant.**
 
 Control your smart home with natural language. Supports **Groq API** for ultra-fast inference, **OpenRouter** for access to 200+ models, and **Ollama** for local private inference.
 
@@ -362,7 +362,6 @@ If the model returns invalid JSON or schema-mismatched data, Smart Assist return
 - **Task System Prompt**: Custom instructions for background tasks
 - **Tool Max Retries**: Maximum retry attempts for failed tool calls per request
 - **Tool Latency Budget (ms)**: Per-tool timeout budget in milliseconds
-- **Task Prompt Caching**: Disabled by default (tasks are not time-critical)
 - **Task Cache Warming**: Disabled by default
 
 ## Tools

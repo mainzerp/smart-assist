@@ -8,7 +8,6 @@ import logging
 import re
 import time
 from typing import Any, TYPE_CHECKING
-from unittest.mock import AsyncMock
 
 from homeassistant.components.ai_task import (
     AITaskEntity,
@@ -69,45 +68,14 @@ from .context.request_history import RequestHistoryEntry, RequestHistoryStore, T
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tools import create_tool_registry
-from .utils import get_config_value, sanitize_user_facing_error
+from .utils import extract_target_domains, get_config_value, sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _extract_target_domains(arguments: dict[str, Any]) -> set[str]:
-    """Extract target domains from control-tool arguments."""
-    domains: set[str] = set()
-
-    def _collect_entity_like(value: Any) -> None:
-        if isinstance(value, str):
-            if "." in value:
-                domains.add(value.split(".", 1)[0])
-            return
-
-        if isinstance(value, list):
-            for item in value:
-                _collect_entity_like(item)
-            return
-
-        if isinstance(value, dict):
-            for key in ("entity_id", "entity_ids", "target", "targets", "entity"):
-                if key in value:
-                    _collect_entity_like(value[key])
-
-    for key in ("entity_id", "entity_ids", "target", "targets", "entity"):
-        if key in arguments:
-            _collect_entity_like(arguments[key])
-
-    explicit_domain = arguments.get("domain")
-    if isinstance(explicit_domain, str) and explicit_domain:
-        domains.add(explicit_domain)
-
-    return domains
-
-
 def _targets_lock_domain(arguments: dict[str, Any]) -> bool:
     """Return True if a control call targets lock domain."""
-    return "lock" in _extract_target_domains(arguments)
+    return "lock" in extract_target_domains(arguments)
 
 
 async def async_setup_entry(
@@ -724,8 +692,6 @@ Focus on completing the task efficiently and providing structured, useful output
                 "use_native_structured_output": native_mode,
             }
             chat_method = self._llm_client.chat
-            if isinstance(chat_method, AsyncMock):
-                return await chat_method(messages, messages=messages, **chat_kwargs)
             return await chat_method(messages=messages, **chat_kwargs)
         
         while iteration < max_iterations:
@@ -776,8 +742,8 @@ Focus on completing the task efficiently and providing structured, useful output
             )
 
             subentry_data = self._subentry.data if isinstance(self._subentry.data, dict) else {}
-            allow_control = bool(subentry_data.get(CONF_TASK_ALLOW_CONTROL, True))
-            allow_lock_control = bool(subentry_data.get(CONF_TASK_ALLOW_LOCK_CONTROL, True))
+            allow_control = bool(subentry_data.get(CONF_TASK_ALLOW_CONTROL, DEFAULT_TASK_ALLOW_CONTROL))
+            allow_lock_control = bool(subentry_data.get(CONF_TASK_ALLOW_LOCK_CONTROL, DEFAULT_TASK_ALLOW_LOCK_CONTROL))
 
             allowed_tool_calls: list[Any] = []
             blocked_messages: dict[str, ChatMessage] = {}
