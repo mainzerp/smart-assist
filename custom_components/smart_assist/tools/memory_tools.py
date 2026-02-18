@@ -118,7 +118,7 @@ class MemoryTool(BaseTool):
 
     async def _action_save(self, kwargs: dict) -> ToolResult:
         """Save a new memory."""
-        content = kwargs.get("content", "").strip()
+        content = kwargs.get("content", "").strip()[:100]
         if not content:
             return ToolResult(success=False, message="Content is required for save action")
 

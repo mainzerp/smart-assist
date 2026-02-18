@@ -541,6 +541,15 @@ class OllamaClient(BaseLLMClient):
                             total_content += content
                             yield content
                         
+                        # Warn if tool calls are present but being dropped (BUG-2)
+                        if "tool_calls" in message and message["tool_calls"]:
+                            _LOGGER.warning(
+                                "Ollama chat_stream() received tool calls but cannot yield them. "
+                                "Use chat_stream_full() for tool call support. "
+                                "Tool calls: %s",
+                                [tc.get("function", {}).get("name", "?") for tc in message["tool_calls"]],
+                            )
+
                         # Check if stream is done
                         if data.get("done"):
                             elapsed_ms = (time.perf_counter() - start_time) * 1000

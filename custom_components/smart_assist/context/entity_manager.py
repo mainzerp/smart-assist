@@ -115,10 +115,15 @@ class EntityManager:
         self._entity_index_last_check: float = 0.0
         self._entity_index_ttl: float = 30.0  # seconds
 
-    def _get_area_name(self, entity_id: str) -> str | None:
-        """Get area name for an entity."""
-        ent_reg = entity_registry.async_get(self._hass)
-        area_reg = area_registry.async_get(self._hass)
+    def _get_area_name(self, entity_id: str, ent_reg=None, area_reg=None, dev_reg=None) -> str | None:
+        """Get area name for an entity.
+
+        Accepts optional pre-fetched registries for batch lookups.
+        """
+        if ent_reg is None:
+            ent_reg = entity_registry.async_get(self._hass)
+        if area_reg is None:
+            area_reg = area_registry.async_get(self._hass)
 
         if entity_entry := ent_reg.async_get(entity_id):
             if entity_entry.area_id:
@@ -126,8 +131,9 @@ class EntityManager:
                     return area.name
             # Check device area
             if entity_entry.device_id:
-                from homeassistant.helpers import device_registry
-                dev_reg = device_registry.async_get(self._hass)
+                if dev_reg is None:
+                    from homeassistant.helpers import device_registry
+                    dev_reg = device_registry.async_get(self._hass)
                 if device := dev_reg.async_get(entity_entry.device_id):
                     if device.area_id:
                         if area := area_reg.async_get_area(device.area_id):
@@ -151,12 +157,18 @@ class EntityManager:
             # Check if entity is exposed to the 'conversation' assistant
             return async_should_expose(self._hass, "conversation", entity_id)
         except Exception as err:
-            _LOGGER.debug("Could not check if %s is exposed: %s", entity_id, err)
-            return True
+            _LOGGER.warning("Could not check if %s is exposed (defaulting to hidden): %s", entity_id, err)
+            return False
 
     def get_all_entities(self) -> list[EntityInfo]:
         """Get all available entities as compact info."""
         entities: list[EntityInfo] = []
+
+        # Fetch registries once for the entire index build (PERF-1)
+        ent_reg = entity_registry.async_get(self._hass)
+        area_reg = area_registry.async_get(self._hass)
+        from homeassistant.helpers import device_registry
+        dev_reg = device_registry.async_get(self._hass)
 
         for state in self._hass.states.async_all():
             domain = state.entity_id.split(".")[0]
@@ -174,7 +186,7 @@ class EntityManager:
                     entity_id=state.entity_id,
                     domain=domain,
                     friendly_name=state.attributes.get("friendly_name", state.entity_id),
-                    area_name=self._get_area_name(state.entity_id),
+                    area_name=self._get_area_name(state.entity_id, ent_reg, area_reg, dev_reg),
                 )
             )
 

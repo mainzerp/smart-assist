@@ -336,7 +336,13 @@ class DirectAlarmEngine:
 
     async def _resolve_tts_message(self, alarm: dict[str, Any]) -> str:
         """Resolve final TTS text, optionally generated dynamically by LLM."""
-        fallback = str(alarm.get("message") or "").strip() or f"Alarm {alarm.get('label', 'Alarm')} fired"
+        language = str(getattr(self._hass.config, "language", "en") or "en")
+        label = alarm.get("label", "Alarm")
+        if language.startswith("de"):
+            default_fallback = f"Alarm {label} ausgeloest"
+        else:
+            default_fallback = f"Alarm {label} fired"
+        fallback = str(alarm.get("message") or "").strip() or default_fallback
         raw_delivery = alarm.get("delivery")
         delivery: dict[str, Any] = raw_delivery if isinstance(raw_delivery, dict) else {}
         raw_wake_text = delivery.get("wake_text")

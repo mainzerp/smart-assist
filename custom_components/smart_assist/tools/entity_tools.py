@@ -260,7 +260,13 @@ class GetEntityHistoryTool(BaseTool):
         from collections import Counter
         from datetime import timedelta
 
-        from homeassistant.components.recorder import get_instance, history
+        try:
+            from homeassistant.components.recorder import get_instance, history
+        except ImportError:
+            return ToolResult(
+                success=False,
+                message="History is not available. The recorder integration is not loaded.",
+            )
         from homeassistant.util import dt as dt_util
 
         # Parse period

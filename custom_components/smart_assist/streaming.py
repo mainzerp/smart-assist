@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from collections.abc import AsyncGenerator
@@ -22,6 +21,7 @@ from .const import (
 )
 from .context.request_history import RequestHistoryStore, ToolCallRecord
 from .llm.models import ChatMessage, MessageRole, ToolCall
+from .tool_executor import execute_tool_calls
 from .utils import extract_target_domains
 
 if TYPE_CHECKING:
@@ -36,6 +36,20 @@ _CONFIRM_TOKENS = {
 _DENY_TOKENS = {
     "no", "cancel", "stop", "don't", "do not", "nein", "abbrechen", "stopp",
 }
+_CONFIRM_FILLERS = {
+    "please", "pls", "bitte", "now", "jetzt", "sure", "do", "it", "go", "ahead",
+}
+_DENY_FILLERS = {
+    "please", "pls", "bitte", "thanks", "danke", "now", "jetzt",
+}
+
+
+def _normalize_intent_text(user_text: str) -> list[str]:
+    """Normalize user text into lowercase word tokens for intent matching."""
+    text = (user_text or "").strip().lower()
+    if not text:
+        return []
+    return re.findall(r"[a-z0-9äöüß]+", text)
 
 
 def _get_latest_user_text(messages: list[ChatMessage]) -> str:
@@ -185,18 +199,43 @@ def _should_force_alarm_tool_retry(
 
 def _is_explicit_confirmation(user_text: str) -> bool:
     """Check if user text is an explicit confirmation."""
-    text = (user_text or "").strip().lower()
-    if not text:
+    words = _normalize_intent_text(user_text)
+    if not words:
         return False
-    return any(token in text for token in _CONFIRM_TOKENS)
+
+    phrase = " ".join(words)
+    if phrase in _CONFIRM_TOKENS:
+        return True
+
+    if len(words) == 2 and phrase in {"go ahead", "do it"}:
+        return True
+
+    if words[0] in {"yes", "ja", "ok", "confirm", "confirmed", "proceed", "bestaetigt"}:
+        return all(word in _CONFIRM_FILLERS for word in words[1:])
+
+    if words[:2] in (["go", "ahead"], ["do", "it"]):
+        return all(word in _CONFIRM_FILLERS for word in words[2:])
+
+    return False
 
 
 def _is_explicit_denial(user_text: str) -> bool:
     """Check if user text is an explicit deny/cancel."""
-    text = (user_text or "").strip().lower()
-    if not text:
+    words = _normalize_intent_text(user_text)
+    if not words:
         return False
-    return any(token in text for token in _DENY_TOKENS)
+
+    phrase = " ".join(words)
+    if phrase in _DENY_TOKENS:
+        return True
+
+    if words[0] in {"no", "nein", "cancel", "abbrechen", "stop", "stopp"}:
+        return all(word in _DENY_FILLERS for word in words[1:])
+
+    if words[:2] == ["do", "not"]:
+        return all(word in _DENY_FILLERS for word in words[2:])
+
+    return False
 
 
 def _is_critical_tool_call(tool_call: ToolCall) -> bool:
@@ -552,71 +591,39 @@ async def call_llm_streaming_with_tools(
                 )
             )
 
-            # Execute all tools in parallel
-            async def execute_tool(tool_call: ToolCall) -> tuple[ToolCall, Any]:
-                """Execute a single tool and return result with metadata."""
-                _LOGGER.debug("Executing tool: %s", tool_call.name)
-                result = await (await entity._get_tool_registry()).execute(
-                    tool_call.name,
-                    tool_call.arguments,
-                    max_retries=tool_max_retries,
-                    latency_budget_ms=tool_latency_budget_ms,
-                )
-                return (tool_call, result)
-
-            tool_results = await asyncio.gather(
-                *[execute_tool(tc) for tc in other_tool_calls],
-                return_exceptions=True
+            # Execute all tools in parallel using shared executor (ARCH-1)
+            tool_results = await execute_tool_calls(
+                tool_calls=other_tool_calls,
+                tool_registry=await entity._get_tool_registry(),
+                max_retries=tool_max_retries,
+                latency_budget_ms=tool_latency_budget_ms,
+                request_history_max_length=REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
             )
 
             # Add tool results to working messages
-            for i, item in enumerate(tool_results):
-                if isinstance(item, Exception):
-                    _LOGGER.error("Tool execution failed: %s", item)
-                    failed_tc = other_tool_calls[i]
-                    all_tool_call_records.append(ToolCallRecord(
-                        name=failed_tc.name,
-                        success=False,
-                        execution_time_ms=0.0,
-                        arguments_summary=RequestHistoryStore.truncate(
-                            str(failed_tc.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
-                        ),
-                        timed_out=isinstance(item, asyncio.TimeoutError),
-                        retries_used=tool_max_retries,
-                        latency_budget_ms=tool_latency_budget_ms,
-                    ))
+            for tool_call, result_or_err, record in tool_results:
+                all_tool_call_records.append(record)
+                if isinstance(result_or_err, Exception):
                     working_messages.append(
                         ChatMessage(
                             role=MessageRole.TOOL,
-                            content=f"Error: {item}",
-                            tool_call_id=failed_tc.id,
-                            name=failed_tc.name,
+                            content=f"Error: {result_or_err}",
+                            tool_call_id=tool_call.id,
+                            name=tool_call.name,
                         )
                     )
                     continue
-                tool_call, result = item  # type: ignore[misc]
-                all_tool_call_records.append(ToolCallRecord(
-                    name=tool_call.name,
-                    success=result.success,
-                    execution_time_ms=result.data.get("execution_time_ms", 0.0),
-                    arguments_summary=RequestHistoryStore.truncate(
-                        str(tool_call.arguments), REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH
-                    ),
-                    timed_out=result.data.get("timed_out", False),
-                    retries_used=result.data.get("retries_used", 0),
-                    latency_budget_ms=result.data.get("latency_budget_ms"),
-                ))
                 working_messages.append(
                     ChatMessage(
                         role=MessageRole.TOOL,
-                        content=result.to_string(),
+                        content=result_or_err.to_string(),
                         tool_call_id=tool_call.id,
                         name=tool_call.name,
                     )
                 )
 
                 # Track entities from successful control operations for pronoun resolution
-                if conversation_id and result.success:
+                if conversation_id and result_or_err.success:
                     entity._track_entity_from_tool_call(
                         conversation_id, tool_call.name, tool_call.arguments
                     )

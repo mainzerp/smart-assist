@@ -7,6 +7,7 @@ across restarts.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -85,6 +86,7 @@ class MemoryManager:
         self._dirty = False
         self._last_save: float = 0.0
         self._save_debounce_seconds = 30.0
+        self._pending_save_handle: asyncio.TimerHandle | None = None
 
     async def async_load(self) -> None:
         """Load memory from storage. Call once at startup."""
@@ -116,9 +118,21 @@ class MemoryManager:
 
         now = time.monotonic()
         if now - self._last_save < self._save_debounce_seconds:
+            if self._pending_save_handle is None and hasattr(self._hass, "loop"):
+                remaining = self._save_debounce_seconds - (now - self._last_save)
+                self._pending_save_handle = self._hass.loop.call_later(
+                    max(0.1, remaining + 0.1),
+                    lambda: self._hass.async_create_task(self._deferred_save()),
+                )
             return
 
         await self._force_save()
+
+    async def _deferred_save(self) -> None:
+        """Execute deferred save once debounce window expires."""
+        self._pending_save_handle = None
+        if self._dirty:
+            await self._force_save()
 
     async def async_force_save(self) -> None:
         """Public wrapper to persist memory immediately."""
@@ -126,6 +140,9 @@ class MemoryManager:
 
     async def _force_save(self) -> None:
         """Force save memory to storage immediately."""
+        if self._pending_save_handle is not None:
+            self._pending_save_handle.cancel()
+            self._pending_save_handle = None
         try:
             await self._store.async_save(self._data)
             self._dirty = False
@@ -136,6 +153,9 @@ class MemoryManager:
 
     async def async_shutdown(self) -> None:
         """Save any pending changes on shutdown."""
+        if self._pending_save_handle is not None:
+            self._pending_save_handle.cancel()
+            self._pending_save_handle = None
         if self._dirty:
             await self._force_save()
 
@@ -405,6 +425,13 @@ class MemoryManager:
 
         all_memories.sort(key=sort_key, reverse=True)
         selected = all_memories[:MEMORY_MAX_INJECTION]
+
+        if selected:
+            now_iso = dt_util.now().isoformat()
+            for mem in selected:
+                mem["access_count"] = int(mem.get("access_count", 0)) + 1
+                mem["last_accessed"] = now_iso
+            self._dirty = True
 
         # Group by category for readability
         groups: dict[str, list[str]] = {}

@@ -579,6 +579,10 @@ class AlarmTool(BaseTool):
         if by_satellite:
             return by_satellite
 
+        _LOGGER.warning(
+            "No default TTS targets could be resolved. "
+            "Check system prompt for 'default_tts_target:' directive or satellite mappings."
+        )
         return []
 
     def _resolve_media_players_by_device(self, device_id: str | None) -> list[str]:

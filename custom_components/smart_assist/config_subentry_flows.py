@@ -175,15 +175,15 @@ class SmartAssistSubentryFlowHandler(ConfigSubentryFlow):
     async def _fetch_models(self, llm_provider: str = LLM_PROVIDER_OPENROUTER) -> list[dict[str, str]]:
         """Fetch available models based on LLM provider."""
         if llm_provider == LLM_PROVIDER_GROQ:
-            return await fetch_groq_models(self._get_groq_api_key())
+            return await fetch_groq_models(self._get_groq_api_key(), hass=self.hass)
         elif llm_provider == LLM_PROVIDER_OLLAMA:
             ollama_config = self._get_ollama_config()
-            return await fetch_ollama_models(ollama_config[CONF_OLLAMA_URL])
-        return await fetch_openrouter_models(self._get_api_key())
+            return await fetch_ollama_models(ollama_config[CONF_OLLAMA_URL], hass=self.hass)
+        return await fetch_openrouter_models(self._get_api_key(), hass=self.hass)
     
     async def _fetch_providers(self, model_id: str) -> list[dict[str, str]]:
         """Fetch available providers for a model (OpenRouter only)."""
-        return await fetch_model_providers(self._get_api_key(), model_id)
+        return await fetch_model_providers(self._get_api_key(), model_id, hass=self.hass)
 
 
 class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
@@ -883,25 +883,45 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             if llm_provider == LLM_PROVIDER_GROQ:
                 groq_key = user_input.get(CONF_GROQ_API_KEY, "")
                 if groq_key:
-                    if not await validate_groq_api_key(groq_key):
+                    if not await validate_groq_api_key(groq_key, hass=self.hass):
                         errors["base"] = "invalid_groq_api_key"
                     # Note: New API key would need parent entry update, not supported in subentry reconfigure
                 else:
                     stored_key = self._get_groq_api_key()
                     if not stored_key:
                         errors["base"] = "groq_api_key_required"
+            elif llm_provider == LLM_PROVIDER_OPENROUTER:
+                if not self._get_api_key():
+                    errors["base"] = "openrouter_api_key_required"
+            elif llm_provider == LLM_PROVIDER_OLLAMA:
+                if not self._is_ollama_configured():
+                    errors["base"] = "ollama_not_configured"
             
             if not errors:
                 self._available_models = None
                 self._available_providers = None
                 return await self.async_step_reconfigure_model()
-        
+
         has_groq_key = bool(self._get_groq_api_key())
+        has_openrouter_key = bool(self._get_api_key())
+        has_ollama = self._is_ollama_configured()
+
+        llm_provider_options = []
+        if has_openrouter_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]}
+            )
+        if has_groq_key:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]}
+            )
+        if has_ollama:
+            llm_provider_options.append(
+                {"value": LLM_PROVIDER_OLLAMA, "label": LLM_PROVIDERS[LLM_PROVIDER_OLLAMA]}
+            )
         
-        llm_provider_options = [
-            {"value": LLM_PROVIDER_OPENROUTER, "label": LLM_PROVIDERS[LLM_PROVIDER_OPENROUTER]},
-            {"value": LLM_PROVIDER_GROQ, "label": LLM_PROVIDERS[LLM_PROVIDER_GROQ]},
-        ]
+        if not llm_provider_options:
+            return self.async_abort(reason="no_api_keys_configured")
         
         schema_dict: dict[Any, Any] = {
             vol.Required(CONF_LLM_PROVIDER): SelectSelector(

@@ -10,7 +10,7 @@ from typing import Any, AsyncGenerator
 
 import aiohttp
 
-from .base_client import BaseLLMClient, LLMMetrics
+from .base_client import BaseLLMClient, LLMMetrics, LLMClientError
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 from ..utils import sanitize_user_facing_error
 from ..const import (
@@ -211,7 +211,8 @@ class GroqClient(BaseLLMClient):
                         continue
 
         except Exception as err:
-            self._metrics.failed_requests += 1
+            if not isinstance(err, LLMClientError):
+                self._metrics.failed_requests += 1
             _LOGGER.error("Groq streaming error: %s", err)
             raise GroqError(
                 sanitize_user_facing_error(err, fallback="Streaming error")
@@ -353,7 +354,8 @@ class GroqClient(BaseLLMClient):
                 )
 
         except Exception as err:
-            self._metrics.failed_requests += 1
+            if not isinstance(err, LLMClientError):
+                self._metrics.failed_requests += 1
             _LOGGER.error("Groq chat error: %s", err)
             raise GroqError(
                 sanitize_user_facing_error(err, fallback="Provider request failed")

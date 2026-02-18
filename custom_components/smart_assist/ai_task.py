@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
@@ -67,6 +66,7 @@ from .context.entity_manager import EntityManager
 from .context.request_history import RequestHistoryEntry, RequestHistoryStore, ToolCallRecord
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
+from .tool_executor import execute_tool_calls
 from .tools import create_tool_registry
 from .utils import extract_target_domains, get_config_value, sanitize_user_facing_error
 
@@ -774,79 +774,29 @@ Focus on completing the task efficiently and providing structured, useful output
 
             executed_messages: dict[str, ChatMessage] = {}
             if allowed_tool_calls:
-                async def _execute_single_tool_call(tool_call: Any) -> tuple[ChatMessage, ToolCallRecord]:
-                    started = time.monotonic()
-                    try:
-                        try:
-                            tool_result = await self._tool_registry.execute(
-                                tool_call.name,
-                                tool_call.arguments,
-                                max_retries=max_retries,
-                                latency_budget_ms=latency_budget_ms,
-                            )
-                        except TypeError:
-                            tool_result = await self._tool_registry.execute(
-                                tool_call.name,
-                                tool_call.arguments,
-                            )
-
-                        result_data = tool_result.data if isinstance(tool_result.data, dict) else {}
-                        execution_time_ms = float(
-                            result_data.get(
-                                "execution_time_ms",
-                                (time.monotonic() - started) * 1000,
-                            )
-                        )
-                        timed_out = bool(result_data.get("timed_out", False))
-                        retries_used = int(result_data.get("retries_used", 0))
-                        latency_budget_used = result_data.get("latency_budget_ms", latency_budget_ms)
-
-                        tool_message = ChatMessage(
-                            role=MessageRole.TOOL,
-                            content=tool_result.to_string(),
-                            tool_call_id=tool_call.id,
-                            name=tool_call.name,
-                        )
-                        record = ToolCallRecord(
-                            name=tool_call.name,
-                            success=bool(tool_result.success),
-                            execution_time_ms=execution_time_ms,
-                            arguments_summary=str(tool_call.arguments),
-                            timed_out=timed_out,
-                            retries_used=retries_used,
-                            latency_budget_ms=(
-                                int(latency_budget_used)
-                                if isinstance(latency_budget_used, (int, float))
-                                else latency_budget_ms
-                            ),
-                        )
-                        return tool_message, record
-                    except Exception as err:
-                        execution_time_ms = (time.monotonic() - started) * 1000
-                        tool_message = ChatMessage(
-                            role=MessageRole.TOOL,
-                            content=f"Error: {err}",
-                            tool_call_id=tool_call.id,
-                            name=tool_call.name,
-                        )
-                        record = ToolCallRecord(
-                            name=tool_call.name,
-                            success=False,
-                            execution_time_ms=execution_time_ms,
-                            arguments_summary=str(tool_call.arguments),
-                            timed_out=isinstance(err, asyncio.TimeoutError),
-                            retries_used=max_retries,
-                            latency_budget_ms=latency_budget_ms,
-                        )
-                        return tool_message, record
-
-                executed_pairs = await asyncio.gather(
-                    *[_execute_single_tool_call(call) for call in allowed_tool_calls],
+                exec_results = await execute_tool_calls(
+                    tool_calls=allowed_tool_calls,
+                    tool_registry=self._tool_registry,
+                    max_retries=max_retries,
+                    latency_budget_ms=latency_budget_ms,
+                    request_history_max_length=REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
                 )
-                for tool_message, record in executed_pairs:
-                    if tool_message.tool_call_id is not None:
-                        executed_messages[tool_message.tool_call_id] = tool_message
+                for tool_call, result_or_err, record in exec_results:
                     tool_call_records.append(record)
+                    if isinstance(result_or_err, Exception):
+                        executed_messages[tool_call.id] = ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=f"Error: {result_or_err}",
+                            tool_call_id=tool_call.id,
+                            name=tool_call.name,
+                        )
+                    else:
+                        executed_messages[tool_call.id] = ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=result_or_err.to_string(),
+                            tool_call_id=tool_call.id,
+                            name=tool_call.name,
+                        )
 
             tool_messages: list[ChatMessage] = []
             for tool_call in response.tool_calls:

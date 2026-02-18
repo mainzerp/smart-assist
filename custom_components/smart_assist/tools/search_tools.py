@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -10,6 +11,17 @@ from homeassistant.core import HomeAssistant
 from .base import BaseTool, ToolParameter, ToolResult
 
 _LOGGER = logging.getLogger(__name__)
+
+_INJECTION_RE = re.compile(
+    r"(?i)\b(ignore previous|forget your|you are now|system:|assistant:|<\|im_start\|>)\b.*?[.\n]"
+)
+_MAX_RESULT_LEN = 500
+
+
+def _sanitize_search_result(text: str) -> str:
+    """Strip potential prompt injection patterns from search results."""
+    text = _INJECTION_RE.sub("", text)
+    return text[:_MAX_RESULT_LEN]
 
 
 class WebSearchTool(BaseTool):
@@ -67,8 +79,8 @@ class WebSearchTool(BaseTool):
             # Format results
             formatted = []
             for r in results:
-                title = r.get("title", "")
-                body = r.get("body", "")
+                title = _sanitize_search_result(r.get("title", ""))
+                body = _sanitize_search_result(r.get("body", ""))
                 href = r.get("href", "")
                 formatted.append(f"- {title}\n  {body}\n  URL: {href}")
 

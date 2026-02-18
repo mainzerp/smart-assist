@@ -185,16 +185,26 @@ class MusicAssistantTool(BaseTool):
         # Layer 3: Auto-match satellite name to MA player
         if self._satellite_id:
             sat_name = self._satellite_id.lower().replace("assist_satellite.", "")
+            candidates: list[tuple[str, int]] = []  # (entity_id, match_quality)
             for state in ma_players:
                 player_id = state.entity_id.lower()
                 sat_parts = sat_name.replace("satellite_", "").replace("_assist_satellit", "").split("_")
                 for part in sat_parts:
                     if len(part) >= 3 and part in player_id:
-                        _LOGGER.debug(
-                            "Auto-matched satellite to player: %s -> %s (via '%s')",
-                            self._satellite_id, state.entity_id, part,
-                        )
-                        return state.entity_id
+                        # Prefer exact word boundary match (higher quality = lower number)
+                        boundary_parts = player_id.replace(".", "_").split("_")
+                        quality = 0 if part in boundary_parts else 1
+                        candidates.append((state.entity_id, quality))
+                        break
+            if candidates:
+                # Best quality first, then shortest name (more specific match)
+                candidates.sort(key=lambda c: (c[1], len(c[0])))
+                best = candidates[0][0]
+                _LOGGER.debug(
+                    "Auto-matched satellite to player: %s -> %s",
+                    self._satellite_id, best,
+                )
+                return best
 
         # Layer 4: First available MA player
         if ma_players:

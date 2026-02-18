@@ -18,7 +18,7 @@ from ..const import (
     supports_prompt_caching,
 )
 from ..utils import sanitize_user_facing_error
-from .base_client import BaseLLMClient, LLMMetrics
+from .base_client import BaseLLMClient, LLMMetrics, LLMClientError
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 
 _LOGGER = logging.getLogger(__name__)
@@ -226,7 +226,8 @@ class OpenRouterClient(BaseLLMClient):
             raise
         except Exception as err:
             _LOGGER.error("Unexpected error: %s", err)
-            self._metrics.failed_requests += 1
+            if not isinstance(err, LLMClientError):
+                self._metrics.failed_requests += 1
             raise OpenRouterError(
                 sanitize_user_facing_error(err, fallback="Unexpected provider error")
             ) from err
@@ -448,7 +449,8 @@ class OpenRouterClient(BaseLLMClient):
                 raise
             except Exception as err:
                 _LOGGER.error("Streaming error: %s", err)
-                self._metrics.failed_requests += 1
+                if not isinstance(err, LLMClientError):
+                    self._metrics.failed_requests += 1
                 raise OpenRouterError(
                     sanitize_user_facing_error(err, fallback="Streaming error")
                 ) from err

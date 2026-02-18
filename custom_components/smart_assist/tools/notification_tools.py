@@ -174,14 +174,14 @@ class SendTool(BaseTool):
         """Extract URLs from content string."""
         return URL_PATTERN.findall(content)
     
-    def _find_matching_service(self, target: str) -> str | None:
-        """Find the notification service matching the target.
+    def _find_matching_services(self, target: str) -> list[str]:
+        """Find notification services matching the target.
         
         Args:
             target: User-provided target (e.g., 'patrics_iphone', 'notify.mobile_app_pixel_8a')
             
         Returns:
-            Full service name (e.g., 'mobile_app_patrics_iphone') or None
+            Ordered list of matching service names.
         """
         notify_services = self._hass.services.async_services().get("notify", {})
         
@@ -192,32 +192,39 @@ class SendTool(BaseTool):
         if target_lower.startswith("notify."):
             service_name = target_lower.replace("notify.", "", 1)
             if service_name in notify_services:
-                return service_name
+                return [service_name]
             # Also try without mobile_app_ prefix in case LLM added it redundantly
             target_lower = service_name
         
         # 1. Exact match for mobile_app_<target>
         mobile_app_service = f"mobile_app_{target_lower}"
         if mobile_app_service in notify_services:
-            return mobile_app_service
+            return [mobile_app_service]
         
         # 2. Exact match for standalone service (e.g., 'family', 'all_devices')
         if target_lower in notify_services:
-            return target_lower
+            return [target_lower]
         
         # 3. Fuzzy match - find services containing the target
+        matches: list[str] = []
+        seen: set[str] = set()
         for service_name in notify_services:
             service_lower = service_name.lower()
             # Check if target is contained in service name
             if target_lower in service_lower:
-                return service_name
+                if service_name not in seen:
+                    seen.add(service_name)
+                    matches.append(service_name)
+                continue
             # Check if main part matches (e.g., 'patrics' matches 'mobile_app_patrics_iphone')
             if service_lower.startswith("mobile_app_"):
                 device_part = service_lower.replace("mobile_app_", "")
                 if target_lower in device_part or device_part.startswith(target_lower):
-                    return service_name
+                    if service_name not in seen:
+                        seen.add(service_name)
+                        matches.append(service_name)
         
-        return None
+        return sorted(matches)
 
     async def execute(
         self,
@@ -238,15 +245,27 @@ class SendTool(BaseTool):
         _LOGGER.debug("Send tool called: target='%s', title='%s', content_length=%d", target, title, len(content))
         
         # Find the matching notification service
-        service_name = self._find_matching_service(target)
-        _LOGGER.debug("Target '%s' resolved to service: %s", target, service_name)
-        
-        if not service_name:
+        service_matches = self._find_matching_services(target)
+        _LOGGER.debug("Target '%s' resolved candidates: %s", target, service_matches)
+
+        if not service_matches:
             available = self._get_mobile_app_services()
             return ToolResult(
                 success=False,
                 message=f"Device '{target}' not found. Available devices: {', '.join(available) if available else 'none'}",
             )
+
+        if len(service_matches) > 1:
+            return ToolResult(
+                success=False,
+                message=(
+                    f"Target '{target}' is ambiguous. Matching services: {', '.join(service_matches)}. "
+                    "Please specify the exact target."
+                ),
+                data={"matches": service_matches},
+            )
+
+        service_name = service_matches[0]
         
         # Extract URLs from content for actionable notifications
         urls = self._extract_urls(content)

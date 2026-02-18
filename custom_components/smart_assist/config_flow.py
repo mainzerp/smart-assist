@@ -32,7 +32,9 @@ from .config_subentry_flows import (
     ConversationFlowHandler,
 )
 from .config_validators import (
+    fetch_model_providers,
     fetch_ollama_models,
+    fetch_openrouter_models,
     validate_api_key,
     validate_groq_api_key,
     validate_ollama_connection,
@@ -64,6 +66,21 @@ from .const import (
 from .utils import apply_debug_logging
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def validate_openrouter_key(api_key: str) -> bool:
+    """Backward-compatible alias used by tests and legacy call sites."""
+    return await validate_api_key(api_key)
+
+
+async def validate_groq_key(api_key: str) -> bool:
+    """Backward-compatible alias used by tests and legacy call sites."""
+    return await validate_groq_api_key(api_key)
+
+
+async def fetch_models(api_key: str) -> list[dict[str, str]]:
+    """Backward-compatible alias for OpenRouter model fetch."""
+    return await fetch_openrouter_models(api_key)
 
 
 class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -146,7 +163,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             if user_input is not None:
                 if llm_provider == LLM_PROVIDER_GROQ:
                     api_key = user_input.get(CONF_GROQ_API_KEY, "").strip()
-                    if await validate_groq_api_key(api_key):
+                    if await validate_groq_api_key(api_key, hass=self.hass):
                         self._data[CONF_GROQ_API_KEY] = api_key
                         _LOGGER.info("Smart Assist: Groq API key valid, creating entry")
                         return self.async_create_entry(
@@ -156,7 +173,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "invalid_groq_api_key"
                 elif llm_provider == LLM_PROVIDER_OLLAMA:
                     ollama_url = user_input.get(CONF_OLLAMA_URL, OLLAMA_DEFAULT_URL).strip()
-                    if await validate_ollama_connection(ollama_url):
+                    if await validate_ollama_connection(ollama_url, hass=self.hass):
                         self._data[CONF_OLLAMA_URL] = ollama_url
                         self._data[CONF_OLLAMA_MODEL] = user_input.get(CONF_OLLAMA_MODEL, OLLAMA_DEFAULT_MODEL)
                         self._data[CONF_OLLAMA_KEEP_ALIVE] = user_input.get(CONF_OLLAMA_KEEP_ALIVE, OLLAMA_DEFAULT_KEEP_ALIVE)
@@ -170,7 +187,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "ollama_connection_failed"
                 else:
                     api_key = user_input.get(CONF_API_KEY, "").strip()
-                    if await validate_api_key(api_key):
+                    if await validate_api_key(api_key, hass=self.hass):
                         self._data[CONF_API_KEY] = api_key
                         _LOGGER.info("Smart Assist: OpenRouter API key valid, creating entry")
                         return self.async_create_entry(
@@ -190,7 +207,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             elif llm_provider == LLM_PROVIDER_OLLAMA:
                 # Fetch available models for the dropdown
                 ollama_url = OLLAMA_DEFAULT_URL
-                ollama_models = await fetch_ollama_models(ollama_url)
+                ollama_models = await fetch_ollama_models(ollama_url, hass=self.hass)
                 
                 schema = vol.Schema({
                     vol.Required(CONF_OLLAMA_URL, default=OLLAMA_DEFAULT_URL): TextSelector(
@@ -270,7 +287,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             # Validate and update Groq API key if provided
             new_groq_key = user_input.get(CONF_GROQ_API_KEY, "").strip()
             if new_groq_key:
-                if await validate_groq_api_key(new_groq_key):
+                if await validate_groq_api_key(new_groq_key, hass=self.hass):
                     new_data[CONF_GROQ_API_KEY] = new_groq_key
                 else:
                     errors["groq_api_key"] = "invalid_groq_api_key"
@@ -278,7 +295,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             # Validate and update OpenRouter API key if provided
             new_openrouter_key = user_input.get(CONF_API_KEY, "").strip()
             if new_openrouter_key:
-                if await validate_api_key(new_openrouter_key):
+                if await validate_api_key(new_openrouter_key, hass=self.hass):
                     new_data[CONF_API_KEY] = new_openrouter_key
                 else:
                     errors["api_key"] = "invalid_api_key"
@@ -286,7 +303,7 @@ class SmartAssistConfigFlow(ConfigFlow, domain=DOMAIN):
             # Validate and update Ollama URL if provided
             new_ollama_url = user_input.get(CONF_OLLAMA_URL, "").strip()
             if new_ollama_url:
-                if await validate_ollama_connection(new_ollama_url):
+                if await validate_ollama_connection(new_ollama_url, hass=self.hass):
                     new_data[CONF_OLLAMA_URL] = new_ollama_url
                 else:
                     errors["ollama_url"] = "ollama_connection_failed"

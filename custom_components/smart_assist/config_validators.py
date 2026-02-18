@@ -5,8 +5,14 @@ from __future__ import annotations
 import json
 import logging
 import re
+from contextlib import asynccontextmanager
+from inspect import isawaitable
+from typing import TYPE_CHECKING
 
 import aiohttp
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 from .const import (
     ALARM_EXECUTION_MODE_DIRECT_ONLY,
@@ -18,6 +24,26 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def _get_session(hass: HomeAssistant | None = None):
+    """Get an aiohttp session.
+
+    Uses HA's shared session when hass is available (SEC-1 / HA-1).
+    Falls back to a standalone session with proper cleanup otherwise.
+    """
+    if hass is not None:
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession
+        yield async_get_clientsession(hass)
+    else:
+        session = aiohttp.ClientSession()
+        try:
+            yield session
+        finally:
+            close_result = session.close()
+            if isawaitable(close_result):
+                await close_result
 
 
 def validate_alarm_execution_mode(value: str) -> bool:
@@ -46,7 +72,7 @@ def validate_direct_alarm_timeout(value: int) -> bool:
     return DIRECT_ALARM_BACKEND_TIMEOUT_MIN <= int(value) <= DIRECT_ALARM_BACKEND_TIMEOUT_MAX
 
 
-async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, str]]:
+async def fetch_model_providers(api_key: str, model_id: str, hass: HomeAssistant | None = None) -> list[dict[str, str]]:
     """Fetch available providers for a specific model from OpenRouter API.
     
     Uses the /api/v1/models/:author/:slug/endpoints API to get providers.
@@ -75,7 +101,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
         url = f"{OPENROUTER_API_BASE}/models/{model_id}/endpoints"
         _LOGGER.debug("fetch_model_providers: Fetching from %s", url)
         
-        async with aiohttp.ClientSession() as session:
+        async with _get_session(hass) as session:
             async with session.get(
                 url,
                 headers=headers,
@@ -134,7 +160,7 @@ async def fetch_model_providers(api_key: str, model_id: str) -> list[dict[str, s
         return providers
 
 
-async def validate_api_key(api_key: str) -> bool:
+async def validate_api_key(api_key: str, hass: HomeAssistant | None = None) -> bool:
     """Validate the OpenRouter API key."""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -142,7 +168,7 @@ async def validate_api_key(api_key: str) -> bool:
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with _get_session(hass) as session:
             async with session.get(
                 f"{OPENROUTER_API_BASE}/models",
                 headers=headers,
@@ -153,7 +179,7 @@ async def validate_api_key(api_key: str) -> bool:
         return False
 
 
-async def validate_groq_api_key(api_key: str) -> bool:
+async def validate_groq_api_key(api_key: str, hass: HomeAssistant | None = None) -> bool:
     """Validate the Groq API key."""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -161,7 +187,7 @@ async def validate_groq_api_key(api_key: str) -> bool:
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with _get_session(hass) as session:
             async with session.get(
                 "https://api.groq.com/openai/v1/models",
                 headers=headers,
@@ -172,10 +198,10 @@ async def validate_groq_api_key(api_key: str) -> bool:
         return False
 
 
-async def validate_ollama_connection(base_url: str) -> bool:
+async def validate_ollama_connection(base_url: str, hass: HomeAssistant | None = None) -> bool:
     """Validate connection to Ollama server."""
     try:
-        async with aiohttp.ClientSession() as session:
+        async with _get_session(hass) as session:
             async with session.get(
                 f"{base_url.rstrip('/')}/api/tags",
                 timeout=aiohttp.ClientTimeout(total=5),
@@ -185,14 +211,14 @@ async def validate_ollama_connection(base_url: str) -> bool:
         return False
 
 
-async def fetch_ollama_models(base_url: str) -> list[dict[str, str]]:
+async def fetch_ollama_models(base_url: str, hass: HomeAssistant | None = None) -> list[dict[str, str]]:
     """Fetch available models from Ollama server.
     
     Returns list of {"value": model_name, "label": display_name} dicts.
     Falls back to default models on error.
     """
     try:
-        async with aiohttp.ClientSession() as session:
+        async with _get_session(hass) as session:
             async with session.get(
                 f"{base_url.rstrip('/')}/api/tags",
                 timeout=aiohttp.ClientTimeout(total=10),
@@ -239,7 +265,7 @@ def _get_ollama_fallback_models() -> list[dict[str, str]]:
     ]
 
 
-async def fetch_groq_models(api_key: str) -> list[dict[str, str]]:
+async def fetch_groq_models(api_key: str, hass: HomeAssistant | None = None) -> list[dict[str, str]]:
     """Fetch available models from Groq API.
     
     Returns list of {"value": model_id, "label": display_name} dicts.
@@ -251,7 +277,7 @@ async def fetch_groq_models(api_key: str) -> list[dict[str, str]]:
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with _get_session(hass) as session:
             async with session.get(
                 "https://api.groq.com/openai/v1/models",
                 headers=headers,
@@ -297,7 +323,7 @@ def _get_groq_fallback_models() -> list[dict[str, str]]:
     ]
 
 
-async def fetch_openrouter_models(api_key: str) -> list[dict[str, str]]:
+async def fetch_openrouter_models(api_key: str, hass: HomeAssistant | None = None) -> list[dict[str, str]]:
     """Fetch available models from OpenRouter API.
     
     Returns list of {"value": model_id, "label": display_name} dicts.
@@ -309,7 +335,7 @@ async def fetch_openrouter_models(api_key: str) -> list[dict[str, str]]:
     }
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with _get_session(hass) as session:
             async with session.get(
                 f"{OPENROUTER_API_BASE}/models",
                 headers=headers,

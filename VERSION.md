@@ -4,9 +4,99 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.8  | 2026-02-18 |
+| Smart Assist | 1.23.10 | 2026-02-18 |
 
 ## Version History
+
+### v1.23.10 (2026-02-18) - Full Code Review v2 Remediation
+
+**Critical/High Logic Fixes:**
+- Hardened critical-action confirmation/cancel detection in `streaming.py` to avoid substring false positives (explicit boundary-safe matching only)
+
+**Robustness & Observability Fixes:**
+- Corrected exception-path retry metadata in `tool_executor.py` (`retries_used` no longer overreported)
+- Prevented failed-request metric double counting for retry-exhaustion paths in OpenRouter/Groq clients
+- Improved notification target resolution safety: ambiguous fuzzy matches now return an explicit ambiguity error instead of auto-selecting a target
+- Strengthened calendar fuzzy matching with normalized sequence/token similarity and a stricter acceptance threshold
+- Added deferred save scheduling for debounced memory persistence (`context/memory.py`)
+- Restored memory access tracking during prompt injection (`get_injection_text` now increments `access_count`/`last_accessed`)
+
+**Test Coverage Additions:**
+- Added regression tests for confirmation/denial boundary matching in `tests/test_streaming.py`
+- Added runtime ambiguity test for notification target resolution and calendar similarity sanity checks in `tests/test_tools.py`
+- Added retry-exhaustion metrics regression tests in `tests/test_llm_clients.py`
+- Added deferred-save behavior tests for memory persistence in `tests/test_memory.py`
+- Added shared executor telemetry tests for `retries_used` semantics in `tests/test_tool_executor.py`
+- Added release metadata consistency checks (`manifest.json` ↔ `VERSION.md`) with optional strict tag parity in `tests/test_release_metadata.py`
+- Added dedicated blocked-suite runners for Linux/WSL verification: `tests/run_wsl_blocked_suites.sh` and `tests/run_windows_blocked_suites.ps1`
+
+**Files modified:**
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/tool_executor.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/tools/notification_tools.py
+- custom_components/smart_assist/tools/calendar_tools.py
+- custom_components/smart_assist/context/memory.py
+- tests/test_streaming.py
+- tests/test_tools.py
+- tests/test_llm_clients.py
+- tests/test_memory.py
+- tests/test_tool_executor.py
+- tests/test_release_metadata.py
+- tests/TEST_ENVIRONMENT.md
+- tests/run_wsl_blocked_suites.sh
+- tests/run_windows_blocked_suites.ps1
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.23.9 (2026-02-18) - Code Review: Security, Bug Fixes & Deduplication
+
+**HIGH Severity Fixes:**
+- **BUG-1:** `entity_manager._is_entity_exposed()` now returns `False` on exception instead of `True` (prevented unexposed entities from leaking into LLM context)
+- **BUG-2:** `ollama_client.chat_stream()` logs warning when tool calls are detected but dropped (streaming mode cannot yield tool calls)
+- **SEC-1/HA-1:** All 7 `config_validators.py` functions now use HA's shared `aiohttp` session via `async_get_clientsession()` instead of creating standalone sessions (reduces resource leaks, follows HA best practices)
+- **ARCH-1:** Extracted shared `tool_executor.py` module - both `streaming.py` and `ai_task.py` now use the same `execute_tool_calls()` function (eliminated ~120 lines of duplicated tool execution logic)
+- **PERF-1:** `entity_manager.get_all_entities()` fetches entity/area/device registries once before the loop instead of per-entity
+
+**MEDIUM Severity Fixes:**
+- **BUG-3:** AI Task reconfigure flow now dynamically discovers available providers including Ollama (was hardcoded to OpenRouter + Groq only)
+- **BUG-5:** Music Assistant player auto-matching now prefers exact word boundary matches and shorter names over generic substring matches
+- **SEC-2:** Web search results are now sanitized to strip potential prompt injection patterns before returning to LLM
+- **HA-2:** `entity_tools.py` history tool gracefully handles missing recorder integration instead of crashing on ImportError
+
+**LOW Severity Fixes:**
+- **BUG-10:** `alarm_tools._resolve_default_tts_targets()` now logs a warning when no targets can be resolved
+- **BUG-11/MAINT-5:** Direct alarm engine wake text fallback is now language-aware (German fallback for `de` config)
+- **SEC-5:** Memory tool enforces server-side content length truncation (100 chars) matching schema `max_length`
+- **BUG-9:** Calendar similarity algorithm adds positional bonus for characters in the same position
+
+**Test Coverage:**
+- New `tests/test_entity_manager.py` - validates BUG-1 fix and domain filtering
+- New `tests/test_user_resolver.py` - validates all 5 resolution layers and priority order
+
+**New Files:**
+- `custom_components/smart_assist/tool_executor.py`
+- `tests/test_entity_manager.py`
+- `tests/test_user_resolver.py`
+
+**Modified Files:**
+- custom_components/smart_assist/context/entity_manager.py
+- custom_components/smart_assist/llm/ollama_client.py
+- custom_components/smart_assist/config_validators.py
+- custom_components/smart_assist/config_flow.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/tools/search_tools.py
+- custom_components/smart_assist/tools/music_assistant_tools.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/tools/memory_tools.py
+- custom_components/smart_assist/tools/entity_tools.py
+- custom_components/smart_assist/tools/calendar_tools.py
+- custom_components/smart_assist/context/direct_alarm_engine.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.8 (2026-02-18) - Code Quality: Critical Bug Fixes & Deduplication
 

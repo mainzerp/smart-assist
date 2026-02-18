@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import timedelta
+from difflib import SequenceMatcher
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -459,8 +461,8 @@ class CreateCalendarEventTool(BaseTool):
                 best_score = max_score
                 best_match = cal
         
-        # Only accept if score is reasonable (>0.6 = 60% similar)
-        if best_match and best_score > 0.6:
+        # Only accept if score is reasonably strong
+        if best_match and best_score >= 0.72:
             _LOGGER.debug(
                 "Fuzzy calendar match: %s -> %s (score: %.2f)",
                 calendar_input, best_match["entity_id"], best_score
@@ -471,41 +473,26 @@ class CreateCalendarEventTool(BaseTool):
         return None
 
     def _calculate_similarity(self, s1: str, s2: str) -> float:
-        """Calculate similarity between two strings using character matching.
-        
+        """Calculate normalized similarity with sequence + token overlap.
+
         Returns a score between 0.0 (no match) and 1.0 (exact match).
-        Handles common typos like patrick/patric, laura/laure.
         """
-        if not s1 or not s2:
+        left = re.sub(r"[^a-z0-9]+", " ", (s1 or "").lower()).strip()
+        right = re.sub(r"[^a-z0-9]+", " ", (s2 or "").lower()).strip()
+        if not left or not right:
             return 0.0
-        
-        # Handle exact match
-        if s1 == s2:
+        if left == right:
             return 1.0
-        
-        # Count matching characters (in order)
-        matches = 0
-        s2_chars = list(s2)
-        
-        for char in s1:
-            if char in s2_chars:
-                matches += 1
-                s2_chars.remove(char)
-        
-        # Calculate score based on matching ratio
-        max_len = max(len(s1), len(s2))
-        base_score = matches / max_len
-        
-        # Bonus for same starting character
-        if s1[0] == s2[0]:
-            base_score += 0.1
-        
-        # Bonus for similar length
-        len_diff = abs(len(s1) - len(s2))
-        if len_diff <= 1:
-            base_score += 0.1
-        
-        return min(base_score, 1.0)
+
+        seq_score = SequenceMatcher(None, left, right).ratio()
+
+        left_tokens = {token for token in left.split(" ") if token}
+        right_tokens = {token for token in right.split(" ") if token}
+        token_union = left_tokens | right_tokens
+        token_score = (len(left_tokens & right_tokens) / len(token_union)) if token_union else 0.0
+
+        prefix_bonus = 0.05 if left and right and left[0] == right[0] else 0.0
+        return min(1.0, (seq_score * 0.75) + (token_score * 0.25) + prefix_bonus)
 
     def _get_calendar_owner(self, entity_id: str) -> str:
         """Extract owner name from calendar entity."""
