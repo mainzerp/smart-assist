@@ -4,9 +4,31 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.11 | 2026-02-18 |
+| Smart Assist | 1.23.12 | 2026-02-18 |
 
 ## Version History
+
+### v1.23.12 (2026-02-18) - LLM Intent Classifier Migration
+
+**Fixes & Improvements:**
+- Replaced hardcoded confirmation/denial token matching in `streaming.py` with constrained schema-based LLM classification (`confirm|deny|unclear` + confidence)
+- Replaced hardcoded alarm/timer no-tool retry phrase heuristics in `streaming.py` with constrained schema-based LLM route classification (`alarm|timer|none`)
+- Kept deterministic safety invariants: fail-closed critical-action execution, critical-domain gating, loop limits, latency/retry budgets, and post-fire snooze context gate
+- Disabled regex quick-action bypass in `conversation.py` so intent execution consistently follows LLM/tool contracts
+- Aligned prompt contract wording to semantic confirmation/snooze intent handling (no fixed keyword requirement)
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`
+
+**Files modified:**
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/context/entity_manager.py
+- tests/test_streaming.py
+- tests/test_prompt_builder.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.11 (2026-02-18) - Tooling Hardening Quick Wins
 

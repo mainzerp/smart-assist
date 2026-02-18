@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from collections.abc import AsyncGenerator
@@ -30,26 +31,44 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_CONFIRM_TOKENS = {
-    "yes", "confirm", "confirmed", "proceed", "do it", "go ahead", "ja", "bestaetigt", "ok",
-}
-_DENY_TOKENS = {
-    "no", "cancel", "stop", "don't", "do not", "nein", "abbrechen", "stopp",
-}
-_CONFIRM_FILLERS = {
-    "please", "pls", "bitte", "now", "jetzt", "sure", "do", "it", "go", "ahead",
-}
-_DENY_FILLERS = {
-    "please", "pls", "bitte", "thanks", "danke", "now", "jetzt",
+_PENDING_CONFIRMATION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "decision": {
+            "type": "string",
+            "enum": ["confirm", "deny", "unclear"],
+        },
+        "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+        },
+        "reason": {"type": "string"},
+    },
+    "required": ["decision", "confidence", "reason"],
+    "additionalProperties": False,
 }
 
-
-def _normalize_intent_text(user_text: str) -> list[str]:
-    """Normalize user text into lowercase word tokens for intent matching."""
-    text = (user_text or "").strip().lower()
-    if not text:
-        return []
-    return re.findall(r"[a-z0-9äöüß]+", text)
+_MISSING_TOOL_ROUTE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "route": {
+            "type": "string",
+            "enum": ["alarm", "timer", "none"],
+        },
+        "alarm_mode": {
+            "type": "string",
+            "enum": ["absolute", "relative_snooze", "other"],
+        },
+        "needs_tool_retry": {"type": "boolean"},
+        "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+        },
+        "reason": {"type": "string"},
+    },
+    "required": ["route", "alarm_mode", "needs_tool_retry", "confidence", "reason"],
+    "additionalProperties": False,
+}
 
 
 def _get_latest_user_text(messages: list[ChatMessage]) -> str:
@@ -60,107 +79,160 @@ def _get_latest_user_text(messages: list[ChatMessage]) -> str:
     return ""
 
 
-def _looks_like_timer_request(user_text: str) -> bool:
-    """Heuristic: detect timer-related user intent in EN/DE phrasing."""
-    text = (user_text or "").lower()
-    if "timer" not in text and "countdown" not in text:
-        return False
-
-    duration_pattern = re.compile(
-        r"\b\d+\s*(h|hr|hour|hours|std|stunde|stunden|min|minute|minuten|sec|second|seconds|sek|sekunde|sekunden)\b"
-    )
-    action_tokens = (
-        "stell",
-        "set",
-        "start",
-        "starte",
-        "cancel",
-        "stop",
-        "pause",
-        "resume",
-        "status",
-        "läuft",
-    )
-
-    return bool(duration_pattern.search(text) or any(token in text for token in action_tokens))
-
-
-def _should_force_timer_tool_retry(user_text: str, assistant_text: str) -> bool:
-    """Require a timer tool call if a timer action was requested but none was emitted."""
-    if not assistant_text.strip():
-        return False
-    return _looks_like_timer_request(user_text)
-
-
-def _looks_like_alarm_request(user_text: str) -> bool:
-    """Heuristic: detect absolute-time alarm intent in EN/DE phrasing."""
-    text = (user_text or "").lower().strip()
+def _extract_json_object(content: str) -> dict[str, Any] | None:
+    """Extract first JSON object from model output."""
+    text = (content or "").strip()
     if not text:
-        return False
+        return None
 
-    alarm_tokens = ("alarm", "wecker", "wake me")
-    if not any(token in text for token in alarm_tokens):
-        return False
+    candidates = [text]
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    if match:
+        candidates.append(match.group(0))
 
-    # Relative requests should stay on timer path (e.g., "in 10 minutes").
-    relative_pattern = re.compile(
-        r"\bin\s+\d+\s*(h|hr|hour|hours|std|stunde|stunden|min|minute|minuten|sec|second|seconds|sek|sekunde|sekunden)\b"
-    )
-    if relative_pattern.search(text):
-        return False
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
 
-    has_clock_time = bool(
-        re.search(r"\b([01]?\d|2[0-3])[:.]([0-5]\d)(:[0-5]\d)?\b", text)
-    )
-    has_absolute_marker = any(
-        marker in text
-        for marker in (
-            "tomorrow",
-            "today",
-            "tonight",
-            "at ",
-            "on ",
-            "morgen",
-            "heute",
-            "um ",
-            "am ",
+    return None
+
+
+async def _classify_pending_confirmation_intent(
+    entity: SmartAssistConversationEntity,
+    user_text: str,
+    pending_action: dict[str, Any],
+) -> tuple[str, str]:
+    """Classify whether user confirms/denies a pending critical action."""
+    try:
+        response = await entity._llm_client.chat(
+            messages=[
+                ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=(
+                        "Classify whether the user's latest message confirms or denies a pending critical action. "
+                        "Output JSON only matching the schema."
+                    ),
+                ),
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=(
+                        f"Pending action: {pending_action}.\n"
+                        f"User message: {user_text}"
+                    ),
+                ),
+            ],
+            tools=None,
+            response_schema=_PENDING_CONFIRMATION_SCHEMA,
+            response_schema_name="smart_assist_pending_confirmation",
+            use_native_structured_output=True,
         )
-    )
-    return has_clock_time or has_absolute_marker
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("[USER-REQUEST] Pending confirmation classifier failed: %s", err)
+        return "unclear", "low"
+
+    payload = _extract_json_object(response.content)
+    if payload is None:
+        _LOGGER.warning("[USER-REQUEST] Pending confirmation classifier returned invalid JSON")
+        return "unclear", "low"
+
+    decision = payload.get("decision")
+    confidence = payload.get("confidence")
+
+    if decision not in {"confirm", "deny", "unclear"}:
+        return "unclear", "low"
+    if confidence not in {"high", "medium", "low"}:
+        return "unclear", "low"
+
+    return str(decision), str(confidence)
 
 
-def _looks_like_relative_alarm_snooze(user_text: str) -> bool:
-    """Heuristic: detect conversational post-fire snooze phrases (EN/DE)."""
-    text = (user_text or "").lower().strip()
-    if not text:
-        return False
+async def _classify_missing_tool_intent_route(
+    entity: SmartAssistConversationEntity,
+    user_text: str,
+    assistant_text: str,
+) -> dict[str, Any]:
+    """Classify route for first-iteration no-tool replies."""
+    if not assistant_text.strip():
+        return {
+            "route": "none",
+            "alarm_mode": "other",
+            "needs_tool_retry": False,
+            "confidence": "low",
+            "reason": "assistant_reply_empty",
+        }
 
-    if not re.search(r"\b\d+\b", text):
-        return False
+    try:
+        response = await entity._llm_client.chat(
+            messages=[
+                ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=(
+                        "Classify if the user message requires alarm or timer tool routing when no tool was called. "
+                        "Output JSON only matching the schema."
+                    ),
+                ),
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=(
+                        f"User message: {user_text}\n"
+                        f"Assistant reply without tool call: {assistant_text}"
+                    ),
+                ),
+            ],
+            tools=None,
+            response_schema=_MISSING_TOOL_ROUTE_SCHEMA,
+            response_schema_name="smart_assist_missing_tool_route",
+            use_native_structured_output=True,
+        )
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("[USER-REQUEST] Missing-tool route classifier failed: %s", err)
+        return {
+            "route": "none",
+            "alarm_mode": "other",
+            "needs_tool_retry": False,
+            "confidence": "low",
+            "reason": "classifier_failed",
+        }
 
-    duration_tokens = (
-        "min",
-        "mins",
-        "minute",
-        "minutes",
-        "sek",
-        "sekunde",
-        "sekunden",
-        "second",
-        "seconds",
-    )
-    if not any(token in text for token in duration_tokens):
-        return False
+    payload = _extract_json_object(response.content)
+    if payload is None:
+        _LOGGER.warning("[USER-REQUEST] Missing-tool route classifier returned invalid JSON")
+        return {
+            "route": "none",
+            "alarm_mode": "other",
+            "needs_tool_retry": False,
+            "confidence": "low",
+            "reason": "invalid_json",
+        }
 
-    snooze_tokens = (
-        "snooze",
-        "noch",
-        "more",
-        "later",
-        "später",
-        "spater",
-    )
-    return any(token in text for token in snooze_tokens)
+    route = payload.get("route")
+    alarm_mode = payload.get("alarm_mode")
+    needs_tool_retry = payload.get("needs_tool_retry")
+    confidence = payload.get("confidence")
+    reason = payload.get("reason")
+
+    if route not in {"alarm", "timer", "none"}:
+        route = "none"
+    if alarm_mode not in {"absolute", "relative_snooze", "other"}:
+        alarm_mode = "other"
+    if not isinstance(needs_tool_retry, bool):
+        needs_tool_retry = False
+    if confidence not in {"high", "medium", "low"}:
+        confidence = "low"
+    if not isinstance(reason, str):
+        reason = "invalid_reason"
+
+    return {
+        "route": route,
+        "alarm_mode": alarm_mode,
+        "needs_tool_retry": needs_tool_retry,
+        "confidence": confidence,
+        "reason": reason,
+    }
 
 
 def _has_recent_fired_alarm_context(entity: SmartAssistConversationEntity) -> bool:
@@ -179,71 +251,70 @@ def _has_recent_fired_alarm_context(entity: SmartAssistConversationEntity) -> bo
         return False
 
 
-def _should_force_alarm_tool_retry(
-    user_text: str,
-    assistant_text: str,
-    entity: SmartAssistConversationEntity | None = None,
-) -> bool:
-    """Require an alarm tool call for clear alarm intent when assistant replied."""
-    if not assistant_text.strip():
-        return False
-
-    if _looks_like_alarm_request(user_text):
-        return True
-
-    if entity is not None and _looks_like_relative_alarm_snooze(user_text):
-        return _has_recent_fired_alarm_context(entity)
-
-    return False
-
-
-def _is_explicit_confirmation(user_text: str) -> bool:
-    """Check if user text is an explicit confirmation."""
-    words = _normalize_intent_text(user_text)
-    if not words:
-        return False
-
-    phrase = " ".join(words)
-    if phrase in _CONFIRM_TOKENS:
-        return True
-
-    if len(words) == 2 and phrase in {"go ahead", "do it"}:
-        return True
-
-    if words[0] in {"yes", "ja", "ok", "confirm", "confirmed", "proceed", "bestaetigt"}:
-        return all(word in _CONFIRM_FILLERS for word in words[1:])
-
-    if words[:2] in (["go", "ahead"], ["do", "it"]):
-        return all(word in _CONFIRM_FILLERS for word in words[2:])
-
-    return False
-
-
-def _is_explicit_denial(user_text: str) -> bool:
-    """Check if user text is an explicit deny/cancel."""
-    words = _normalize_intent_text(user_text)
-    if not words:
-        return False
-
-    phrase = " ".join(words)
-    if phrase in _DENY_TOKENS:
-        return True
-
-    if words[0] in {"no", "nein", "cancel", "abbrechen", "stop", "stopp"}:
-        return all(word in _DENY_FILLERS for word in words[1:])
-
-    if words[:2] == ["do", "not"]:
-        return all(word in _DENY_FILLERS for word in words[2:])
-
-    return False
-
-
 def _is_critical_tool_call(tool_call: ToolCall) -> bool:
     """Return True if tool call targets a critical control domain."""
     if tool_call.name != "control":
         return False
     target_domains = extract_target_domains(tool_call.arguments)
     return any(domain in CRITICAL_DOMAINS for domain in target_domains)
+
+
+def _pick_preferred_single_entity(
+    entity_ids: list[str],
+    entity: SmartAssistConversationEntity,
+) -> str | None:
+    """Pick best single-entity candidate for non-explicit batch control requests."""
+    if not entity_ids:
+        return None
+
+    best: tuple[int, int, str] | None = None
+    for entity_id in entity_ids:
+        score = 0
+
+        state = entity._hass.states.get(entity_id)
+        if state is not None and isinstance(state.attributes.get("entity_id"), list):
+            score += 100
+
+        candidate = (score, -len(entity_id), entity_id)
+        if best is None or candidate > best:
+            best = candidate
+
+    return best[2] if best is not None else None
+
+
+def _normalize_control_tool_call_for_default_single_target(
+    tool_call: ToolCall,
+    entity: SmartAssistConversationEntity,
+) -> ToolCall:
+    """Prefer single/group target unless batch is explicitly requested in tool args."""
+    if tool_call.name != "control":
+        return tool_call
+
+    raw_ids = tool_call.arguments.get("entity_ids")
+    if not isinstance(raw_ids, list):
+        return tool_call
+
+    entity_ids = [str(item) for item in raw_ids if isinstance(item, str) and item]
+    if len(entity_ids) <= 1:
+        return tool_call
+
+    if tool_call.arguments.get("batch") is True:
+        return tool_call
+
+    preferred = _pick_preferred_single_entity(entity_ids, entity)
+    if not preferred:
+        return tool_call
+
+    new_arguments = dict(tool_call.arguments)
+    new_arguments.pop("entity_ids", None)
+    new_arguments.pop("batch", None)
+    new_arguments["entity_id"] = preferred
+    _LOGGER.debug(
+        "[USER-REQUEST] Normalized non-explicit control batch to single target: %s -> %s",
+        entity_ids,
+        preferred,
+    )
+    return ToolCall(id=tool_call.id, name=tool_call.name, arguments=new_arguments)
 
 
 async def call_llm_streaming_with_tools(
@@ -292,11 +363,17 @@ async def call_llm_streaming_with_tools(
     if conversation_id:
         pending_action = entity._conversation_manager.get_pending_critical_action(conversation_id)
         if pending_action:
-            if _is_explicit_denial(latest_user_text):
+            decision, confidence = await _classify_pending_confirmation_intent(
+                entity,
+                latest_user_text,
+                pending_action,
+            )
+
+            if decision == "deny":
                 entity._conversation_manager.clear_pending_critical_action(conversation_id)
                 return "Okay, I cancelled that critical action.", False, iteration, all_tool_call_records
 
-            if _is_explicit_confirmation(latest_user_text):
+            if decision == "confirm" and confidence in {"high", "medium"}:
                 result = await (await entity._get_tool_registry()).execute(
                     pending_action.get("tool_name", "control"),
                     pending_action.get("arguments", {}),
@@ -322,7 +399,7 @@ async def call_llm_streaming_with_tools(
 
             pending_tool = pending_action.get("tool_name", "control")
             return (
-                f"Please confirm before I run the critical action '{pending_tool}'. Reply with yes to proceed or no to cancel.",
+                f"Please explicitly confirm to run the critical action '{pending_tool}', or explicitly decline to cancel.",
                 True,
                 iteration,
                 all_tool_call_records,
@@ -440,26 +517,39 @@ async def call_llm_streaming_with_tools(
             # Guardrail: avoid false timer/alarm confirmations without actual tool execution.
             if iteration == 1:
                 latest_user_text = _get_latest_user_text(working_messages)
-                if _should_force_alarm_tool_retry(latest_user_text, final_content, entity):
+                route_decision = await _classify_missing_tool_intent_route(
+                    entity,
+                    latest_user_text,
+                    final_content,
+                )
+
+                if (
+                    route_decision["route"] == "alarm"
+                    and route_decision["needs_tool_retry"]
+                    and (
+                        route_decision["alarm_mode"] != "relative_snooze"
+                        or _has_recent_fired_alarm_context(entity)
+                    )
+                ):
                     _LOGGER.warning(
-                        "[USER-REQUEST] Alarm-like request answered without tool call in first iteration. Retrying with alarm-tool nudge."
+                        "[USER-REQUEST] Alarm route detected without tool call in first iteration. Retrying with alarm-tool nudge."
                     )
                     working_messages.append(
                         ChatMessage(
                             role=MessageRole.SYSTEM,
                             content=(
-                                "The user requested alarm handling (absolute time or post-fire relative snooze). You MUST call the alarm tool for set/list/cancel/snooze/status. "
+                                "The user requested alarm handling. You MUST call the alarm tool for set/list/cancel/snooze/status. "
                                 "Do not claim alarm success unless alarm tool call succeeds. "
-                                "For relative snooze phrases like 'noch 5 minuten' or '5 more minutes', use action=snooze and omit alarm_id only when recent fired alarm context exists. "
+                                "For post-fire relative snooze intent, use action=snooze and omit alarm_id only when recent fired alarm context exists. "
                                 "If target alarm is ambiguous or missing, ask one concise clarification using await_response."
                             ),
                         )
                     )
                     continue
 
-                if _should_force_timer_tool_retry(latest_user_text, final_content):
+                if route_decision["route"] == "timer" and route_decision["needs_tool_retry"]:
                     _LOGGER.warning(
-                        "[USER-REQUEST] Timer-like request answered without tool call in first iteration. Retrying with timer-tool nudge."
+                        "[USER-REQUEST] Timer route detected without tool call in first iteration. Retrying with timer-tool nudge."
                     )
                     working_messages.append(
                         ChatMessage(
@@ -562,6 +652,11 @@ async def call_llm_streaming_with_tools(
                 _LOGGER.debug("[USER-REQUEST] Deduplicated %d -> %d tool calls", len(other_tool_calls), len(unique_tool_calls))
                 other_tool_calls = unique_tool_calls
 
+            other_tool_calls = [
+                _normalize_control_tool_call_for_default_single_target(tc, entity)
+                for tc in other_tool_calls
+            ]
+
             _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(other_tool_calls))
 
             if conversation_id:
@@ -578,7 +673,7 @@ async def call_llm_streaming_with_tools(
                         },
                     )
                     confirmation_question = (
-                        "This is a critical action. Please confirm explicitly: yes to proceed or no to cancel."
+                        "This is a critical action. Please explicitly confirm to proceed, or explicitly decline to cancel."
                     )
                     return confirmation_question, True, iteration, all_tool_call_records
 

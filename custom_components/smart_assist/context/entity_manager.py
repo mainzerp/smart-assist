@@ -292,7 +292,8 @@ class EntityManager:
     ) -> str:
         """Get entity states relevant to a query.
 
-        Simple keyword-based matching for now.
+        Keyword scoring is ranking-only context assistance.
+        It is non-authoritative and must not be used as execution intent inference.
         Returns formatted string for LLM context.
         """
         query_lower = query.lower()

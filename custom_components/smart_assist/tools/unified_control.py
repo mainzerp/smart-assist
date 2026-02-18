@@ -34,7 +34,8 @@ class UnifiedControlTool(BaseTool):
     name = "control"
     description = (
         "Control one or more Home Assistant entities by action and optional value parameters. "
-        "Use after entity IDs are known from index/discovery; pass exactly one of entity_id or entity_ids."
+        "Use after entity IDs are known from index/discovery; pass exactly one of entity_id or entity_ids. "
+        "For multi-entity execution via entity_ids, set batch=true explicitly."
     )
     
     parameters = [
@@ -51,6 +52,13 @@ class UnifiedControlTool(BaseTool):
             required=False,
             items={"type": "string"},
             min_items=1,
+        ),
+        ToolParameter(
+            name="batch",
+            type="boolean",
+            description="Set true to explicitly allow multi-entity batch execution with entity_ids. Ignored for single entity_id.",
+            required=False,
+            default=False,
         ),
         ToolParameter(
             name="action",
@@ -162,6 +170,7 @@ class UnifiedControlTool(BaseTool):
         self,
         entity_id: str | None = None,
         entity_ids: list[str] | None = None,
+        batch: bool | None = None,
         action: str | None = None,
         brightness: int | None = None,
         color_temp_kelvin: int | None = None,
@@ -201,6 +210,11 @@ class UnifiedControlTool(BaseTool):
 
         # Batch mode: entity_ids takes priority
         if entity_ids and len(entity_ids) > 0:
+            if len(entity_ids) > 1 and batch is not True:
+                return ToolResult(
+                    success=False,
+                    message="Batch control requires explicit batch=true when using multiple entity_ids.",
+                )
             results: list[str] = []
             errors: list[str] = []
             for eid in entity_ids:

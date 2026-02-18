@@ -244,7 +244,9 @@ Global Tool Routing Policy:
 Rules:
 - Never fabricate entity IDs, targets, or capabilities.
 - Recent Entities are for pronouns only ("it", "that"), not new requests.
-- Area requests: use get_entities(area=...), then batch control with entity_ids.
+- Default assumption: user refers to one entity or one group entity.
+- Use get_entities(area=...) for area resolution; for control use entity_id unless user explicitly requests multiple/all devices.
+- Use entity_ids only for explicit multi-target intent and set control(batch=true).
 - Only try a related domain (light -> switch) when first domain returns zero matches.""")
 
         # Inject available area names so LLM uses correct names
@@ -265,7 +267,9 @@ Global Tool Routing Policy:
 Rules:
 - Never fabricate entity IDs, targets, or capabilities.
 - Recent Entities are for pronouns only ("it", "that"), not new requests.
-- Area requests: use get_entities(area=...), then batch control with entity_ids.
+- Default assumption: user refers to one entity or one group entity.
+- Use get_entities(area=...) for area resolution; for control use entity_id unless user explicitly requests multiple/all devices.
+- Use entity_ids only for explicit multi-target intent and set control(batch=true).
 - Only try a related domain (light -> switch) when first domain returns zero matches.""")
 
     # Safety and confirmation policy
@@ -273,11 +277,12 @@ Rules:
 Safety and Confirmation:
 - Never guess IDs/targets/actions when uncertain.
 - Critical actions (locks, alarms, security changes) require explicit user confirmation before execution.
-- If not confirmed yet, ask for explicit confirmation and do not execute the action.""")
+- If not confirmed yet, ask for explicit confirmation intent and do not execute the action.
+- Treat confirmation/cancellation semantically; do not rely on fixed keyword lists.""")
 
     parts.append("""
 Alarm Post-Fire Snooze:
-- If the user says a relative snooze phrase after an alarm fired (e.g., "noch 5 minuten", "5 more minutes"), call the alarm tool with action='snooze'.
+- If the user expresses relative snooze intent after an alarm fired, call the alarm tool with action='snooze'.
 - You may omit alarm_id only when recent fired alarm context clearly identifies one target.
 - If multiple recent fired alarms exist or no fired context exists, ask one short clarification and call await_response.""")
 
@@ -321,7 +326,9 @@ Reminders are already filtered per user. The 'owner' field shows whose calendar 
 Entity Control:
 Use control tool for lights, switches, covers, fans, climate, locks. Domain auto-detected.
 - Always call control() for on/off/toggle regardless of apparent state. Tool handles idempotency.
-- Groups: control by entity_id. Area requests: batch with entity_ids from get_entities(area=...).""")
+- Groups: control by entity_id.
+- For area commands, first resolve with get_entities(area=...). Then use single entity_id by default.
+- Only use entity_ids with control(batch=true) when user explicitly requests multiple/all targets.""")
 
     # Music/Radio instructions - only if music_assistant tool is registered
     if (await entity._get_tool_registry()).has_tool("music_assistant"):

@@ -479,19 +479,8 @@ class SmartAssistConversationEntity(ConversationEntity):
             getattr(user_input, 'device_id', None),
         )
         
-        # Quick action bypass (if enabled - disabled by default)
         if self._get_config(CONF_ENABLE_QUICK_ACTIONS, False):
-            quick_result = await self._try_quick_action(user_input.text)
-            if quick_result:
-                _LOGGER.debug("Quick action matched: %s", quick_result[:50])
-                # Add response to chat log
-                chat_log.async_add_assistant_content_without_tools(
-                    conversation.AssistantContent(
-                        agent_id=self.entity_id or "",
-                        content=quick_result,
-                    )
-                )
-                return self._build_result(user_input, chat_log, quick_result)
+            _LOGGER.debug("Quick action bypass is disabled by policy; routing via LLM/tool contract.")
 
         # Build messages for LLM (using our own message format with history)
         # Use async version to include calendar context if enabled
@@ -836,48 +825,6 @@ class SmartAssistConversationEntity(ConversationEntity):
             getattr(r, "tool_name", None) == "nevermind" or getattr(r, "name", None) == "nevermind"
             for r in tool_call_records
         )
-
-    async def _try_quick_action(self, text: str) -> str | None:
-        """Try to handle simple commands without LLM.
-
-        Returns response string if handled, None if LLM is needed.
-        """
-        text_lower = text.lower().strip()
-
-        # "turn on/off the [entity]" pattern
-        on_match = re.match(
-            r"(?:turn on|switch on|enable|activate)\s+(?:the\s+)?(.+)",
-            text_lower,
-        )
-        off_match = re.match(
-            r"(?:turn off|switch off|disable|deactivate)\s+(?:the\s+)?(.+)",
-            text_lower,
-        )
-
-        if on_match or off_match:
-            action = "turn_on" if on_match else "turn_off"
-            match = on_match if on_match else off_match
-            entity_name = match.group(1).strip() if match else ""
-
-            # Find matching entity
-            entities = self._entity_manager.get_all_entities()
-            matches = [
-                e for e in entities
-                if entity_name in e.friendly_name.lower()
-                or entity_name in e.entity_id.lower()
-            ]
-
-            if len(matches) == 1:
-                entity = matches[0]
-                result = await (await self._get_tool_registry()).execute(
-                    "control",
-                    {"entity_id": entity.entity_id, "action": action},
-                )
-                if result.success:
-                    action_text = "on" if action == "turn_on" else "off"
-                    return f"Turned {action_text} {entity.friendly_name}."
-
-        return None
 
     def _update_last_tts_engine_context(self, user_input: ConversationInput, satellite_id: str | None) -> None:
         """Remember best-effort TTS engine entity id for this conversation agent."""
