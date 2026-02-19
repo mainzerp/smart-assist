@@ -4,9 +4,63 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.32 | 2026-02-19 |
+| Smart Assist | 1.23.35 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.35 (2026-02-19) - Migrate Web Tool Name to local_web_search with Backward Compatibility
+
+**Fixes and Improvements:**
+- Migrated canonical web search tool name from `web_search` to `local_web_search` to reduce ambiguity with provider built-in style tool signatures.
+- Added registry alias mapping so legacy calls to `web_search` continue to resolve to the same implementation during transition.
+- Kept web-search latency budget floor behavior for both canonical and legacy names in shared execution.
+- Added regression tests for alias resolution/dispatch and canonical schema naming.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (119 passed)
+
+**Files modified:**
+- custom_components/smart_assist/tools/search_tools.py
+- custom_components/smart_assist/tools/base.py
+- custom_components/smart_assist/tools/__init__.py
+- custom_components/smart_assist/tool_executor.py
+- tests/test_tool_executor.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.23.34 (2026-02-19) - Groq Tool-Use Hardening for Web Search Argument Drift
+
+**Fixes and Improvements:**
+- Hardened `web_search` schema against provider/model argument drift by accepting compatibility fields `topn` and `source` (in addition to `cursor`/`id`).
+- Relaxed `max_results` schema upper bound for compatibility while preserving runtime safety via strict clamping to `1..5`.
+- Made `query` schema and runtime handling tolerant to missing/non-string values so provider-side strict validation no longer hard-fails the request path.
+- Added regression tests for numeric/compat arguments, schema tolerance, and runtime clamping behavior.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (116 passed)
+
+**Files modified:**
+- custom_components/smart_assist/tools/search_tools.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.23.33 (2026-02-19) - Web Search Missing-Query Tolerance for Groq Tool Validation
+
+**Fixes and Improvements:**
+- Updated `web_search` schema to tolerate omitted `query` values and accept `query` as string/number/null for model/provider compatibility.
+- Added runtime fallback handling in `web_search.execute(...)` for missing/non-string query values, including safe early failure instead of provider-hard abort paths.
+- Kept compatibility handling for `cursor`/`id` and added additional regression coverage for missing-query scenarios.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (115 passed)
+
+**Files modified:**
+- custom_components/smart_assist/tools/search_tools.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.32 (2026-02-19) - Web Search Numeric Compatibility Args
 

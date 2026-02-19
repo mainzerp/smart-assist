@@ -136,6 +136,35 @@ class TestToolRegistry:
         assert registry.has_tool("test_tool")
         assert registry.get("test_tool") == mock_tool
 
+    def test_registry_alias_resolves_get_and_has_tool(self) -> None:
+        """Legacy aliases should resolve to the canonical registered tool name."""
+        hass = MagicMock()
+        registry = ToolRegistry(hass)
+
+        mock_tool = MagicMock()
+        mock_tool.name = "local_web_search"
+        registry.register(mock_tool)
+        registry.register_alias("web_search", "local_web_search")
+
+        assert registry.has_tool("web_search")
+        assert registry.get("web_search") == mock_tool
+
+    async def test_registry_alias_executes_canonical_tool(self) -> None:
+        """Executing a legacy alias should dispatch to the canonical tool implementation."""
+        hass = MagicMock()
+        registry = ToolRegistry(hass)
+
+        mock_tool = MagicMock()
+        mock_tool.name = "local_web_search"
+        mock_tool.execute = AsyncMock(return_value=ToolResult(success=True, message="ok"))
+        registry.register(mock_tool)
+        registry.register_alias("web_search", "local_web_search")
+
+        result = await registry.execute("web_search", {"query": "test"})
+
+        assert result.success is True
+        mock_tool.execute.assert_awaited_once_with(query="test")
+
     def test_get_nonexistent_tool(self) -> None:
         """Test getting a tool that doesn't exist."""
         hass = MagicMock()
@@ -1181,6 +1210,22 @@ class TestCreateToolRegistry:
         assert "control" in registered_names
         assert schema_names == registered_names
 
+    def test_registry_keeps_legacy_web_search_alias(self) -> None:
+        """Registry should expose legacy web_search as alias to local_web_search."""
+        from custom_components.smart_assist.tools import create_tool_registry
+
+        hass = MagicMock()
+        hass.states.async_all.return_value = []
+
+        entry = MagicMock()
+        entry.data = {}
+        entry.options = {}
+
+        registry = create_tool_registry(hass, entry)
+
+        assert registry.has_tool("local_web_search")
+        assert registry.has_tool("web_search")
+
 
 class TestNotificationAndCalendarRuntimeMatching:
     """Runtime matching behavior for notification and calendar tools."""
@@ -1381,6 +1426,7 @@ class TestNotificationAndCalendarRuntimeMatching:
         from custom_components.smart_assist.tools.search_tools import WebSearchTool
 
         schema = WebSearchTool(MagicMock()).get_schema()
+        assert schema["function"]["name"] == "local_web_search"
         props = schema["function"]["parameters"]["properties"]
 
         cursor_types = {variant.get("type") for variant in props["cursor"]["anyOf"]}
@@ -1388,6 +1434,68 @@ class TestNotificationAndCalendarRuntimeMatching:
 
         assert {"string", "number", "null"}.issubset(cursor_types)
         assert {"string", "number", "null"}.issubset(id_types)
+
+    def test_web_search_schema_makes_query_tolerant(self) -> None:
+        """Schema should not hard-fail when query is omitted by model/provider generation."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        schema = WebSearchTool(MagicMock()).get_schema()
+        params = schema["function"]["parameters"]
+        props = params["properties"]
+
+        required = params.get("required", [])
+        assert "query" not in required
+        query_types = {variant.get("type") for variant in props["query"]["anyOf"]}
+        assert {"string", "number", "null"}.issubset(query_types)
+
+        topn_types = {variant.get("type") for variant in props["topn"]["anyOf"]}
+        source_types = {variant.get("type") for variant in props["source"]["anyOf"]}
+        assert {"string", "number", "null"}.issubset(topn_types)
+        assert {"string", "number", "null"}.issubset(source_types)
+
+    @pytest.mark.asyncio
+    async def test_web_search_missing_query_returns_clean_error(self) -> None:
+        """Missing query should fail gracefully without raising runtime exceptions."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        tool = WebSearchTool(MagicMock())
+        result = await tool.execute(query=None, cursor=123, id=456)
+
+        assert result.success is False
+        assert "missing query" in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_web_search_accepts_topn_source_and_clamps_runtime_max_results(self) -> None:
+        """Provider compatibility args should be accepted while runtime remains capped to 5 results."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        hass = MagicMock()
+        hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
+
+        client = MagicMock()
+        client.text.return_value = [
+            {
+                "title": "Result",
+                "body": "Body",
+                "href": "https://example.com",
+            }
+        ]
+
+        ddgs_module = MagicMock()
+        ddgs_module.DDGS = MagicMock(return_value=client)
+
+        with patch.dict(sys.modules, {"ddgs": ddgs_module}):
+            tool = WebSearchTool(hass)
+            result = await tool.execute(
+                query="test",
+                max_results=10,
+                topn=10,
+                source="web",
+            )
+
+        assert result.success is True
+        assert result.data["count"] == 1
+        client.text.assert_called_once_with("test", max_results=5)
 
     def test_calendar_similarity_penalizes_reordered_strings(self) -> None:
         """Reordered character strings should not score too close to exact order."""

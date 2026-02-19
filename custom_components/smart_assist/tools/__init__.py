@@ -188,7 +188,9 @@ def create_tool_registry(
     # Web search (if enabled in config - options override data)
     if _get_config(entry, CONF_ENABLE_WEB_SEARCH, True, subentry_data):
         registry.register(WebSearchTool(hass))
-        registered_tools.append("web_search")
+        registered_tools.append("local_web_search")
+        registry.register_alias("web_search", "local_web_search")
+        registered_tools.append("web_search(alias)")
     
     # Send/Notification tool (always available - dynamically shows available devices)
     # Allows sending links, messages to mobile devices via HA Companion App

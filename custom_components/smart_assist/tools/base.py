@@ -191,19 +191,32 @@ class ToolRegistry:
         """Initialize the tool registry."""
         self._hass = hass
         self._tools: dict[str, BaseTool] = {}
+        self._aliases: dict[str, str] = {}
 
     def register(self, tool: BaseTool) -> None:
         """Register a tool."""
         self._tools[tool.name] = tool
         _LOGGER.debug("Registered tool: %s", tool.name)
 
+    def register_alias(self, alias_name: str, target_name: str) -> None:
+        """Register a backwards-compatible alias for a tool name."""
+        if target_name not in self._tools:
+            _LOGGER.warning("Cannot register alias %s -> %s (target missing)", alias_name, target_name)
+            return
+        self._aliases[alias_name] = target_name
+        _LOGGER.debug("Registered tool alias: %s -> %s", alias_name, target_name)
+
+    def _resolve_name(self, name: str) -> str:
+        """Resolve a tool name through alias mappings."""
+        return self._aliases.get(name, name)
+
     def get(self, name: str) -> BaseTool | None:
         """Get a tool by name."""
-        return self._tools.get(name)
+        return self._tools.get(self._resolve_name(name))
 
     def has_tool(self, name: str) -> bool:
         """Check if a tool is registered."""
-        return name in self._tools
+        return self._resolve_name(name) in self._tools
 
     def get_all(self) -> list[BaseTool]:
         """Get all registered tools."""
@@ -237,9 +250,11 @@ class ToolRegistry:
         latency_budget_ms: int | None = None,
     ) -> ToolResult:
         """Execute a tool by name."""
-        tool = self._tools.get(name)
+        resolved_name = self._resolve_name(name)
+        tool = self._tools.get(resolved_name)
         if not tool:
-            _LOGGER.warning("Tool not found: %s (available: %s)", name, list(self._tools.keys()))
+            available = sorted({*self._tools.keys(), *self._aliases.keys()})
+            _LOGGER.warning("Tool not found: %s (available: %s)", name, available)
             return ToolResult(
                 success=False,
                 message=f"Unknown tool: {name}",

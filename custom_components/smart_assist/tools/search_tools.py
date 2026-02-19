@@ -27,7 +27,7 @@ def _sanitize_search_result(text: str) -> str:
 class WebSearchTool(BaseTool):
     """Tool for web search using DuckDuckGo."""
 
-    name = "web_search"
+    name = "local_web_search"
     description = "Search the web via DuckDuckGo for non-smart-home questions."
     parameters = [
         ToolParameter(
@@ -39,10 +39,10 @@ class WebSearchTool(BaseTool):
         ToolParameter(
             name="max_results",
             type="number",
-            description="Max results (1-5)",
+            description="Max results hint (runtime is safely clamped to 1-5)",
             required=False,
             minimum=1,
-            maximum=5,
+            maximum=20,
         ),
         ToolParameter(
             name="cursor",
@@ -56,14 +56,44 @@ class WebSearchTool(BaseTool):
             description="Optional request identifier. Ignored by this tool.",
             required=False,
         ),
+        ToolParameter(
+            name="topn",
+            type="number",
+            description="Optional result count hint from provider/model. Mapped to max_results.",
+            required=False,
+            minimum=1,
+            maximum=20,
+        ),
+        ToolParameter(
+            name="source",
+            type="string",
+            description="Optional source hint from provider/model. Ignored by this tool.",
+            required=False,
+        ),
     ]
 
     def get_schema(self) -> dict[str, Any]:
         """Get OpenAI-compatible tool schema with compatibility arg tolerance."""
         schema = super().get_schema()
+        parameters = schema.get("function", {}).get("parameters", {})
         properties = schema.get("function", {}).get("parameters", {}).get("properties", {})
 
-        for compat_key in ("cursor", "id"):
+        required = parameters.get("required", [])
+        if isinstance(required, list) and "query" in required:
+            parameters["required"] = [name for name in required if name != "query"]
+
+        query_prop = properties.get("query")
+        if isinstance(query_prop, dict):
+            query_prop["anyOf"] = [
+                {"type": "string"},
+                {"type": "number"},
+                {"type": "null"},
+            ]
+            query_prop["description"] = (
+                "Primary search query text. Strongly preferred; when missing, tool attempts safe fallback."
+            )
+
+        for compat_key in ("cursor", "id", "topn", "source"):
             prop = properties.get(compat_key)
             if not isinstance(prop, dict):
                 continue
@@ -77,13 +107,31 @@ class WebSearchTool(BaseTool):
 
     async def execute(
         self,
-        query: str,
+        query: str | int | float | None = None,
         max_results: int = 3,
         cursor: str | int | float | None = None,
         id: str | int | float | None = None,
+        topn: str | int | float | None = None,
+        source: str | int | float | None = None,
     ) -> ToolResult:
         """Execute the web_search tool."""
-        _ = (cursor, id)
+        _ = (cursor, id, source)
+
+        resolved_query = ""
+        if isinstance(query, str):
+            resolved_query = query.strip()
+        elif query is not None:
+            resolved_query = str(query).strip()
+
+        if not resolved_query and isinstance(cursor, str):
+            resolved_query = cursor.strip()
+
+        if not resolved_query:
+            return ToolResult(
+                success=False,
+                message="Search failed: missing query text.",
+            )
+
         try:
             from ddgs import DDGS
         except ImportError:
@@ -92,7 +140,18 @@ class WebSearchTool(BaseTool):
                 message="Web search is not available. DDGS library not installed.",
             )
 
-        max_results = min(max(1, max_results), 5)
+        try:
+            parsed_max_results = int(max_results)
+        except (TypeError, ValueError):
+            parsed_max_results = 3
+
+        if (parsed_max_results <= 0 or parsed_max_results > 20) and topn is not None:
+            try:
+                parsed_max_results = int(float(topn))
+            except (TypeError, ValueError):
+                pass
+
+        max_results = min(max(1, parsed_max_results), 5)
 
         try:
             # Run in executor to avoid blocking
@@ -105,14 +164,14 @@ class WebSearchTool(BaseTool):
                     if "impersonate" not in str(err):
                         raise
                     client = DDGS()
-                return client.text(query, max_results=max_results)
+                return client.text(resolved_query, max_results=max_results)
 
             results = await self._hass.async_add_executor_job(search)
 
             if not results:
                 return ToolResult(
                     success=True,
-                    message=f"No results found for: {query}",
+                    message=f"No results found for: {resolved_query}",
                 )
 
             # Format results
@@ -133,7 +192,7 @@ class WebSearchTool(BaseTool):
 
             return ToolResult(
                 success=True,
-                message=f"Search results for '{query}':\n\n" + "\n\n".join(formatted),
+                message=f"Search results for '{resolved_query}':\n\n" + "\n\n".join(formatted),
                 data={"results": sanitized_results, "count": len(sanitized_results)},
             )
 

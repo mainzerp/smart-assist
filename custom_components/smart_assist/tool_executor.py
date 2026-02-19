@@ -49,7 +49,7 @@ async def execute_tool_calls(
         """Execute a single tool call and return result with tracking record."""
         started = time.monotonic()
         effective_latency_budget_ms = latency_budget_ms
-        if tool_call.name == "web_search":
+        if tool_call.name in ("local_web_search", "web_search"):
             effective_latency_budget_ms = max(latency_budget_ms, WEB_SEARCH_MIN_LATENCY_BUDGET_MS)
         try:
             try:
