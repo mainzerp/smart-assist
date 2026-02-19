@@ -4,9 +4,39 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.21 | 2026-02-19 |
+| Smart Assist | 1.23.22 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.22 (2026-02-19) - Configurable Reasoning Effort (Groq/OpenRouter/Ollama)
+
+**Fixes & Improvements:**
+- Added unified `reasoning_effort` configuration with values `none`, `default`, `low`, `medium`, `high`
+- Mapped reasoning controls per provider:
+  - Groq: `reasoning_effort`
+  - OpenRouter: `reasoning` object (`enabled` / `effort`)
+  - Ollama: `think` (`false` or `low`/`medium`/`high`)
+- Added reasoning-effort selector to Conversation and AI Task create/reconfigure flows
+- Updated EN/DE translations and base strings for the new setting
+- Added LLM client payload tests for reasoning mapping and factory wiring
+
+**Validation:**
+- `pytest tests/test_llm_clients.py`
+
+**Files modified:**
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/llm/__init__.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/llm/ollama_client.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- tests/test_llm_clients.py
+- VERSION.md
 
 ### v1.23.21 (2026-02-19) - Prompt/Tool Optional Hardening (Phase 2)
 

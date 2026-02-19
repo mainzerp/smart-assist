@@ -41,6 +41,7 @@ def create_llm_client(
     provider: str,
     api_key: str = "",
     model: str = "",
+    reasoning_effort: str = "default",
     temperature: float = 0.5,
     max_tokens: int = 500,
     openrouter_provider: str = "auto",
@@ -55,6 +56,7 @@ def create_llm_client(
         provider: "openrouter", "groq", or "ollama"
         api_key: API key for cloud providers (not needed for Ollama)
         model: Model ID (e.g., 'openai/gpt-oss-120b', 'llama3.1:8b')
+        reasoning_effort: Reasoning effort profile (none/default/low/medium/high)
         temperature: Sampling temperature (0-2)
         max_tokens: Maximum completion tokens
         openrouter_provider: OpenRouter routing provider (only for OpenRouter)
@@ -74,6 +76,7 @@ def create_llm_client(
         return OllamaClient(
             base_url=ollama_url,
             model=model,
+            reasoning_effort=reasoning_effort,
             temperature=temperature,
             max_tokens=max_tokens,
             keep_alive=ollama_keep_alive,
@@ -90,6 +93,7 @@ def create_llm_client(
         return GroqClient(
             api_key=api_key,
             model=model,
+            reasoning_effort=reasoning_effort,
             temperature=temperature,
             max_tokens=max_tokens,
         )
@@ -99,6 +103,7 @@ def create_llm_client(
             api_key=api_key,
             model=model,
             provider=openrouter_provider,
+            reasoning_effort=reasoning_effort,
             temperature=temperature,
             max_tokens=max_tokens,
         )

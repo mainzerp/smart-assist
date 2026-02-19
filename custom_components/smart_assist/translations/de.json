@@ -118,6 +118,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
+            "reasoning_effort": "Reasoning-Stufe",
             "max_tokens": "Maximale Antwort-Tokens",
             "max_history": "Maximale Konversationshistorie",
             "language": "Antwortsprache",
@@ -143,6 +144,7 @@
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "reasoning_effort": "Steuert die Reasoning-Tiefe des Modells: none, default, low, medium, high (provider-/modellabhaengig).",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "max_history": "Anzahl vorheriger Nachrichten, die als Kontext behalten werden. Hoehere Werte verbrauchen mehr Tokens.",
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
@@ -197,6 +199,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperatur",
+            "reasoning_effort": "Reasoning-Stufe",
             "max_tokens": "Maximale Antwort-Tokens",
             "max_history": "Maximale Konversationshistorie",
             "language": "Antwortsprache",
@@ -223,6 +226,7 @@
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "reasoning_effort": "Steuert die Reasoning-Tiefe des Modells: none, default, low, medium, high (provider-/modellabhaengig).",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",
@@ -293,6 +297,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperatur (0 = praezise, 1 = kreativ)",
+            "reasoning_effort": "Reasoning-Stufe",
             "max_tokens": "Maximale Antwort-Tokens",
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
@@ -306,6 +311,7 @@
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "reasoning_effort": "Steuert die Reasoning-Tiefe des Modells: none, default, low, medium, high (provider-/modellabhaengig).",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "task_system_prompt": "Anweisungen fuer diesen AI Task in Automationen.",
@@ -338,6 +344,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperatur",
+            "reasoning_effort": "Reasoning-Stufe",
             "max_tokens": "Maximale Antwort-Tokens",
             "language": "Antwortsprache",
             "exposed_only": "Nur freigegebene Entities verwenden",
@@ -351,6 +358,7 @@
           "data_description": {
             "provider": "Nur OpenRouter: Waehle einen spezifischen Provider oder 'Automatisch' fuer bestes Preis-Routing.",
             "temperature": "Niedrigere Werte erzeugen konsistentere Ausgaben, hoehere Werte sind kreativer.",
+            "reasoning_effort": "Steuert die Reasoning-Tiefe des Modells: none, default, low, medium, high (provider-/modellabhaengig).",
             "max_tokens": "Maximale Anzahl von Tokens in der Antwort.",
             "language": "'auto' = nutzt HA-Sprache. Oder beliebige Sprache eingeben (z.B. 'French', 'es-ES', 'Japanese').",
             "exposed_only": "Steuert nur Entities, die in Home Assistant explizit freigegeben sind. Deaktivieren fuer Zugriff auf alle Entities.",

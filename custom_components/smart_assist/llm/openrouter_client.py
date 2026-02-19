@@ -10,10 +10,12 @@ import time
 from typing import Any, AsyncGenerator
 
 from ..const import (
+    DEFAULT_REASONING_EFFORT,
     LLM_MAX_RETRIES,
     LLM_RETRY_BASE_DELAY,
     LLM_RETRY_MAX_DELAY,
     OPENROUTER_API_URL,
+    REASONING_EFFORT_OPTIONS,
     PROVIDER_CACHING_SUPPORT,
     supports_prompt_caching,
 )
@@ -37,6 +39,7 @@ class OpenRouterClient(BaseLLMClient):
         api_key: str,
         model: str,
         provider: str = "auto",
+        reasoning_effort: str = DEFAULT_REASONING_EFFORT,
         temperature: float = 0.5,
         max_tokens: int = 500,
         enable_caching: bool = True,
@@ -45,6 +48,12 @@ class OpenRouterClient(BaseLLMClient):
         """Initialize the OpenRouter client."""
         super().__init__(api_key=api_key, model=model, temperature=temperature, max_tokens=max_tokens)
         self._provider = provider
+        normalized_effort = str(reasoning_effort or DEFAULT_REASONING_EFFORT).lower()
+        self._reasoning_effort = (
+            normalized_effort
+            if normalized_effort in REASONING_EFFORT_OPTIONS
+            else DEFAULT_REASONING_EFFORT
+        )
         self._cache_ttl_extended = cache_ttl_extended
         
         # Determine if caching is available based on model and provider
@@ -139,6 +148,16 @@ class OpenRouterClient(BaseLLMClient):
                 result.append(msg.to_dict())
         return result
 
+    def _apply_reasoning_payload(self, payload: dict[str, Any]) -> None:
+        """Apply OpenRouter reasoning controls from configured effort profile."""
+        effort = self._reasoning_effort
+        if effort == "default":
+            return
+        if effort == "none":
+            payload["reasoning"] = {"enabled": False}
+            return
+        payload["reasoning"] = {"effort": effort}
+
     async def chat(
         self,
         messages: list[ChatMessage],
@@ -161,6 +180,8 @@ class OpenRouterClient(BaseLLMClient):
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
+
+        self._apply_reasoning_payload(payload)
 
         if self._supports_native_schema_mode(
             use_native_structured_output=use_native_structured_output,
@@ -277,6 +298,8 @@ class OpenRouterClient(BaseLLMClient):
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
+
+        self._apply_reasoning_payload(payload)
 
         if self._provider and self._provider != "auto":
             payload["provider"] = {

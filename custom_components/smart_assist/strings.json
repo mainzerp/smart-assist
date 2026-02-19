@@ -118,6 +118,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperature (0 = precise, 1 = creative)",
+            "reasoning_effort": "Reasoning effort",
             "max_tokens": "Maximum response tokens",
             "max_history": "Maximum conversation history",
             "language": "Response Language",
@@ -140,6 +141,7 @@
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
             "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "reasoning_effort": "Controls model reasoning depth: none, default, low, medium, high (provider/model dependent).",
             "max_tokens": "Maximum number of tokens in the response.",
             "max_history": "Number of previous messages kept for context. Higher values use more tokens.",
             "language": "'auto' = uses HA language. Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
@@ -191,6 +193,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperature",
+            "reasoning_effort": "Reasoning effort",
             "max_tokens": "Maximum response tokens",
             "max_history": "Maximum conversation history",
             "language": "Response Language",
@@ -214,6 +217,7 @@
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
             "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "reasoning_effort": "Controls model reasoning depth: none, default, low, medium, high (provider/model dependent).",
             "max_tokens": "Maximum number of tokens in the response.",
             "language": "'auto' = uses HA language. Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
             "exposed_only": "Only controls entities that are explicitly exposed in Home Assistant. Disable to access all entities.",
@@ -281,6 +285,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperature (0 = precise, 1 = creative)",
+            "reasoning_effort": "Reasoning effort",
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
@@ -294,6 +299,7 @@
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
             "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "reasoning_effort": "Controls model reasoning depth: none, default, low, medium, high (provider/model dependent).",
             "max_tokens": "Maximum number of tokens in the response.",
             "language": "'auto' = uses HA language. Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
             "task_system_prompt": "Instructions for this AI task in automations.",
@@ -326,6 +332,7 @@
           "data": {
             "provider": "Provider Routing",
             "temperature": "Temperature",
+            "reasoning_effort": "Reasoning effort",
             "max_tokens": "Maximum response tokens",
             "language": "Response Language",
             "exposed_only": "Use only exposed entities",
@@ -339,6 +346,7 @@
           "data_description": {
             "provider": "OpenRouter only: Select a specific provider or use 'Automatic' for best price routing.",
             "temperature": "Lower values produce more consistent outputs, higher values are more creative.",
+            "reasoning_effort": "Controls model reasoning depth: none, default, low, medium, high (provider/model dependent).",
             "max_tokens": "Maximum number of tokens in the response.",
             "language": "'auto' = uses HA language. Or enter any language (e.g., 'French', 'es-ES', 'Japanese').",
             "exposed_only": "Only controls entities that are explicitly exposed in Home Assistant. Disable to access all entities.",

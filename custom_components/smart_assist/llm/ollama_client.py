@@ -14,11 +14,13 @@ import aiohttp
 from .base_client import BaseLLMClient, LLMMetrics
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 from ..const import (
+    DEFAULT_REASONING_EFFORT,
     OLLAMA_DEFAULT_URL,
     OLLAMA_DEFAULT_MODEL,
     OLLAMA_DEFAULT_KEEP_ALIVE,
     OLLAMA_DEFAULT_NUM_CTX,
     OLLAMA_DEFAULT_TIMEOUT,
+    REASONING_EFFORT_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,6 +77,7 @@ class OllamaClient(BaseLLMClient):
         self,
         base_url: str = OLLAMA_DEFAULT_URL,
         model: str = OLLAMA_DEFAULT_MODEL,
+        reasoning_effort: str = DEFAULT_REASONING_EFFORT,
         temperature: float = 0.5,
         max_tokens: int = 500,
         keep_alive: str = OLLAMA_DEFAULT_KEEP_ALIVE,
@@ -94,6 +97,12 @@ class OllamaClient(BaseLLMClient):
         """
         super().__init__(api_key="", model=model, temperature=temperature, max_tokens=max_tokens)
         self._base_url = base_url.rstrip("/")
+        normalized_effort = str(reasoning_effort or DEFAULT_REASONING_EFFORT).lower()
+        self._reasoning_effort = (
+            normalized_effort
+            if normalized_effort in REASONING_EFFORT_OPTIONS
+            else DEFAULT_REASONING_EFFORT
+        )
         self._keep_alive = keep_alive
         self._num_ctx = num_ctx
         self._timeout = timeout
@@ -346,6 +355,16 @@ class OllamaClient(BaseLLMClient):
         # Otherwise return as-is (string like "5m", "1h")
         return self._keep_alive
 
+    def _apply_reasoning_payload(self, payload: dict[str, Any]) -> None:
+        """Apply Ollama thinking controls from configured effort profile."""
+        effort = self._reasoning_effort
+        if effort == "default":
+            return
+        if effort == "none":
+            payload["think"] = False
+            return
+        payload["think"] = effort
+
     async def chat(
         self,
         messages: list[ChatMessage],
@@ -392,6 +411,8 @@ class OllamaClient(BaseLLMClient):
                         "but Ollama will handle appropriately)",
                         self._model
                     )
+
+            self._apply_reasoning_payload(payload)
             
             async with session.post(
                 f"{self._base_url}/api/chat",
@@ -514,6 +535,8 @@ class OllamaClient(BaseLLMClient):
             # Always send tools - Ollama handles model capabilities
             if tools:
                 payload["tools"] = self._convert_tools(tools)
+
+            self._apply_reasoning_payload(payload)
             
             async with session.post(
                 f"{self._base_url}/api/chat",
@@ -616,6 +639,8 @@ class OllamaClient(BaseLLMClient):
             # Always send tools - Ollama handles model capabilities
             if tools:
                 payload["tools"] = self._convert_tools(tools)
+
+            self._apply_reasoning_payload(payload)
             
             async with session.post(
                 f"{self._base_url}/api/chat",

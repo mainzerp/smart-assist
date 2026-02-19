@@ -11,6 +11,7 @@ CONF_GROQ_API_KEY: Final = "groq_api_key"
 CONF_LLM_PROVIDER: Final = "llm_provider"  # "openrouter" or "groq"
 CONF_MODEL: Final = "model"
 CONF_PROVIDER: Final = "provider"  # OpenRouter routing provider (auto, anthropic, etc.)
+CONF_REASONING_EFFORT: Final = "reasoning_effort"
 CONF_TEMPERATURE: Final = "temperature"
 CONF_MAX_TOKENS: Final = "max_tokens"
 CONF_LANGUAGE: Final = "language"
@@ -59,6 +60,8 @@ CONF_OLLAMA_TIMEOUT: Final = "ollama_timeout"
 # Default values
 DEFAULT_MODEL: Final = "openai/gpt-oss-120b"
 DEFAULT_PROVIDER: Final = "groq"
+DEFAULT_REASONING_EFFORT: Final = "default"
+REASONING_EFFORT_OPTIONS: Final = ["none", "default", "low", "medium", "high"]
 DEFAULT_LLM_PROVIDER: Final = "openrouter"  # Use OpenRouter by default for backwards compatibility
 DEFAULT_TEMPERATURE: Final = 0.5
 DEFAULT_MAX_TOKENS: Final = 500

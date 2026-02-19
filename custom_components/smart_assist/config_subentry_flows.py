@@ -73,6 +73,7 @@ from .const import (
     CONF_OLLAMA_TIMEOUT,
     CONF_OLLAMA_URL,
     CONF_PROVIDER,
+    CONF_REASONING_EFFORT,
     CONF_TASK_ALLOW_CONTROL,
     CONF_TASK_ALLOW_LOCK_CONTROL,
     CONF_TASK_ENABLE_CACHE_WARMING,
@@ -110,6 +111,7 @@ from .const import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
+    DEFAULT_REASONING_EFFORT,
     DEFAULT_TASK_ALLOW_CONTROL,
     DEFAULT_TASK_ALLOW_LOCK_CONTROL,
     DEFAULT_TASK_ENABLE_CACHE_WARMING,
@@ -127,6 +129,7 @@ from .const import (
     OLLAMA_DEFAULT_NUM_CTX,
     OLLAMA_DEFAULT_TIMEOUT,
     OLLAMA_DEFAULT_URL,
+    REASONING_EFFORT_OPTIONS,
     TOOL_LATENCY_BUDGET_MS_MAX,
     TOOL_LATENCY_BUDGET_MS_MIN,
     TOOL_MAX_RETRIES_MAX,
@@ -136,6 +139,11 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+REASONING_EFFORT_SELECTOR_OPTIONS: list[dict[str, str]] = [
+    {"value": value, "label": value.capitalize()} for value in REASONING_EFFORT_OPTIONS
+]
 
 
 class SmartAssistSubentryFlowHandler(ConfigSubentryFlow):
@@ -335,6 +343,12 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
         schema_dict.update({
             vol.Required(CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE): NumberSelector(
                 NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_REASONING_EFFORT, default=DEFAULT_REASONING_EFFORT): SelectSelector(
+                SelectSelectorConfig(
+                    options=REASONING_EFFORT_SELECTOR_OPTIONS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
             ),
             vol.Required(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
@@ -598,6 +612,12 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_TEMPERATURE): NumberSelector(
                 NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
             ),
+            vol.Required(CONF_REASONING_EFFORT, default=DEFAULT_REASONING_EFFORT): SelectSelector(
+                SelectSelectorConfig(
+                    options=REASONING_EFFORT_SELECTOR_OPTIONS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Required(CONF_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
             ),
@@ -826,6 +846,12 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
             vol.Required(CONF_TEMPERATURE, default=DEFAULT_TEMPERATURE): NumberSelector(
                 NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
             ),
+            vol.Required(CONF_REASONING_EFFORT, default=DEFAULT_REASONING_EFFORT): SelectSelector(
+                SelectSelectorConfig(
+                    options=REASONING_EFFORT_SELECTOR_OPTIONS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Required(CONF_MAX_TOKENS, default=DEFAULT_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)
             ),
@@ -1020,6 +1046,12 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
         schema_dict.update({
             vol.Required(CONF_TEMPERATURE): NumberSelector(
                 NumberSelectorConfig(min=0.0, max=1.0, step=0.1, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_REASONING_EFFORT, default=DEFAULT_REASONING_EFFORT): SelectSelector(
+                SelectSelectorConfig(
+                    options=REASONING_EFFORT_SELECTOR_OPTIONS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
             ),
             vol.Required(CONF_MAX_TOKENS): NumberSelector(
                 NumberSelectorConfig(min=100, max=4000, step=100, mode=NumberSelectorMode.SLIDER)

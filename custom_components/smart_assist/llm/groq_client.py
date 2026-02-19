@@ -14,7 +14,9 @@ from .base_client import BaseLLMClient, LLMMetrics, LLMClientError
 from .models import ChatMessage, ChatResponse, LLMError, MessageRole, ToolCall
 from ..utils import sanitize_user_facing_error
 from ..const import (
+    DEFAULT_REASONING_EFFORT,
     GROQ_API_URL,
+    REASONING_EFFORT_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ class GroqClient(BaseLLMClient):
         self,
         api_key: str,
         model: str,
+        reasoning_effort: str = DEFAULT_REASONING_EFFORT,
         temperature: float = 0.5,
         max_tokens: int = 500,
     ) -> None:
@@ -47,6 +50,18 @@ class GroqClient(BaseLLMClient):
             max_tokens: Maximum completion tokens
         """
         super().__init__(api_key=api_key, model=model, temperature=temperature, max_tokens=int(max_tokens))
+        normalized_effort = str(reasoning_effort or DEFAULT_REASONING_EFFORT).lower()
+        self._reasoning_effort = (
+            normalized_effort
+            if normalized_effort in REASONING_EFFORT_OPTIONS
+            else DEFAULT_REASONING_EFFORT
+        )
+
+    def _apply_reasoning_payload(self, payload: dict[str, Any]) -> None:
+        """Apply Groq reasoning effort field when explicitly configured."""
+        if self._reasoning_effort == "default":
+            return
+        payload["reasoning_effort"] = self._reasoning_effort
     
     def _get_api_url(self) -> str:
         """Return the Groq API endpoint URL."""
@@ -106,6 +121,8 @@ class GroqClient(BaseLLMClient):
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
+
+        self._apply_reasoning_payload(payload)
 
         _LOGGER.debug("Sending streaming request to Groq: %s", self._model)
 
@@ -276,6 +293,8 @@ class GroqClient(BaseLLMClient):
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
+
+        self._apply_reasoning_payload(payload)
 
         _LOGGER.debug("Sending request to Groq: %s", self._model)
         
