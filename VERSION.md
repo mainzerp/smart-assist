@@ -4,9 +4,21 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.25 | 2026-02-19 |
+| Smart Assist | 1.23.26 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.26 (2026-02-19) - Manifest Version Synchronization
+
+**Fixes & Improvements:**
+- Synced integration manifest version to current release line.
+
+**Validation:**
+- `custom_components/smart_assist/manifest.json` version matches `VERSION.md` current version.
+
+**Files modified:**
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.25 (2026-02-19) - Prompt Routing and Tool Description Clarity
 
