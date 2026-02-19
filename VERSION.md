@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.28 | 2026-02-19 |
+| Smart Assist | 1.23.29 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.29 (2026-02-19) - Recovery for Provider Tool Schema Validation Failures
+
+**Fixes and Improvements:**
+- Added non-streaming recovery in the streaming loop for provider-side tool schema validation failures (`status=400`, `tool_use_failed`) so one malformed tool generation no longer aborts the full request immediately.
+- Added a strict corrective retry instruction that forces schema-compliant tool arguments on the next attempt.
+- Propagated provider error metadata (`provider_error_code`, `provider_error_message`) on Groq errors to enable targeted recovery logic.
+- Added regression coverage for the recovery path in streaming tests.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (110 passed)
+
+**Files modified:**
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/llm/groq_client.py
+- tests/test_streaming.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.28 (2026-02-19) - Web Search Timeout Hardening + Groq Error Observability
 

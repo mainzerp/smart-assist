@@ -453,6 +453,7 @@ async def call_llm_streaming_with_tools(
     malformed_recovery_retries = 0
     missing_tool_route_retries = 0
     textual_await_response_retries = 0
+    provider_tool_validation_retries = 0
 
     tool_max_retries = int(entity._get_config(CONF_TOOL_MAX_RETRIES, DEFAULT_TOOL_MAX_RETRIES))
     tool_latency_budget_ms = int(
@@ -554,10 +555,43 @@ async def call_llm_streaming_with_tools(
         if not use_streaming:
             # Non-streaming for iterations after tool calls
             # This avoids issues with ChatLog expecting a single stream
-            response = await entity._llm_client.chat(
-                messages=working_messages,
-                tools=tools,
-            )
+            try:
+                response = await entity._llm_client.chat(
+                    messages=working_messages,
+                    tools=tools,
+                )
+            except Exception as chat_err:
+                status_code = getattr(chat_err, "status_code", None)
+                provider_error_code = str(getattr(chat_err, "provider_error_code", "") or "").lower()
+                provider_error_message = str(
+                    getattr(chat_err, "provider_error_message", "") or str(chat_err)
+                ).lower()
+                is_tool_validation_failure = (
+                    status_code == 400
+                    and (
+                        provider_error_code == "tool_use_failed"
+                        or "tool call validation failed" in provider_error_message
+                    )
+                )
+
+                if is_tool_validation_failure and provider_tool_validation_retries < 1:
+                    provider_tool_validation_retries += 1
+                    _LOGGER.warning(
+                        "[USER-REQUEST] Provider rejected tool args (schema validation). Retrying once with strict schema-only tool-call instruction."
+                    )
+                    working_messages.append(
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=(
+                                "Your previous tool call arguments violated the tool schema. "
+                                "Retry now with exactly one valid tool call using only declared parameters. "
+                                "Do not include unknown keys such as id or cursor, and do not omit required keys."
+                            ),
+                        )
+                    )
+                    continue
+
+                raise
             if response.content:
                 iteration_content = response.content
             if response.tool_calls:

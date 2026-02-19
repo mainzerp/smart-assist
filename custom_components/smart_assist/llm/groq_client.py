@@ -22,6 +22,22 @@ from ..const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _extract_provider_error_details(error_text: str) -> tuple[str, str]:
+    """Extract provider error code/message from Groq error payload text."""
+    try:
+        payload = json.loads(error_text or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return "", ""
+
+    error_obj = payload.get("error", {}) if isinstance(payload, dict) else {}
+    if not isinstance(error_obj, dict):
+        return "", ""
+
+    code = str(error_obj.get("code", "") or "")
+    message = str(error_obj.get("message", "") or "")
+    return code, message
+
+
 class GroqError(LLMError):
     """Exception for Groq API errors."""
     pass
@@ -135,14 +151,21 @@ class GroqClient(BaseLLMClient):
             async with await self._execute_with_retry(session, payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
+                    provider_error_code, provider_error_message = _extract_provider_error_details(
+                        error_text
+                    )
                     _LOGGER.error("Groq API error: %s", error_text)
                     self._metrics.failed_requests += 1
-                    raise GroqError(
+                    err = GroqError(
                         sanitize_user_facing_error(
                             f"API error: {response.status} - {error_text}",
                             fallback=f"API error: {response.status}",
-                        )
+                        ),
+                        response.status,
                     )
+                    setattr(err, "provider_error_code", provider_error_code)
+                    setattr(err, "provider_error_message", provider_error_message)
+                    raise err
 
                 async for line in response.content:
                     line = line.decode("utf-8").strip()
@@ -305,18 +328,25 @@ class GroqClient(BaseLLMClient):
             async with await self._execute_with_retry(session, payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
+                    provider_error_code, provider_error_message = _extract_provider_error_details(
+                        error_text
+                    )
                     _LOGGER.error(
                         "Groq API error (non-stream): status=%s, body=%s",
                         response.status,
                         (error_text or "")[:300],
                     )
                     self._metrics.failed_requests += 1
-                    raise GroqError(
+                    err = GroqError(
                         sanitize_user_facing_error(
                             f"API error: {response.status} - {error_text}",
                             fallback=f"API error: {response.status}",
-                        )
+                        ),
+                        response.status,
                     )
+                    setattr(err, "provider_error_code", provider_error_code)
+                    setattr(err, "provider_error_message", provider_error_message)
+                    raise err
 
                 data = await response.json()
                 

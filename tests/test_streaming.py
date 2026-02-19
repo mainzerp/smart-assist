@@ -18,6 +18,7 @@ from custom_components.smart_assist.streaming import (  # noqa: E402
 from custom_components.smart_assist.llm.models import (  # noqa: E402
     ChatMessage,
     ChatResponse,
+    LLMError,
     MessageRole,
     ToolCall,
 )
@@ -507,3 +508,42 @@ async def test_textual_await_response_output_retries_until_real_tool_call() -> N
     ]
     assert any("Do not output await_response(...) as plain text" in content for content in system_messages)
     assert any("exactly one await_response tool call" in content for content in system_messages)
+
+
+@pytest.mark.asyncio
+async def test_provider_tool_schema_failure_retries_with_strict_instruction() -> None:
+    err = LLMError("Provider request failed", status_code=400)
+    setattr(err, "provider_error_code", "tool_use_failed")
+    setattr(err, "provider_error_message", "tool call validation failed")
+
+    entity = _FakeEntity(
+        [
+            ChatResponse(content="", tool_calls=[ToolCall(id="w1", name="web_search", arguments={"query": "q"})]),
+            err,
+            ChatResponse(content="", tool_calls=[ToolCall(id="w2", name="web_search", arguments={"query": "q2"})]),
+            ChatResponse(content="Antwort fertig.", tool_calls=[]),
+        ]
+    )
+
+    content, await_response, iterations, records = await call_llm_streaming_with_tools(
+        entity=entity,
+        messages=[ChatMessage(role=MessageRole.USER, content="Bitte such das im Web")],
+        tools=[],
+        cached_prefix_length=0,
+        chat_log=_FakeChatLog(),
+        conversation_id="conv1",
+    )
+
+    assert content == "Antwort fertig."
+    assert await_response is False
+    assert iterations == 4
+    assert len(records) == 2
+
+    all_message_batches = [call.kwargs["messages"] for call in entity._llm_client.chat.await_args_list]
+    system_messages = [
+        msg.content
+        for batch in all_message_batches
+        for msg in batch
+        if msg.role == MessageRole.SYSTEM
+    ]
+    assert any("violated the tool schema" in message for message in system_messages)
