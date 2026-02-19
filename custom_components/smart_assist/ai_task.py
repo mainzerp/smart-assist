@@ -262,6 +262,7 @@ class SmartAssistAITask(AITaskEntity):
             response_content = await self._process_with_tools(
                 messages,
                 tools,
+                original_instructions=instructions,
                 response_schema=structured_schema,
                 response_schema_name=(
                     str(getattr(task, "task_name", "smart_assist_task") or "smart_assist_task")
@@ -669,6 +670,7 @@ Focus on completing the task efficiently and providing structured, useful output
         messages: list[ChatMessage],
         tools: list[dict[str, Any]],
         max_iterations: int = 5,
+        original_instructions: str | None = None,
         response_schema: dict[str, Any] | None = None,
         response_schema_name: str | None = None,
         use_native_structured_output: bool = False,
@@ -748,6 +750,23 @@ Focus on completing the task efficiently and providing structured, useful output
             allowed_tool_calls: list[Any] = []
             blocked_messages: dict[str, ChatMessage] = {}
             for tool_call in response.tool_calls:
+                if (
+                    tool_call.name == "send"
+                    and self._tool_registry.has_tool("satellite_announce")
+                    and self._instruction_requests_satellite_announce(original_instructions)
+                ):
+                    blocked_messages[tool_call.id] = ChatMessage(
+                        role=MessageRole.TOOL,
+                        content=(
+                            "Do not use send for voice satellite announcements. "
+                            "Use satellite_announce with all=true for all satellites, "
+                            "or satellite_entity_id/satellite_entity_ids for specific satellites."
+                        ),
+                        tool_call_id=tool_call.id,
+                        name=tool_call.name,
+                    )
+                    continue
+
                 if tool_call.name != "control":
                     allowed_tool_calls.append(tool_call)
                     continue
@@ -826,6 +845,16 @@ Focus on completing the task efficiently and providing structured, useful output
         self._last_llm_iterations = iteration
         _LOGGER.warning("AI Task max iterations reached")
         return response.content or ""
+
+    @staticmethod
+    def _instruction_requests_satellite_announce(instructions: str | None) -> bool:
+        """Heuristic: True when user instructions explicitly request satellite voice announce."""
+        if not instructions:
+            return False
+        normalized = str(instructions).lower()
+        wants_announce = any(token in normalized for token in ("announce", "ansage", "durchsage"))
+        wants_satellite = any(token in normalized for token in ("satellite", "satellit", "satllite", "satllites"))
+        return wants_announce and wants_satellite
 
     async def async_will_remove_from_hass(self) -> None:
         """Clean up when entity is removed."""

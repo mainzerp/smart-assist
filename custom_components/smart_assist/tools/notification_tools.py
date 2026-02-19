@@ -37,6 +37,7 @@ class SendTool(BaseTool):
     name = "send"
     description = (
         "Send content (links, text, messages) to a Home Assistant notification target. "
+        "This is for notify/mobile services, not for Assist satellite voice announcements. "
         "Use only when a target can be resolved with confidence; otherwise ask clarification via await_response."
     )
     parameters = [

@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.15 | 2026-02-19 |
+| Smart Assist | 1.23.16 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.16 (2026-02-19) - AI Task Satellite Announce Tool Routing Guard
+
+**Fixes & Improvements:**
+- Added AI Task routing guard: when instructions clearly request satellite announcements, `send` tool calls are blocked and rerouted via tool feedback to `satellite_announce`
+- Improved `send` tool description to explicitly mark it as notify/mobile messaging (not satellite voice announcements)
+- Added regression test for AI Task send-block behavior under satellite-announce intent
+
+**Validation:**
+- `pytest tests/test_ai_task.py -k "blocks_send_for_satellite_announce_intent"`
+- `pytest tests/test_tools.py -k "SatelliteAnnounceTool or satellite_announce"`
+
+**Files modified:**
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/tools/notification_tools.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.15 (2026-02-19) - Satellite Broadcast (`all=true`) for AI Task Announce
 
