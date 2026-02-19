@@ -618,7 +618,7 @@ async def call_llm_streaming_with_tools(
                             role=MessageRole.SYSTEM,
                             content=(
                                 "Do not output await_response(...) as plain text. "
-                                "Now call exactly one await_response tool with valid JSON arguments and no free text."
+                                "Now call exactly one await_response tool call with valid JSON arguments and no free text."
                             ),
                         )
                     )
@@ -658,7 +658,7 @@ async def call_llm_streaming_with_tools(
                         content=(
                             "Your previous tool call arguments were malformed JSON. "
                             "Retry now with exactly one corrected tool call using a valid JSON object for function arguments. "
-                            "Do not return free text until the corrected tool call is issued."
+                            "Do not return free text or claim success until the corrected tool call is issued."
                         ),
                     )
                 )

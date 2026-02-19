@@ -1345,3 +1345,46 @@ class TestToolDescriptionContracts:
 
         assert "not satellite voice announce" in send_schema["description"].lower()
         assert "use send" in sat_schema["description"].lower()
+
+    def test_entity_state_and_history_descriptions_define_boundaries(self) -> None:
+        """Entity state/history descriptions should clearly separate now-state vs timeline usage."""
+        from custom_components.smart_assist.tools.entity_tools import GetEntityStateTool, GetEntityHistoryTool
+
+        state_schema = GetEntityStateTool(MagicMock()).get_schema()["function"]
+        history_schema = GetEntityHistoryTool(MagicMock()).get_schema()["function"]
+
+        assert "current-value lookup" in state_schema["description"]
+        assert "Do not use for past trends" in state_schema["description"]
+        assert "past-state/timeline" in history_schema["description"]
+        assert "Do not use for current status snapshots" in history_schema["description"]
+
+    def test_conversation_tool_descriptions_define_await_vs_cancel(self) -> None:
+        """Conversation tools should clearly separate follow-up vs explicit cancel usage."""
+        from custom_components.smart_assist.tools.conversation_tools import AwaitResponseTool, NevermindTool
+
+        await_schema = AwaitResponseTool(MagicMock()).get_schema()["function"]
+        nevermind_schema = NevermindTool(MagicMock()).get_schema()["function"]
+
+        assert "expects user input" in await_schema["description"]
+        assert "Do not use this for explicit cancel/dismiss intent" in await_schema["description"]
+        assert "cancel, dismiss, stop, or abort" in nevermind_schema["description"]
+        assert "do not use await_response" in nevermind_schema["description"].lower()
+
+    def test_scene_calendar_memory_descriptions_define_boundaries(self) -> None:
+        """Scene/calendar/memory descriptions should communicate tool boundaries and scope intent."""
+        from custom_components.smart_assist.tools.scene_tools import RunSceneTool, TriggerAutomationTool
+        from custom_components.smart_assist.tools.calendar_tools import GetCalendarEventsTool, CreateCalendarEventTool
+        from custom_components.smart_assist.tools.memory_tools import MemoryTool
+
+        run_scene_schema = RunSceneTool(MagicMock()).get_schema()["function"]
+        trigger_schema = TriggerAutomationTool(MagicMock()).get_schema()["function"]
+        get_calendar_schema = GetCalendarEventsTool(MagicMock()).get_schema()["function"]
+        create_calendar_schema = CreateCalendarEventTool(MagicMock()).get_schema()["function"]
+        memory_schema = MemoryTool(MagicMock(), MagicMock()).get_schema()["function"]
+
+        assert "Do not use control for scene activation" in run_scene_schema["description"]
+        assert "Do not use control for automation triggering" in trigger_schema["description"]
+        assert "Do not use for countdown timers or absolute alarm reminders" in get_calendar_schema["description"]
+        assert "Do not use for immediate countdown or wake/reminder alarm intents" in create_calendar_schema["description"]
+        assert "scope='user'" in memory_schema["description"]
+        assert "action='switch_user'" in memory_schema["description"]

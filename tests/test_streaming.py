@@ -287,6 +287,17 @@ async def test_malformed_tool_arguments_trigger_deterministic_correction_retry()
     assert len(records) == 1
     entity._registry.execute.assert_awaited_once()
 
+    all_message_batches = [call.kwargs["messages"] for call in entity._llm_client.chat.await_args_list]
+    system_messages = [
+        msg.content
+        for batch in all_message_batches
+        for msg in batch
+        if msg.role == MessageRole.SYSTEM
+    ]
+    assert any("malformed JSON" in content for content in system_messages)
+    assert any("exactly one corrected tool call" in content for content in system_messages)
+    assert any("Do not return free text or claim success" in content for content in system_messages)
+
 
 @pytest.mark.asyncio
 async def test_missing_tool_relative_snooze_requires_recent_fired_context(monkeypatch) -> None:
@@ -486,3 +497,13 @@ async def test_textual_await_response_output_retries_until_real_tool_call() -> N
     assert await_response is True
     assert iterations == 2
     assert records == []
+
+    all_message_batches = [call.kwargs["messages"] for call in entity._llm_client.chat.await_args_list]
+    system_messages = [
+        msg.content
+        for batch in all_message_batches
+        for msg in batch
+        if msg.role == MessageRole.SYSTEM
+    ]
+    assert any("Do not output await_response(...) as plain text" in content for content in system_messages)
+    assert any("exactly one await_response tool call" in content for content in system_messages)

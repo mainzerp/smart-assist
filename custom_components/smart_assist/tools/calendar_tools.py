@@ -20,7 +20,11 @@ class GetCalendarEventsTool(BaseTool):
     """Tool to query calendar events."""
 
     name = "get_calendar_events"
-    description = "Get upcoming calendar events for a time range."
+    description = (
+        "Get upcoming calendar events for a time range (calendar schedule lookup). "
+        "Use for agenda/event questions (today/tomorrow/this week). "
+        "Do not use for countdown timers or absolute alarm reminders; use timer or alarm for those intents."
+    )
     parameters = [
         ToolParameter(
             name="time_range",
@@ -214,7 +218,11 @@ class CreateCalendarEventTool(BaseTool):
     """Tool to create calendar events."""
 
     name = "create_calendar_event"
-    description = "Create a calendar event. Calendar can be a name or entity ID (fuzzy matched)."
+    description = (
+        "Create a calendar event in a selected calendar (name or entity ID, fuzzy matched). "
+        "Use for scheduling meetings/appointments/events. "
+        "Do not use for immediate countdown or wake/reminder alarm intents; use timer or alarm instead."
+    )
     parameters = [
         ToolParameter(
             name="calendar_id",

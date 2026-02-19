@@ -233,6 +233,16 @@ Language:
         "Alarm policy: alarm intent behavior stays event-compatible; fired alarms execute through the internal direct engine and must not change user-owned automations."
     )
 
+    parts.append("""
+Routing Precedence (strict):
+- state_query -> get_entity_state first -> get_entities only when target is unknown -> Never use control for read-only state questions.
+- entity_control -> control -> get_entities when target/entity_id is unknown -> Do not claim success before a successful control tool result.
+- media_playback -> music_assistant -> control only for generic media_player transport when music_assistant is unavailable.
+- calendar_event -> get_calendar_events/create_calendar_event -> alarm only for absolute alarm/reminder intents.
+- timer_countdown -> timer -> await_response when required duration/action details are missing.
+- user_cancel_dismiss -> nevermind -> await_response only when cancellation target is ambiguous.
+""")
+
     # Global intent routing and entity discovery policy (single source of truth)
     discovery_mode = entity._get_config(CONF_ENTITY_DISCOVERY_MODE, DEFAULT_ENTITY_DISCOVERY_MODE)
     if discovery_mode == "smart_discovery":
@@ -279,6 +289,12 @@ Safety and Confirmation:
 - Critical actions (locks, alarms, security changes) require explicit user confirmation before execution.
 - If not confirmed yet, ask for explicit confirmation intent and do not execute the action.
 - Treat confirmation/cancellation semantically; do not rely on fixed keyword lists.""")
+
+    parts.append("""
+Cancellation Semantics:
+- On explicit cancel/abort/dismiss intent, call nevermind (when available) instead of free-text completion.
+- Use await_response only when cancellation target or scope is unclear.
+""")
 
     parts.append("""
 Tool Boundaries:

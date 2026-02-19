@@ -4,9 +4,38 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.24 | 2026-02-19 |
+| Smart Assist | 1.23.25 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.25 (2026-02-19) - Prompt Routing and Tool Description Clarity
+
+**Fixes & Improvements:**
+- Added a single strict routing precedence matrix to the system prompt with explicit state-query and cancellation routing
+- Added explicit cancellation semantics (`nevermind` vs `await_response`) in the prompt policy block
+- Clarified tool description boundaries for entity state/history, conversation flow, scenes/automations, calendar intents, and memory scope selection
+- Aligned streaming retry wording for malformed arguments and textual `await_response(...)` recovery with the updated prompt/tool-call vocabulary
+- Extended prompt/tool/streaming contract tests for wording alignment and boundary coverage
+
+**Validation:**
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_prompt_builder.py -q`
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_tools.py -q`
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_streaming.py -q`
+- `F:/Github/smart-assist/.venv/Scripts/python.exe -m pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_tool_executor.py -q`
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`
+
+**Files modified:**
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/tools/entity_tools.py
+- custom_components/smart_assist/tools/conversation_tools.py
+- custom_components/smart_assist/tools/scene_tools.py
+- custom_components/smart_assist/tools/calendar_tools.py
+- custom_components/smart_assist/tools/memory_tools.py
+- tests/test_prompt_builder.py
+- tests/test_tools.py
+- tests/test_streaming.py
+- VERSION.md
 
 ### v1.23.24 (2026-02-19) - get_entities Fuzzy Name Fallback
 

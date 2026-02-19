@@ -15,7 +15,11 @@ class RunSceneTool(BaseTool):
     """Tool to activate a scene."""
 
     name = "run_scene"
-    description = "Activate a predefined scene."
+    description = (
+        "Activate a predefined Home Assistant scene by scene_id. "
+        "Use this for named scene intents like 'movie night' or 'good morning'. "
+        "Do not use control for scene activation; control is for direct entity actions."
+    )
     parameters = [
         ToolParameter(
             name="scene_id",
@@ -54,7 +58,11 @@ class TriggerAutomationTool(BaseTool):
     """Tool to manually trigger an automation."""
 
     name = "trigger_automation"
-    description = "Trigger a Home Assistant automation."
+    description = (
+        "Manually trigger a Home Assistant automation by automation_id. "
+        "Use this when user explicitly asks to run an automation now. "
+        "Do not use control for automation triggering; control targets entities, not automation runs."
+    )
     parameters = [
         ToolParameter(
             name="automation_id",

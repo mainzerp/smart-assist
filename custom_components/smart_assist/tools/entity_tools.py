@@ -208,7 +208,11 @@ class GetEntityStateTool(BaseTool):
     """Tool to get current state of an entity."""
 
     name = "get_entity_state"
-    description = "Get current state and attributes of an entity."
+    description = (
+        "Get current state and attributes of a single entity (current-value lookup). "
+        "Use this when user asks what something is now (on/off, temperature, status). "
+        "Do not use for past trends or historical timelines; use get_entity_history for that."
+    )
     parameters = [
         ToolParameter(
             name="entity_id",
@@ -267,7 +271,11 @@ class GetEntityHistoryTool(BaseTool):
     """Tool to get historical states of an entity."""
 
     name = "get_entity_history"
-    description = "Get historical states of an entity for past-state questions."
+    description = (
+        "Get historical states of an entity for past-state/timeline questions. "
+        "Use this when user asks about changes over time, earlier values, or trends. "
+        "Do not use for current status snapshots; use get_entity_state for now-state queries."
+    )
     parameters = [
         ToolParameter(
             name="entity_id",

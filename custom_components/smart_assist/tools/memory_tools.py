@@ -26,8 +26,9 @@ class MemoryTool(BaseTool):
 
     name = "memory"
     description = (
-        "Manage persistent user memories/preferences. "
-        "'switch_user' when user identifies themselves."
+        "Manage persistent memories/preferences with explicit action and scope selection. "
+        "Use scope='user' for user-specific facts, scope='agent' for assistant observations, and scope='global' for shared facts. "
+        "Use action='switch_user' when the user identifies themselves."
     )
     parameters = [
         ToolParameter(

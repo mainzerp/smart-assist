@@ -26,7 +26,8 @@ class AwaitResponseTool(BaseTool):
     name = "await_response"
     description = (
         "Signal that assistant expects user input and conversation should remain open. "
-        "Call whenever output asks a question, offers choices, or requests confirmation."
+        "Call whenever output asks a question, offers choices, or requests confirmation. "
+        "Do not use this for explicit cancel/dismiss intent; use nevermind for cancellation."
     )
     parameters = [
         ToolParameter(
@@ -69,7 +70,10 @@ class NevermindTool(BaseTool):
     """Signal that user wants to cancel/abort the interaction."""
 
     name = "nevermind"
-    description = "Call when user wants to cancel or dismiss the interaction."
+    description = (
+        "Call when user explicitly wants to cancel, dismiss, stop, or abort the interaction. "
+        "Use this for cancellation acknowledgments; do not use await_response unless cancel target is unclear."
+    )
     parameters = [
         ToolParameter(
             name="message",
