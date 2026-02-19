@@ -58,12 +58,29 @@ class WebSearchTool(BaseTool):
         ),
     ]
 
+    def get_schema(self) -> dict[str, Any]:
+        """Get OpenAI-compatible tool schema with compatibility arg tolerance."""
+        schema = super().get_schema()
+        properties = schema.get("function", {}).get("parameters", {}).get("properties", {})
+
+        for compat_key in ("cursor", "id"):
+            prop = properties.get(compat_key)
+            if not isinstance(prop, dict):
+                continue
+            prop["anyOf"] = [
+                {"type": "string"},
+                {"type": "number"},
+                {"type": "null"},
+            ]
+
+        return schema
+
     async def execute(
         self,
         query: str,
         max_results: int = 3,
-        cursor: str | None = None,
-        id: str | None = None,
+        cursor: str | int | float | None = None,
+        id: str | int | float | None = None,
     ) -> ToolResult:
         """Execute the web_search tool."""
         _ = (cursor, id)

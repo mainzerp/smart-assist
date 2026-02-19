@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.31 | 2026-02-19 |
+| Smart Assist | 1.23.32 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.32 (2026-02-19) - Web Search Numeric Compatibility Args
+
+**Fixes and Improvements:**
+- Hardened `web_search` schema to accept optional compatibility fields `cursor` and `id` as string, number, or null.
+- Updated `web_search.execute(...)` to safely accept numeric `cursor`/`id` values emitted by provider/model tool-call generation.
+- Added regression tests for numeric compatibility args and schema typing.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (113 passed)
+
+**Files modified:**
+- custom_components/smart_assist/tools/search_tools.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.31 (2026-02-19) - Web Search Schema Tolerance for Model Compatibility Args
 

@@ -1343,6 +1343,52 @@ class TestNotificationAndCalendarRuntimeMatching:
         assert result.data["count"] == 1
         client.text.assert_called_once_with("test", max_results=2)
 
+    @pytest.mark.asyncio
+    async def test_web_search_accepts_numeric_compat_cursor_and_id_args(self) -> None:
+        """Tool should tolerate numeric compatibility args emitted by provider/model."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        hass = MagicMock()
+        hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
+
+        client = MagicMock()
+        client.text.return_value = [
+            {
+                "title": "Result",
+                "body": "Body",
+                "href": "https://example.com",
+            }
+        ]
+
+        ddgs_module = MagicMock()
+        ddgs_module.DDGS = MagicMock(return_value=client)
+
+        with patch.dict(sys.modules, {"ddgs": ddgs_module}):
+            tool = WebSearchTool(hass)
+            result = await tool.execute(
+                query="test",
+                max_results=2,
+                cursor=123,
+                id=456,
+            )
+
+        assert result.success is True
+        assert result.data["count"] == 1
+        client.text.assert_called_once_with("test", max_results=2)
+
+    def test_web_search_schema_accepts_numeric_cursor_and_id(self) -> None:
+        """Schema should allow cursor/id as number for provider compatibility."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        schema = WebSearchTool(MagicMock()).get_schema()
+        props = schema["function"]["parameters"]["properties"]
+
+        cursor_types = {variant.get("type") for variant in props["cursor"]["anyOf"]}
+        id_types = {variant.get("type") for variant in props["id"]["anyOf"]}
+
+        assert {"string", "number", "null"}.issubset(cursor_types)
+        assert {"string", "number", "null"}.issubset(id_types)
+
     def test_calendar_similarity_penalizes_reordered_strings(self) -> None:
         """Reordered character strings should not score too close to exact order."""
         from custom_components.smart_assist.tools.calendar_tools import CreateCalendarEventTool
