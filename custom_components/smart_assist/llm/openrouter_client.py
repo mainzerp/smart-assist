@@ -503,17 +503,13 @@ class OpenRouterClient(BaseLLMClient):
         if raw_tool_calls := message.get("tool_calls"):
             for tc in raw_tool_calls:
                 func = tc.get("function", {})
-                args = func.get("arguments", "{}")
-                if isinstance(args, str):
-                    try:
-                        args = json.loads(args)
-                    except json.JSONDecodeError:
-                        args = {}
+                args, parse_status = self._parse_tool_arguments(func.get("arguments", "{}"))
                 tool_calls.append(
                     ToolCall(
                         id=tc.get("id", ""),
                         name=func.get("name", ""),
                         arguments=args,
+                        parse_status=parse_status,
                     )
                 )
 

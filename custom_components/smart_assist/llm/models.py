@@ -47,6 +47,7 @@ class ToolCall:
     id: str
     name: str
     arguments: dict[str, Any]
+    parse_status: str = "ok"
 
 
 @dataclass

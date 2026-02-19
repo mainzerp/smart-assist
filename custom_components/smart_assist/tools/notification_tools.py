@@ -37,14 +37,15 @@ class SendTool(BaseTool):
     name = "send"
     description = (
         "Send content (links, text, messages) to a Home Assistant notification target. "
-        "This is for notify/mobile services, not for Assist satellite voice announcements. "
+        "This is for notify/mobile push services and in-app notifications, not for spoken Assist satellite output. "
+        "For spoken announcements, use satellite_announce instead. "
         "Use only when a target can be resolved with confidence; otherwise ask clarification via await_response."
     )
     parameters = [
         ToolParameter(
             name="content",
             type="string",
-            description="Content (text, URLs, or messages)",
+            description="Notification content (text, URLs, or messages) for push/in-app delivery; not spoken TTS output.",
             required=True,
         ),
         ToolParameter(
@@ -127,7 +128,8 @@ class SendTool(BaseTool):
             target_info = ". ".join(parts)
             description = (
                 f"Send content to a notification target. "
-                f"Available: {target_info}. If target is ambiguous, ask clarification via await_response."
+                f"Available: {target_info}. This tool sends notify/mobile notifications only (not satellite voice announce). "
+                "If target is ambiguous, ask clarification via await_response."
             )
         else:
             description = (

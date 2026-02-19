@@ -336,14 +336,12 @@ class GroqClient(BaseLLMClient):
                 if raw_tools := message.get("tool_calls"):
                     for tc in raw_tools:
                         func = tc.get("function", {})
-                        try:
-                            args = json.loads(func.get("arguments", "{}"))
-                        except json.JSONDecodeError:
-                            args = {}
+                        args, parse_status = self._parse_tool_arguments(func.get("arguments", "{}"))
                         tool_calls.append(ToolCall(
                             id=tc.get("id", ""),
                             name=func.get("name", ""),
                             arguments=args,
+                            parse_status=parse_status,
                         ))
                 
                 return ChatResponse(

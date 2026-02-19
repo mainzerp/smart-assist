@@ -91,6 +91,8 @@ TASK_STRUCTURED_OUTPUT_SCHEMA_MISMATCH_DE: Final = "Entschuldigung, das struktur
 # Conversation engine constants
 TTS_STREAM_MIN_CHARS: Final = 65  # Minimum chars to trigger TTS streaming in Companion App
 MAX_TOOL_ITERATIONS: Final = 5  # Max LLM-tool execution loops per request
+MALFORMED_TOOL_RECOVERY_MAX_RETRIES: Final = 1  # Bounded correction retries for malformed tool args
+MISSING_TOOL_ROUTE_RECOVERY_MAX_RETRIES: Final = 1  # Bounded retries for no-tool when tool route is expected
 SESSION_MAX_MESSAGES: Final = 20  # Max messages per conversation session
 SESSION_RECENT_ENTITIES_MAX: Final = 5  # Max recent entities for pronoun resolution
 SESSION_EXPIRY_MINUTES: Final = 30  # Session timeout in minutes

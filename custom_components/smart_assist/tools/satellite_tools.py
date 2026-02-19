@@ -18,7 +18,8 @@ class SatelliteAnnounceTool(BaseTool):
     name = "satellite_announce"
     description = (
         "Announce a spoken message on one or more Assist satellites via assist_satellite.announce. "
-        "Use this for direct voice output."
+        "Use this for direct voice output on speakers/satellites. "
+        "Do not use this for mobile push notifications; use send for notify/mobile delivery."
     )
 
     parameters = [

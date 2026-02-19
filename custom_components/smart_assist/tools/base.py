@@ -95,6 +95,57 @@ class BaseTool(ABC):
             },
         }
 
+    @staticmethod
+    def _schema_rule_require_one_of(fields: list[str]) -> dict[str, Any]:
+        """Return a schema rule requiring exactly one of the given fields."""
+        return {
+            "oneOf": [{"required": [field]} for field in fields],
+        }
+
+    @staticmethod
+    def _schema_rule_require_any_of(fields: list[str]) -> dict[str, Any]:
+        """Return a schema rule requiring at least one of the given fields."""
+        return {
+            "anyOf": [{"required": [field]} for field in fields],
+        }
+
+    @staticmethod
+    def _schema_rule_if_action_requires(action: str, required_fields: list[str]) -> dict[str, Any]:
+        """Return a conditional schema rule for action-dependent required fields."""
+        return {
+            "if": {
+                "properties": {"action": {"const": action}},
+                "required": ["action"],
+            },
+            "then": {
+                "required": required_fields,
+            },
+        }
+
+    @staticmethod
+    def _schema_rule_if_action_then(action: str, then_clause: dict[str, Any]) -> dict[str, Any]:
+        """Return a conditional schema rule for arbitrary action-dependent clauses."""
+        return {
+            "if": {
+                "properties": {"action": {"const": action}},
+                "required": ["action"],
+            },
+            "then": then_clause,
+        }
+
+    @staticmethod
+    def _append_schema_all_of(schema: dict[str, Any], rules: list[dict[str, Any]]) -> dict[str, Any]:
+        """Append allOf rules to a generated tool schema in-place."""
+        parameters = schema.get("function", {}).get("parameters", {})
+        existing = parameters.get("allOf")
+        if isinstance(existing, list):
+            parameters["allOf"] = [*existing, *rules]
+        elif existing is not None:
+            parameters["allOf"] = [existing, *rules]
+        else:
+            parameters["allOf"] = list(rules)
+        return schema
+
     def _build_parameter_schema(self, param: ToolParameter) -> dict[str, Any]:
         """Build JSON schema for a single tool parameter."""
         value_schema: dict[str, Any] = {

@@ -10,7 +10,7 @@ Tools are loaded dynamically to minimize token usage in API requests.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -26,9 +26,40 @@ from ..const import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any
+    pass
 
 _LOGGER = logging.getLogger(__name__)
+
+
+_CORE_FIRST_TOOL_ORDER: tuple[str, ...] = (
+    "get_entities",
+    "get_entity_state",
+    "get_entity_history",
+    "control",
+    "await_response",
+    "nevermind",
+    "timer",
+    "alarm",
+)
+
+
+def get_ordered_tool_schemas(registry: ToolRegistry) -> list[dict[str, Any]]:
+    """Return deterministic, provider-agnostic tool schemas in core-first order."""
+    priority = {name: idx for idx, name in enumerate(_CORE_FIRST_TOOL_ORDER)}
+
+    def _tool_name(schema: dict[str, Any]) -> str:
+        function = schema.get("function")
+        if isinstance(function, dict):
+            name = function.get("name")
+            if isinstance(name, str):
+                return name
+        return ""
+
+    schemas = registry.get_schemas()
+    return sorted(
+        schemas,
+        key=lambda schema: (priority.get(_tool_name(schema), len(priority) + 100), _tool_name(schema)),
+    )
 
 
 def _get_config(
@@ -245,6 +276,7 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "create_tool_registry",
+    "get_ordered_tool_schemas",
     # Core tools
     "GetEntitiesTool",
     "GetEntityStateTool",

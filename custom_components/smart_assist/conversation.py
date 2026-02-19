@@ -122,7 +122,7 @@ try:
     from .context.user_resolver import UserResolver
     from .llm import ChatMessage, OpenRouterClient, GroqClient, create_llm_client
     from .llm.models import ToolCall
-    from .tools import create_tool_registry, ToolRegistry
+    from .tools import create_tool_registry, ToolRegistry, get_ordered_tool_schemas
     from .utils import clean_for_tts, get_config_value
     from .prompt_builder import (
         build_system_prompt as _build_system_prompt_impl,
@@ -434,7 +434,8 @@ class SmartAssistConversationEntity(ConversationEntity):
             # Build messages using async version (same path as real requests)
             # This ensures calendar context loading is included in the code path
             messages, cached_prefix_length = await self._build_messages_for_llm_async("ping", chat_log=None, dry_run=True)
-            tools = (await self._get_tool_registry()).get_schemas()
+            tool_registry = await self._get_tool_registry()
+            tools = get_ordered_tool_schemas(tool_registry)
             
             # Log registered tools for debugging cache issues
             tool_names = [t.get("function", {}).get("name", "unknown") for t in tools]
@@ -538,17 +539,17 @@ class SmartAssistConversationEntity(ConversationEntity):
             conversation_id=user_input.conversation_id,
             user_id=user_id,
         )
-        tools = (await self._get_tool_registry()).get_schemas()
+        tool_registry = await self._get_tool_registry()
+        tools = get_ordered_tool_schemas(tool_registry)
         
         # Set device_id on tools so timer intents know which device to use
-        (await self._get_tool_registry()).set_device_id(device_id)
+        tool_registry.set_device_id(device_id)
         # Set satellite_id on tools for satellite-aware player resolution
-        (await self._get_tool_registry()).set_satellite_id(satellite_id)
+        tool_registry.set_satellite_id(satellite_id)
         # Set conversation_agent_id so timer commands route back to this agent
-        (await self._get_tool_registry()).set_conversation_agent_id(self.entity_id)
+        tool_registry.set_conversation_agent_id(self.entity_id)
         
         # Set user context on memory tool
-        tool_registry = await self._get_tool_registry()
         memory_tool = tool_registry.get("memory")
         if memory_tool:
             memory_tool._current_user_id = user_id

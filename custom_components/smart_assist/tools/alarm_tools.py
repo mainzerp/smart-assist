@@ -155,6 +155,33 @@ class AlarmTool(BaseTool):
         super().__init__(hass)
         self._entry_id = entry_id
 
+    def get_schema(self) -> dict[str, Any]:
+        """Get OpenAI-compatible tool schema with action-dependent constraints."""
+        schema = super().get_schema()
+        return self._append_schema_all_of(
+            schema,
+            [
+                self._schema_rule_if_action_then(
+                    "set",
+                    {
+                        "anyOf": [
+                            {"required": ["datetime"]},
+                            {"required": ["time"]},
+                        ]
+                    },
+                ),
+                self._schema_rule_if_action_requires("snooze", ["minutes"]),
+                self._schema_rule_if_action_then(
+                    "cancel",
+                    self._schema_rule_require_any_of(["alarm_id", "display_id"]),
+                ),
+                self._schema_rule_if_action_then(
+                    "edit",
+                    self._schema_rule_require_any_of(["alarm_id", "display_id"]),
+                ),
+            ],
+        )
+
     async def execute(
         self,
         action: str,
@@ -276,6 +303,8 @@ class AlarmTool(BaseTool):
                 return ToolResult(True, f"Alarm cancelled: {alarm_ref}")
 
             if action == "snooze":
+                if minutes is None:
+                    return ToolResult(False, "minutes is required for action=snooze")
                 explicit_ref = alarm_id or display_id
                 resolved_ref, resolve_err = self._resolve_snooze_alarm_ref(manager, explicit_ref)
                 if not resolved_ref:

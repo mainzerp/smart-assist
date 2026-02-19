@@ -37,6 +37,27 @@ class UnifiedControlTool(BaseTool):
         "Use after entity IDs are known from index/discovery; pass exactly one of entity_id or entity_ids. "
         "For multi-entity execution via entity_ids, set batch=true explicitly."
     )
+
+    _ACTION_ENUM = [
+        "turn_on",
+        "turn_off",
+        "toggle",
+        "play",
+        "pause",
+        "stop",
+        "next",
+        "previous",
+        "volume_up",
+        "volume_down",
+        "mute",
+        "unmute",
+        "open",
+        "close",
+        "set_temperature",
+        "set_position",
+        "run",
+        "execute",
+    ]
     
     parameters = [
         ToolParameter(
@@ -65,6 +86,7 @@ class UnifiedControlTool(BaseTool):
             type="string",
             description="Action to execute, such as turn_on, turn_off, toggle, play, pause, stop, open, close, set_temperature, set_position.",
             required=True,
+            enum=_ACTION_ENUM,
         ),
         # Optional parameters for domain-specific control
         ToolParameter(
@@ -141,6 +163,18 @@ class UnifiedControlTool(BaseTool):
             maximum=100,
         ),
     ]
+
+    def get_schema(self) -> dict[str, Any]:
+        """Get OpenAI-compatible tool schema with tightened action contracts."""
+        schema = super().get_schema()
+        return self._append_schema_all_of(
+            schema,
+            [
+                self._schema_rule_require_one_of(["entity_id", "entity_ids"]),
+                self._schema_rule_if_action_requires("set_temperature", ["temperature"]),
+                self._schema_rule_if_action_requires("set_position", ["position"]),
+            ],
+        )
 
     def _validate_range(
         self, value: int | float | None, min_val: int | float, max_val: int | float, name: str

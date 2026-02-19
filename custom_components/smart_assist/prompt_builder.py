@@ -281,6 +281,12 @@ Safety and Confirmation:
 - Treat confirmation/cancellation semantically; do not rely on fixed keyword lists.""")
 
     parts.append("""
+Tool Boundaries:
+- Use send for mobile/app notifications and message delivery; use satellite_announce for spoken Assist satellite announcements.
+- Use timer tool for countdown/start/pause/resume/cancel timer intents; use alarm tool for absolute alarm/reminder intents and post-fire snooze.
+- Use music_assistant for music/radio search/playback; use control for generic smart-home entity control.""")
+
+    parts.append("""
 Alarm Post-Fire Snooze:
 - If the user expresses relative snooze intent after an alarm fired, call the alarm tool with action='snooze'.
 - You may omit alarm_id only when recent fired alarm context clearly identifies one target.

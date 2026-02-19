@@ -67,7 +67,7 @@ from .context.request_history import RequestHistoryEntry, RequestHistoryStore, T
 from .llm import OpenRouterClient, GroqClient, create_llm_client
 from .llm.models import ChatMessage, MessageRole
 from .tool_executor import execute_tool_calls
-from .tools import create_tool_registry
+from .tools import create_tool_registry, get_ordered_tool_schemas
 from .utils import extract_target_domains, get_config_value, sanitize_user_facing_error
 
 _LOGGER = logging.getLogger(__name__)
@@ -258,7 +258,7 @@ class SmartAssistAITask(AITaskEntity):
                 )
 
             # Get tool schemas
-            tools = self._tool_registry.get_schemas()
+            tools = get_ordered_tool_schemas(self._tool_registry)
 
             # Call LLM with tool support
             response_content = await self._process_with_tools(

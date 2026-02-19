@@ -97,6 +97,18 @@ class MusicAssistantTool(BaseTool):
         super().__init__(hass)
         self._satellite_player_mappings = satellite_player_mappings or {}
 
+    def get_schema(self) -> dict[str, Any]:
+        """Get OpenAI-compatible tool schema with action-dependent query constraints."""
+        schema = super().get_schema()
+        return self._append_schema_all_of(
+            schema,
+            [
+                self._schema_rule_if_action_requires("play", ["query"]),
+                self._schema_rule_if_action_requires("search", ["query"]),
+                self._schema_rule_if_action_requires("queue_add", ["query"]),
+            ],
+        )
+
     async def execute(
         self,
         action: str,

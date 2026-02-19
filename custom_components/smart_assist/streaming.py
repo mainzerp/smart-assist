@@ -14,7 +14,9 @@ from .const import (
     CRITICAL_DOMAINS,
     DEFAULT_TOOL_LATENCY_BUDGET_MS,
     DEFAULT_TOOL_MAX_RETRIES,
+    MALFORMED_TOOL_RECOVERY_MAX_RETRIES,
     MAX_CONSECUTIVE_FOLLOWUPS,
+    MISSING_TOOL_ROUTE_RECOVERY_MAX_RETRIES,
     MAX_TOOL_ITERATIONS,
     POST_FIRE_SNOOZE_CONTEXT_WINDOW_MINUTES,
     REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
@@ -354,6 +356,8 @@ async def call_llm_streaming_with_tools(
     await_response_called = False
     all_tool_call_records: list[ToolCallRecord] = []
     latest_user_text = _get_latest_user_text(working_messages)
+    malformed_recovery_retries = 0
+    missing_tool_route_retries = 0
 
     tool_max_retries = int(entity._get_config(CONF_TOOL_MAX_RETRIES, DEFAULT_TOOL_MAX_RETRIES))
     tool_latency_budget_ms = int(
@@ -512,10 +516,40 @@ async def call_llm_streaming_with_tools(
                 and "empty response" in working_messages[-1].content.lower()):
             working_messages.pop()
 
+        malformed_tool_calls = [
+            tc for tc in tool_calls if getattr(tc, "parse_status", "ok") != "ok"
+        ]
+        if malformed_tool_calls:
+            malformed_names = sorted({tc.name or "unknown" for tc in malformed_tool_calls})
+            if malformed_recovery_retries < MALFORMED_TOOL_RECOVERY_MAX_RETRIES:
+                malformed_recovery_retries += 1
+                _LOGGER.warning(
+                    "[USER-REQUEST] Malformed tool arguments detected (tools=%s). Requesting one deterministic correction retry.",
+                    malformed_names,
+                )
+                working_messages.append(
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=(
+                            "Your previous tool call arguments were malformed JSON. "
+                            "Retry now with exactly one corrected tool call using a valid JSON object for function arguments. "
+                            "Do not return free text until the corrected tool call is issued."
+                        ),
+                    )
+                )
+                continue
+
+            return (
+                "I need one quick clarification before I can run that action. Please restate the exact target and action.",
+                True,
+                iteration,
+                all_tool_call_records,
+            )
+
         # If no tool calls, we're done
         if not tool_calls:
             # Guardrail: avoid false timer/alarm confirmations without actual tool execution.
-            if iteration == 1:
+            if missing_tool_route_retries < MISSING_TOOL_ROUTE_RECOVERY_MAX_RETRIES:
                 latest_user_text = _get_latest_user_text(working_messages)
                 route_decision = await _classify_missing_tool_intent_route(
                     entity,
@@ -531,33 +565,34 @@ async def call_llm_streaming_with_tools(
                         or _has_recent_fired_alarm_context(entity)
                     )
                 ):
+                    missing_tool_route_retries += 1
                     _LOGGER.warning(
-                        "[USER-REQUEST] Alarm route detected without tool call in first iteration. Retrying with alarm-tool nudge."
+                        "[USER-REQUEST] Alarm route detected without tool call. Retrying with direct alarm route prompt."
                     )
                     working_messages.append(
                         ChatMessage(
                             role=MessageRole.SYSTEM,
                             content=(
-                                "The user requested alarm handling. You MUST call the alarm tool for set/list/cancel/snooze/status. "
-                                "Do not claim alarm success unless alarm tool call succeeds. "
-                                "For post-fire relative snooze intent, use action=snooze and omit alarm_id only when recent fired alarm context exists. "
-                                "If target alarm is ambiguous or missing, ask one concise clarification using await_response."
+                                "Route directly to the alarm tool now. "
+                                "Call alarm for set/list/cancel/snooze/status and do not claim success before a successful alarm tool result. "
+                                "If alarm target details are missing, ask one concise clarification via await_response."
                             ),
                         )
                     )
                     continue
 
                 if route_decision["route"] == "timer" and route_decision["needs_tool_retry"]:
+                    missing_tool_route_retries += 1
                     _LOGGER.warning(
-                        "[USER-REQUEST] Timer route detected without tool call in first iteration. Retrying with timer-tool nudge."
+                        "[USER-REQUEST] Timer route detected without tool call. Retrying with direct timer route prompt."
                     )
                     working_messages.append(
                         ChatMessage(
                             role=MessageRole.SYSTEM,
                             content=(
-                                "The user requested timer handling. You MUST call the timer tool for start/cancel/pause/resume/status. "
-                                "Do not claim timer success unless timer tool call succeeds. "
-                                "If required timer details are missing, ask one concise clarification using await_response."
+                                "Route directly to the timer tool now. "
+                                "Call timer for start/cancel/pause/resume/status and do not claim success before a successful timer tool result. "
+                                "If required timer details are missing, ask one concise clarification via await_response."
                             ),
                         )
                     )

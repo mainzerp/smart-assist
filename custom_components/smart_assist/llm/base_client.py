@@ -350,16 +350,29 @@ class BaseLLMClient(ABC):
         completed: list[ToolCall] = []
         for idx in sorted(pending.keys()):
             tc = pending[idx]
-            args = tc.get("arguments", "{}")
-            try:
-                args = json.loads(args) if isinstance(args, str) else args
-            except json.JSONDecodeError:
-                args = {}
-            completed.append(
-                ToolCall(
-                    id=tc.get("id", f"tool_{idx}"),
-                    name=tc.get("name", ""),
-                    arguments=args,
-                )
+            parsed_args, parse_status = BaseLLMClient._parse_tool_arguments(tc.get("arguments", "{}"))
+            tool_call = ToolCall(
+                id=tc.get("id", f"tool_{idx}"),
+                name=tc.get("name", ""),
+                arguments=parsed_args,
             )
+            setattr(tool_call, "parse_status", parse_status)
+            completed.append(tool_call)
         return completed
+
+    @staticmethod
+    def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict[str, Any], str]:
+        """Normalize tool arguments into a dict with parse-status metadata."""
+        if isinstance(raw_arguments, dict):
+            return raw_arguments, "ok"
+
+        if isinstance(raw_arguments, str):
+            try:
+                parsed = json.loads(raw_arguments)
+            except json.JSONDecodeError:
+                return {}, "malformed_json"
+            if isinstance(parsed, dict):
+                return parsed, "ok"
+            return {}, "non_object"
+
+        return {}, "invalid_type"

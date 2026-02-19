@@ -4,9 +4,70 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.19 | 2026-02-19 |
+| Smart Assist | 1.23.21 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.21 (2026-02-19) - Prompt/Tool Optional Hardening (Phase 2)
+
+**Fixes & Improvements:**
+- Added shared JSON-schema hardening helpers in the base tool layer for reusable action-dependent and selector constraints
+- Tightened `control` schema contracts with explicit action enum, selector XOR (`entity_id` vs `entity_ids`), and action-specific required fields for `set_temperature`/`set_position`
+- Tightened `alarm` and `music_assistant` schema contracts with action-dependent requiredness (`minutes` for `snooze`; `query` for `play/search/queue_add`) and added explicit snooze runtime validation
+- Clarified boundary wording between notify/mobile delivery (`send`) and spoken satellite output (`satellite_announce`) to reduce routing confusion
+- Added focused regression coverage for schema hardening and negative-path contract validation propagation
+
+**Intentional Contract Changes (Reliability-First):**
+- `control.action` now has an explicit schema enum of supported actions
+- `control` schema now enforces exactly one selector (`entity_id` xor `entity_ids`)
+- `control` schema now requires `temperature` for `action=set_temperature` and `position` for `action=set_position`
+- `alarm` now returns an explicit validation error when `action=snooze` is called without `minutes`
+
+**Validation:**
+- `pytest tests/test_tools.py`
+- `pytest tests/test_tool_executor.py`
+
+**Files modified:**
+- custom_components/smart_assist/tools/base.py
+- custom_components/smart_assist/tools/unified_control.py
+- custom_components/smart_assist/tools/alarm_tools.py
+- custom_components/smart_assist/tools/music_assistant_tools.py
+- custom_components/smart_assist/tools/notification_tools.py
+- custom_components/smart_assist/tools/satellite_tools.py
+- tests/test_tools.py
+- tests/test_tool_executor.py
+- VERSION.md
+
+### v1.23.20 (2026-02-19) - Prompt/Tool Reliability MVP (Phase 1)
+
+**Fixes & Improvements:**
+- Simplified and unified system prompt policy with explicit tool-boundary disambiguation (notify vs announce, timer vs alarm, control vs music)
+- Added deterministic provider-agnostic core-first tool schema ordering and applied it consistently to conversation, cache warming, and AI Task
+- Added parse-status metadata for malformed tool arguments instead of silent argument fallback
+- Hardened streaming recovery with bounded deterministic retries for malformed tool arguments and missing-tool route recovery
+
+**Validation:**
+- `pytest tests/test_prompt_builder.py`
+- `pytest tests/test_streaming.py`
+- `pytest tests/test_ai_task.py`
+- `pytest tests/test_llm_clients.py`
+
+**Files modified:**
+- custom_components/smart_assist/prompt_builder.py
+- custom_components/smart_assist/tools/__init__.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/llm/base_client.py
+- custom_components/smart_assist/llm/models.py
+- custom_components/smart_assist/llm/openrouter_client.py
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/const.py
+- tests/test_prompt_builder.py
+- tests/test_streaming.py
+- tests/test_ai_task.py
+- tests/test_llm_clients.py
+- VERSION.md
 
 ### v1.23.19 (2026-02-19) - LLM-Only Satellite Execution (No Forced Fallback)
 
