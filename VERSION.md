@@ -10,13 +10,13 @@
 
 ### v1.23.27 (2026-02-19) - DDGS Constructor Compatibility for Web Search
 
-**Fixes & Improvements:**
-- Hardened `web_search` tool against `ddgs` API differences by adding constructor fallback when `DDGS(impersonate=...)` is unsupported.
-- Preserved the preferred impersonation path for newer `ddgs` releases while restoring compatibility for older installations.
+**Fixes and Improvements:**
+- Hardened the `web_search` tool against `ddgs` API differences by adding a constructor fallback when `DDGS(impersonate=...)` is not supported.
+- Preserved the preferred impersonation path for newer `ddgs` versions while restoring compatibility with older installations.
 - Added regression tests for both constructor paths (with and without impersonate support).
 
 **Validation:**
-- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (108 passed)
 
 **Files modified:**
 - custom_components/smart_assist/tools/search_tools.py
