@@ -4,9 +4,30 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.37 | 2026-02-19 |
+| Smart Assist | 1.23.38 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.38 (2026-02-19) - UI-Configurable Tool Max Iterations
+
+**Fixes and Improvements:**
+- Added configurable `tool_max_iterations` setting to Conversation Agent and AI Task create/reconfigure flows.
+- Wired streaming/conversation and AI Task tool loops to read max iterations from subentry config (with safe defaults).
+- Added EN/DE translation entries and strings metadata for the new setting.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (117 passed)
+
+**Files modified:**
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/conversation.py
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/config_subentry_flows.py
+- custom_components/smart_assist/strings.json
+- custom_components/smart_assist/translations/en.json
+- custom_components/smart_assist/translations/de.json
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.37 (2026-02-19) - Increase Max Tool Iterations to 10
 

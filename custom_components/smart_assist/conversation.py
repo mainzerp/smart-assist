@@ -84,6 +84,7 @@ try:
         CONF_PROVIDER,
         CONF_REASONING_EFFORT,
         CONF_TEMPERATURE,
+        CONF_TOOL_MAX_ITERATIONS,
         CONF_USER_MAPPINGS,
         DEFAULT_ASK_FOLLOWUP,
         DEFAULT_CLEAN_RESPONSES,
@@ -99,6 +100,7 @@ try:
         DEFAULT_PROVIDER,
         DEFAULT_REASONING_EFFORT,
         DEFAULT_TEMPERATURE,
+        DEFAULT_TOOL_MAX_ITERATIONS,
         DOMAIN,
         HISTORY_REDACTION_MAX_PATTERNS,
         HISTORY_REDACTION_MAX_PATTERN_LENGTH,
@@ -597,6 +599,9 @@ class SmartAssistConversationEntity(ConversationEntity):
                 cached_prefix_length=cached_prefix_length,
                 chat_log=chat_log,
                 conversation_id=user_input.conversation_id,
+                max_iterations=int(
+                    self._get_config(CONF_TOOL_MAX_ITERATIONS, DEFAULT_TOOL_MAX_ITERATIONS)
+                ),
             )
 
             # Determine if conversation should continue based on await_response tool

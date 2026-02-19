@@ -39,6 +39,7 @@ from .const import (
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
     CONF_TOOL_LATENCY_BUDGET_MS,
+    CONF_TOOL_MAX_ITERATIONS,
     CONF_TOOL_MAX_RETRIES,
     DEFAULT_TASK_ALLOW_CONTROL,
     DEFAULT_TASK_ALLOW_LOCK_CONTROL,
@@ -52,6 +53,7 @@ from .const import (
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOOL_LATENCY_BUDGET_MS,
+    DEFAULT_TOOL_MAX_ITERATIONS,
     DEFAULT_TOOL_MAX_RETRIES,
     DOMAIN,
     LLM_PROVIDER_GROQ,
@@ -674,7 +676,7 @@ Focus on completing the task efficiently and providing structured, useful output
         self,
         messages: list[ChatMessage],
         tools: list[dict[str, Any]],
-        max_iterations: int = 5,
+        max_iterations: int | None = None,
         original_instructions: str | None = None,
         response_schema: dict[str, Any] | None = None,
         response_schema_name: str | None = None,
@@ -689,6 +691,12 @@ Focus on completing the task efficiently and providing structured, useful output
         # Always cache system + user message prefix
         cached_prefix_length = 2
         native_fallback_retry_used = False
+        configured_max_iterations = int(
+            max_iterations
+            if max_iterations is not None
+            else self._get_config(CONF_TOOL_MAX_ITERATIONS, DEFAULT_TOOL_MAX_ITERATIONS)
+        )
+        configured_max_iterations = max(1, configured_max_iterations)
 
         async def _chat_call(*, native_mode: bool) -> Any:
             chat_kwargs: dict[str, Any] = {
@@ -701,7 +709,7 @@ Focus on completing the task efficiently and providing structured, useful output
             chat_method = self._llm_client.chat
             return await chat_method(messages=messages, **chat_kwargs)
         
-        while iteration < max_iterations:
+        while iteration < configured_max_iterations:
             iteration += 1
             
             try:

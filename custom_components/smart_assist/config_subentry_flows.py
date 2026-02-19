@@ -79,6 +79,7 @@ from .const import (
     CONF_TASK_ENABLE_CACHE_WARMING,
     CONF_TASK_SYSTEM_PROMPT,
     CONF_TOOL_LATENCY_BUDGET_MS,
+    CONF_TOOL_MAX_ITERATIONS,
     CONF_TOOL_MAX_RETRIES,
     CONF_TEMPERATURE,
     CONF_USER_SYSTEM_PROMPT,
@@ -117,6 +118,7 @@ from .const import (
     DEFAULT_TASK_ENABLE_CACHE_WARMING,
     DEFAULT_TASK_SYSTEM_PROMPT,
     DEFAULT_TOOL_LATENCY_BUDGET_MS,
+    DEFAULT_TOOL_MAX_ITERATIONS,
     DEFAULT_TOOL_MAX_RETRIES,
     DEFAULT_TEMPERATURE,
     DEFAULT_USER_SYSTEM_PROMPT,
@@ -132,6 +134,8 @@ from .const import (
     REASONING_EFFORT_OPTIONS,
     TOOL_LATENCY_BUDGET_MS_MAX,
     TOOL_LATENCY_BUDGET_MS_MIN,
+    TOOL_MAX_ITERATIONS_MAX,
+    TOOL_MAX_ITERATIONS_MIN,
     TOOL_MAX_RETRIES_MAX,
     TOOL_MAX_RETRIES_MIN,
     DIRECT_ALARM_BACKEND_TIMEOUT_MIN,
@@ -372,6 +376,14 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                 NumberSelectorConfig(
                     min=TOOL_MAX_RETRIES_MIN,
                     max=TOOL_MAX_RETRIES_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_TOOL_MAX_ITERATIONS, default=DEFAULT_TOOL_MAX_ITERATIONS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_ITERATIONS_MIN,
+                    max=TOOL_MAX_ITERATIONS_MAX,
                     step=1,
                     mode=NumberSelectorMode.BOX,
                 )
@@ -644,6 +656,14 @@ class ConversationFlowHandler(SmartAssistSubentryFlowHandler):
                     mode=NumberSelectorMode.BOX,
                 )
             ),
+            vol.Required(CONF_TOOL_MAX_ITERATIONS, default=DEFAULT_TOOL_MAX_ITERATIONS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_ITERATIONS_MIN,
+                    max=TOOL_MAX_ITERATIONS_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             vol.Required(CONF_TOOL_LATENCY_BUDGET_MS): NumberSelector(
                 NumberSelectorConfig(
                     min=TOOL_LATENCY_BUDGET_MS_MIN,
@@ -867,6 +887,14 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                     mode=NumberSelectorMode.BOX,
                 )
             ),
+            vol.Required(CONF_TOOL_MAX_ITERATIONS, default=DEFAULT_TOOL_MAX_ITERATIONS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_ITERATIONS_MIN,
+                    max=TOOL_MAX_ITERATIONS_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             vol.Required(CONF_TOOL_LATENCY_BUDGET_MS, default=DEFAULT_TOOL_LATENCY_BUDGET_MS): NumberSelector(
                 NumberSelectorConfig(
                     min=TOOL_LATENCY_BUDGET_MS_MIN,
@@ -1064,6 +1092,14 @@ class AITaskFlowHandler(SmartAssistSubentryFlowHandler):
                 NumberSelectorConfig(
                     min=TOOL_MAX_RETRIES_MIN,
                     max=TOOL_MAX_RETRIES_MAX,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(CONF_TOOL_MAX_ITERATIONS, default=DEFAULT_TOOL_MAX_ITERATIONS): NumberSelector(
+                NumberSelectorConfig(
+                    min=TOOL_MAX_ITERATIONS_MIN,
+                    max=TOOL_MAX_ITERATIONS_MAX,
                     step=1,
                     mode=NumberSelectorMode.BOX,
                 )
