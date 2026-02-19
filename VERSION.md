@@ -4,9 +4,29 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.16 | 2026-02-19 |
+| Smart Assist | 1.23.17 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.17 (2026-02-19) - Satellite Announce Reliability Hardening
+
+**Fixes & Improvements:**
+- `satellite_announce` now handles missing `message` as a clean validation error instead of raising a Python argument exception
+- AI Task now enforces a safer latency-budget floor (`30000ms`) when executing `satellite_announce`, preventing premature timeout with low global task budgets
+- Added regressions for missing-message validation and satellite-announce latency-floor behavior
+
+**Validation:**
+- `pytest tests/test_ai_task.py -k "blocks_send_for_satellite_announce_intent or satellite_announce_uses_latency_budget_floor"`
+- `pytest tests/test_tools.py -k "SatelliteAnnounceTool or satellite_announce or missing_message"`
+- `pytest tests/test_release_metadata.py -q`
+
+**Files modified:**
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/tools/satellite_tools.py
+- tests/test_ai_task.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.16 (2026-02-19) - AI Task Satellite Announce Tool Routing Guard
 

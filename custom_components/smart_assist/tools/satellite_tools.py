@@ -60,7 +60,7 @@ class SatelliteAnnounceTool(BaseTool):
 
     async def execute(
         self,
-        message: str,
+        message: str | None = None,
         satellite_entity_id: str | None = None,
         satellite_entity_ids: list[str] | None = None,
         batch: bool | None = None,

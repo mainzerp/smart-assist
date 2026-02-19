@@ -72,6 +72,8 @@ from .utils import extract_target_domains, get_config_value, sanitize_user_facin
 
 _LOGGER = logging.getLogger(__name__)
 
+SATELLITE_ANNOUNCE_LATENCY_FLOOR_MS = 30_000
+
 
 def _targets_lock_domain(arguments: dict[str, Any]) -> bool:
     """Return True if a control call targets lock domain."""
@@ -793,11 +795,17 @@ Focus on completing the task efficiently and providing structured, useful output
 
             executed_messages: dict[str, ChatMessage] = {}
             if allowed_tool_calls:
+                effective_latency_budget_ms = latency_budget_ms
+                if any(tc.name == "satellite_announce" for tc in allowed_tool_calls):
+                    effective_latency_budget_ms = max(
+                        latency_budget_ms,
+                        SATELLITE_ANNOUNCE_LATENCY_FLOOR_MS,
+                    )
                 exec_results = await execute_tool_calls(
                     tool_calls=allowed_tool_calls,
                     tool_registry=self._tool_registry,
                     max_retries=max_retries,
-                    latency_budget_ms=latency_budget_ms,
+                    latency_budget_ms=effective_latency_budget_ms,
                     request_history_max_length=REQUEST_HISTORY_TOOL_ARGS_MAX_LENGTH,
                 )
                 for tool_call, result_or_err, record in exec_results:
