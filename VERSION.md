@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.26 | 2026-02-19 |
+| Smart Assist | 1.23.27 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.27 (2026-02-19) - DDGS Constructor Compatibility for Web Search
+
+**Fixes & Improvements:**
+- Hardened `web_search` tool against `ddgs` API differences by adding constructor fallback when `DDGS(impersonate=...)` is unsupported.
+- Preserved the preferred impersonation path for newer `ddgs` releases while restoring compatibility for older installations.
+- Added regression tests for both constructor paths (with and without impersonate support).
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`
+
+**Files modified:**
+- custom_components/smart_assist/tools/search_tools.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.26 (2026-02-19) - Manifest Version Synchronization
 

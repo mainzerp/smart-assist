@@ -65,8 +65,15 @@ class WebSearchTool(BaseTool):
         try:
             # Run in executor to avoid blocking
             def search() -> list[dict[str, Any]]:
-                # New ddgs API: DDGS().text() returns list directly
-                return DDGS(impersonate="random").text(query, max_results=max_results)
+                # Support both newer and older ddgs constructor signatures.
+                # Older releases do not accept the `impersonate` argument.
+                try:
+                    client = DDGS(impersonate="random")
+                except TypeError as err:
+                    if "impersonate" not in str(err):
+                        raise
+                    client = DDGS()
+                return client.text(query, max_results=max_results)
 
             results = await self._hass.async_add_executor_job(search)
 

@@ -1226,6 +1226,63 @@ class TestNotificationAndCalendarRuntimeMatching:
         assert "ignore previous" not in entry["title"].lower()
         assert "assistant:" not in entry["body"].lower()
 
+    @pytest.mark.asyncio
+    async def test_web_search_falls_back_when_ddgs_impersonate_unsupported(self) -> None:
+        """Tool should fall back to DDGS() when constructor rejects impersonate."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        hass = MagicMock()
+        hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
+
+        client = MagicMock()
+        client.text.return_value = [
+            {
+                "title": "Result",
+                "body": "Body",
+                "href": "https://example.com",
+            }
+        ]
+
+        def _ddgs_ctor(*args, **kwargs):
+            if "impersonate" in kwargs:
+                raise TypeError("DDGS.__init__() got an unexpected keyword argument 'impersonate'")
+            return client
+
+        ddgs_module = MagicMock()
+        ddgs_module.DDGS = MagicMock(side_effect=_ddgs_ctor)
+
+        with patch.dict(sys.modules, {"ddgs": ddgs_module}):
+            tool = WebSearchTool(hass)
+            result = await tool.execute(query="test", max_results=2)
+
+        assert result.success is True
+        assert result.data["count"] == 1
+        assert ddgs_module.DDGS.call_count == 2
+        client.text.assert_called_once_with("test", max_results=2)
+
+    @pytest.mark.asyncio
+    async def test_web_search_uses_impersonate_when_supported(self) -> None:
+        """Tool should keep using impersonate path when DDGS supports it."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        hass = MagicMock()
+        hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
+
+        client = MagicMock()
+        client.text.return_value = []
+
+        ddgs_module = MagicMock()
+        ddgs_module.DDGS = MagicMock(return_value=client)
+
+        with patch.dict(sys.modules, {"ddgs": ddgs_module}):
+            tool = WebSearchTool(hass)
+            result = await tool.execute(query="empty")
+
+        assert result.success is True
+        assert "No results found" in result.message
+        ddgs_module.DDGS.assert_called_once_with(impersonate="random")
+        client.text.assert_called_once_with("empty", max_results=3)
+
     def test_calendar_similarity_penalizes_reordered_strings(self) -> None:
         """Reordered character strings should not score too close to exact order."""
         from custom_components.smart_assist.tools.calendar_tools import CreateCalendarEventTool
