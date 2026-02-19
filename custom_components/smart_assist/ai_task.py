@@ -275,24 +275,6 @@ class SmartAssistAITask(AITaskEntity):
                 allow_structured_native_fallback_retry=structured_requested,
             )
 
-            if not structured_requested:
-                max_retries = int(
-                    self._get_config(CONF_TOOL_MAX_RETRIES, DEFAULT_TOOL_MAX_RETRIES)
-                )
-                latency_budget_ms = int(
-                    self._get_config(
-                        CONF_TOOL_LATENCY_BUDGET_MS,
-                        DEFAULT_TOOL_LATENCY_BUDGET_MS,
-                    )
-                )
-                response_content = await self._enforce_satellite_announce_if_requested(
-                    instructions=instructions,
-                    response_content=response_content,
-                    task_name=str(getattr(task, "task_name", getattr(task, "name", "")) or ""),
-                    max_retries=max_retries,
-                    latency_budget_ms=latency_budget_ms,
-                )
-
             if structured_requested and structured_schema is not None:
                 try:
                     structured_data = self._extract_json_payload(response_content)
@@ -881,83 +863,6 @@ Focus on completing the task efficiently and providing structured, useful output
         wants_announce = any(token in normalized for token in ("announce", "ansage", "durchsage"))
         wants_satellite = any(token in normalized for token in ("satellite", "satellit", "satllite", "satllites"))
         return wants_announce and wants_satellite
-
-    async def _enforce_satellite_announce_if_requested(
-        self,
-        *,
-        instructions: str,
-        response_content: str,
-        task_name: str,
-        max_retries: int,
-        latency_budget_ms: int,
-    ) -> str:
-        """Fallback: run satellite_announce when request clearly demands it but tool call was missing/failed."""
-        if not self._instruction_requests_satellite_announce(instructions):
-            return response_content
-
-        if not self._tool_registry.has_tool("satellite_announce"):
-            return response_content
-
-        if any(
-            record.name == "satellite_announce" and record.success
-            for record in self._last_tool_call_records
-        ):
-            return response_content
-
-        announce_message = (response_content or "").strip() or (task_name or "").strip()
-        if not announce_message:
-            announce_message = "Es gibt eine neue Benachrichtigung."
-
-        effective_latency_budget_ms = max(
-            latency_budget_ms,
-            SATELLITE_ANNOUNCE_LATENCY_FLOOR_MS,
-        )
-
-        started = time.monotonic()
-        try:
-            result = await self._tool_registry.execute(
-                "satellite_announce",
-                {
-                    "message": announce_message,
-                    "all": True,
-                },
-                max_retries=max_retries,
-                latency_budget_ms=effective_latency_budget_ms,
-            )
-            result_data = result.data if isinstance(result.data, dict) else {}
-            self._last_tool_call_records.append(
-                ToolCallRecord(
-                    name="satellite_announce",
-                    success=bool(result.success),
-                    execution_time_ms=float(
-                        result_data.get(
-                            "execution_time_ms",
-                            (time.monotonic() - started) * 1000,
-                        )
-                    ),
-                    arguments_summary=str({"message": announce_message, "all": True}),
-                    timed_out=bool(result_data.get("timed_out", False)),
-                    retries_used=int(result_data.get("retries_used", 0)),
-                    latency_budget_ms=int(result_data.get("latency_budget_ms", effective_latency_budget_ms)),
-                )
-            )
-            if result.success and not (response_content or "").strip():
-                return announce_message
-        except Exception as err:
-            self._last_tool_call_records.append(
-                ToolCallRecord(
-                    name="satellite_announce",
-                    success=False,
-                    execution_time_ms=(time.monotonic() - started) * 1000,
-                    arguments_summary=str({"message": announce_message, "all": True}),
-                    timed_out=False,
-                    retries_used=0,
-                    latency_budget_ms=effective_latency_budget_ms,
-                )
-            )
-            _LOGGER.warning("AI Task fallback satellite_announce failed: %s", err)
-
-        return response_content
 
     async def async_will_remove_from_hass(self) -> None:
         """Clean up when entity is removed."""

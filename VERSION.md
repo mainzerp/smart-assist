@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.18 | 2026-02-19 |
+| Smart Assist | 1.23.19 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.19 (2026-02-19) - LLM-Only Satellite Execution (No Forced Fallback)
+
+**Fixes & Improvements:**
+- Removed forced AI Task auto-fallback that executed `satellite_announce` when the model emitted no tool call
+- Tool execution remains fully LLM-driven (no shortcut/background auto-dispatch)
+- Kept previously added satellite-announce reliability hardening (timeout floor and input validation)
+
+**Validation:**
+- `pytest tests/test_ai_task.py -k "blocks_send_for_satellite_announce_intent or satellite_announce_uses_latency_budget_floor"`
+- `pytest tests/test_release_metadata.py -q`
+
+**Files modified:**
+- custom_components/smart_assist/ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.18 (2026-02-19) - AI Task Announce Auto-Fallback
 
