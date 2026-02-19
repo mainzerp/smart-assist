@@ -88,9 +88,22 @@ def _extract_json_object(content: str) -> dict[str, Any] | None:
         return None
 
     candidates = [text]
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-    if match:
-        candidates.append(match.group(0))
+
+    fenced_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text, flags=re.IGNORECASE)
+    if fenced_match:
+        candidates.append(fenced_match.group(1))
+
+    decoder = json.JSONDecoder()
+    for idx, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            parsed, _end = decoder.raw_decode(text[idx:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            candidates.append(text[idx:idx + len(json.dumps(parsed))])
+            break
 
     for candidate in candidates:
         try:
@@ -99,6 +112,36 @@ def _extract_json_object(content: str) -> dict[str, Any] | None:
             continue
         if isinstance(parsed, dict):
             return parsed
+
+    return None
+
+
+def _extract_pseudo_await_response_message(content: str) -> str | None:
+    """Extract a natural-language message from textual await_response(...) output."""
+    text = (content or "").strip()
+    if not text:
+        return None
+
+    lowered = text.lower()
+    if "await_response(" not in lowered:
+        return None
+
+    message_patterns = [
+        r'message\s*=\s*"([^"]+)"',
+        r"message\s*=\s*'([^']+)'",
+        r'message\s+equals\s+"([^"]+)"',
+        r"message\s+equals\s+'([^']+)'",
+    ]
+    for pattern in message_patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
+        if match:
+            extracted = match.group(1).strip()
+            return extracted or None
+
+    generic = re.search(r"await_response\((.*)\)", text, flags=re.IGNORECASE | re.DOTALL)
+    if generic:
+        fallback = generic.group(1).strip()
+        return fallback or None
 
     return None
 
@@ -261,6 +304,57 @@ def _is_critical_tool_call(tool_call: ToolCall) -> bool:
     return any(domain in CRITICAL_DOMAINS for domain in target_domains)
 
 
+def _control_target_key(arguments: dict[str, Any]) -> tuple[str, ...] | None:
+    """Build a stable target key for control calls, if possible."""
+    entity_id = arguments.get("entity_id")
+    if isinstance(entity_id, str) and entity_id:
+        return (entity_id,)
+
+    entity_ids = arguments.get("entity_ids")
+    if isinstance(entity_ids, list):
+        normalized = sorted(str(item) for item in entity_ids if isinstance(item, str) and item)
+        if normalized:
+            return tuple(normalized)
+
+    return None
+
+
+def _collapse_conflicting_control_calls(tool_calls: list[ToolCall]) -> list[ToolCall]:
+    """Keep only the last control call per target within one iteration."""
+    last_control_index_by_target: dict[tuple[str, ...], int] = {}
+
+    for idx, tool_call in enumerate(tool_calls):
+        if tool_call.name != "control":
+            continue
+        target_key = _control_target_key(tool_call.arguments)
+        if target_key is None:
+            continue
+        last_control_index_by_target[target_key] = idx
+
+    collapsed: list[ToolCall] = []
+    dropped = 0
+    for idx, tool_call in enumerate(tool_calls):
+        if tool_call.name != "control":
+            collapsed.append(tool_call)
+            continue
+        target_key = _control_target_key(tool_call.arguments)
+        if target_key is None:
+            collapsed.append(tool_call)
+            continue
+        if last_control_index_by_target.get(target_key) == idx:
+            collapsed.append(tool_call)
+        else:
+            dropped += 1
+
+    if dropped:
+        _LOGGER.warning(
+            "[USER-REQUEST] Dropped %d conflicting control tool call(s) for duplicate targets in one iteration.",
+            dropped,
+        )
+
+    return collapsed
+
+
 def _pick_preferred_single_entity(
     entity_ids: list[str],
     entity: SmartAssistConversationEntity,
@@ -358,6 +452,7 @@ async def call_llm_streaming_with_tools(
     latest_user_text = _get_latest_user_text(working_messages)
     malformed_recovery_retries = 0
     missing_tool_route_retries = 0
+    textual_await_response_retries = 0
 
     tool_max_retries = int(entity._get_config(CONF_TOOL_MAX_RETRIES, DEFAULT_TOOL_MAX_RETRIES))
     tool_latency_budget_ms = int(
@@ -509,6 +604,36 @@ async def call_llm_streaming_with_tools(
         # Update final content with this iteration's result
         if iteration_content:
             final_content = iteration_content
+
+        if not tool_calls:
+            pseudo_await_message = _extract_pseudo_await_response_message(final_content)
+            if pseudo_await_message:
+                if textual_await_response_retries < 1:
+                    textual_await_response_retries += 1
+                    _LOGGER.warning(
+                        "[USER-REQUEST] Model returned textual await_response(...) instead of tool call; retrying with strict tool-call instruction."
+                    )
+                    working_messages.append(
+                        ChatMessage(
+                            role=MessageRole.SYSTEM,
+                            content=(
+                                "Do not output await_response(...) as plain text. "
+                                "Now call exactly one await_response tool with valid JSON arguments and no free text."
+                            ),
+                        )
+                    )
+                    final_content = ""
+                    continue
+
+                _LOGGER.warning(
+                    "[USER-REQUEST] Repeated textual await_response(...) output. Returning safe fallback without function syntax."
+                )
+                return (
+                    "Ich brauche eine kurze Klarstellung, bevor ich fortfahren kann.",
+                    False,
+                    iteration,
+                    all_tool_call_records,
+                )
 
         # Remove retry nudge if it was added (avoid permanent token waste)
         if (working_messages
@@ -691,6 +816,8 @@ async def call_llm_streaming_with_tools(
                 _normalize_control_tool_call_for_default_single_target(tc, entity)
                 for tc in other_tool_calls
             ]
+
+            other_tool_calls = _collapse_conflicting_control_calls(other_tool_calls)
 
             _LOGGER.debug("[USER-REQUEST] Executing %d tool calls", len(other_tool_calls))
 
