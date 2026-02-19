@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.17 | 2026-02-19 |
+| Smart Assist | 1.23.18 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.18 (2026-02-19) - AI Task Announce Auto-Fallback
+
+**Fixes & Improvements:**
+- Added AI Task fallback execution for `satellite_announce(all=true)` when instructions clearly request satellite announce but the model returns no usable tool call
+- Fallback now uses the generated text as announce message, or falls back to `task_name` when model output is empty
+- Keeps timeout-safe latency floor for satellite announce execution paths
+- Added regressions for fallback execution and empty-response fallback message selection
+
+**Validation:**
+- `pytest tests/test_ai_task.py -k "fallback_executes_satellite_announce or fallback_uses_task_name_when_response_empty or satellite_announce_uses_latency_budget_floor"`
+- `pytest tests/test_release_metadata.py -q`
+
+**Files modified:**
+- custom_components/smart_assist/ai_task.py
+- tests/test_ai_task.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.17 (2026-02-19) - Satellite Announce Reliability Hardening
 
