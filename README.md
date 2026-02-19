@@ -232,7 +232,13 @@ When using Ollama, you can configure these additional settings in the reconfigur
 | ------ | ----------- | ------- |
 | Model | LLM model ID (fetched dynamically from provider) | llama-3.3-70b-versatile |
 | Temperature | Response creativity (0-1) | 0.5 |
+| Reasoning Effort | Controls model reasoning depth (`none`, `default`, `low`, `medium`, `high`) | default |
 | Max Tokens | Maximum response length | 500 |
+
+Reasoning effort is mapped per provider:
+- **Groq**: Sends `reasoning_effort`
+- **OpenRouter**: Sends `reasoning` object (`{"enabled": false}` for `none`, `{"effort": "low|medium|high"}` otherwise)
+- **Ollama**: Sends `think` (`false` for `none`, `low|medium|high` otherwise)
 
 ### Behavior Settings
 
