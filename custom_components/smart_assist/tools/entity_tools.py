@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from difflib import SequenceMatcher
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -67,7 +68,7 @@ class GetEntitiesTool(BaseTool):
             all_entities = manager.get_all_entities()
 
         requested_domain = domain
-        entities = self._filter_entities(
+        entities, name_match_mode = self._filter_entities(
             all_entities,
             domain=domain,
             area=area,
@@ -77,7 +78,7 @@ class GetEntitiesTool(BaseTool):
         used_domain = requested_domain
         fallback_domain = _RELATED_DOMAIN_FALLBACKS.get(requested_domain)
         if not entities and fallback_domain:
-            entities = self._filter_entities(
+            entities, name_match_mode = self._filter_entities(
                 all_entities,
                 domain=fallback_domain,
                 area=area,
@@ -115,6 +116,12 @@ class GetEntitiesTool(BaseTool):
                 f"used related domain '{used_domain}'."
             )
 
+        if name_filter and name_match_mode == "fuzzy":
+            message += (
+                f"\nNote: Used fuzzy name match for '{name_filter}'. "
+                "Please verify the selected entity before control actions."
+            )
+
         # Suggest batch control for multiple entities
         if len(entities) > 1:
             all_ids = [e.entity_id for e in entities[:20]]
@@ -133,7 +140,7 @@ class GetEntitiesTool(BaseTool):
         domain: str,
         area: str | None,
         name_filter: str | None,
-    ) -> list[Any]:
+    ) -> tuple[list[Any], str]:
         """Apply domain and optional area/name filters to entity list."""
         filtered = [entity for entity in entities if entity.domain == domain]
 
@@ -155,12 +162,46 @@ class GetEntitiesTool(BaseTool):
 
         if name_filter:
             filter_lower = name_filter.lower()
-            filtered = [
+            exact = [
                 entity for entity in filtered
                 if filter_lower in entity.friendly_name.lower()
             ]
+            if exact:
+                return exact, "exact"
 
-        return filtered
+            fuzzy = self._fuzzy_match_entities(filtered, filter_lower)
+            if fuzzy:
+                return fuzzy, "fuzzy"
+
+            return [], "none"
+
+        return filtered, "none"
+
+    def _fuzzy_match_entities(self, entities: list[Any], name_filter_lower: str) -> list[Any]:
+        """Return bounded fuzzy matches when exact name substring filtering fails."""
+        min_score = 0.78
+        scored: list[tuple[float, Any]] = []
+
+        for entity in entities:
+            candidates = [
+                entity.friendly_name.lower(),
+                entity.entity_id.lower(),
+            ]
+            if entity.area_name:
+                candidates.append(entity.area_name.lower())
+
+            score = max(
+                SequenceMatcher(None, name_filter_lower, candidate).ratio()
+                for candidate in candidates
+            )
+            if score >= min_score:
+                scored.append((score, entity))
+
+        if not scored:
+            return []
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [entity for _, entity in scored[:5]]
 
 
 class GetEntityStateTool(BaseTool):
