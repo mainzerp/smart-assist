@@ -4,9 +4,66 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.12 | 2026-02-18 |
+| Smart Assist | 1.23.15 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.15 (2026-02-19) - Satellite Broadcast (`all=true`) for AI Task Announce
+
+**Fixes & Improvements:**
+- Added `all=true` option to `satellite_announce` to broadcast announcements to all available Assist satellites
+- Added guardrail to reject invalid combinations of `all=true` with explicit satellite target parameters
+- Added focused tests for `all=true` success path and validation behavior
+- Updated README documentation for broadcast behavior
+
+**Validation:**
+- `pytest tests/test_tools.py -k "SatelliteAnnounceTool or satellite_announce"`
+
+**Files modified:**
+- custom_components/smart_assist/tools/satellite_tools.py
+- tests/test_tools.py
+- README.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.23.14 (2026-02-19) - Satellite Alias Resolution for AI Task Announce
+
+**Fixes & Improvements:**
+- Extended `satellite_announce` tool to resolve non-ID target aliases/friendly names (for example `küche`) to `assist_satellite.*` entity IDs
+- Added ambiguity handling with explicit candidate feedback when an alias matches multiple satellites
+- Kept strict batch safety (`batch=true`) for multi-target announcements
+- Added tests for alias resolution and ambiguity error handling
+- Updated README with direct AI Task announce alias behavior
+
+**Validation:**
+- `pytest tests/test_tools.py -k "SatelliteAnnounceTool or satellite_announce"`
+
+**Files modified:**
+- custom_components/smart_assist/tools/satellite_tools.py
+- tests/test_tools.py
+- README.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
+
+### v1.23.13 (2026-02-19) - AI Task Satellite Announce Tool
+
+**Fixes & Improvements:**
+- Added dedicated `satellite_announce` tool for direct `assist_satellite.announce` calls with explicit single-target and batch-target modes
+- Added safe runtime validation for satellite targets (`assist_satellite.*`) and explicit `batch=true` opt-in for multi-target announcements
+- Registered `satellite_announce` dynamically in tool registry when `assist_satellite.announce` is available, making it usable from AI Task tool execution
+- Added targeted regression tests for announce execution, context-target fallback, batch gating, and registry registration
+- Added README example showing AI Task usage for direct satellite announcements
+
+**Validation:**
+- `pytest tests/test_tools.py -k "satellite_announce or announces_single_target or context_satellite or batch_flag"`
+
+**Files modified:**
+- custom_components/smart_assist/tools/satellite_tools.py
+- custom_components/smart_assist/tools/__init__.py
+- tests/test_tools.py
+- README.md
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.12 (2026-02-18) - LLM Intent Classifier Migration
 

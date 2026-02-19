@@ -308,6 +308,25 @@ data:
   instructions: "Summarize all lights that are currently on"
 ```
 
+### Direct Satellite Announce from AI Task
+
+AI Tasks can now announce directly on Assist satellites via the `satellite_announce` tool.
+Targets can be provided as exact entity IDs (`assist_satellite.*`) or as aliases/friendly names (for example `küche`), as long as they resolve uniquely.
+To announce on every satellite, set `all=true` in the tool call.
+
+Example instruction:
+
+```yaml
+service: ai_task.generate_data
+target:
+  entity_id: ai_task.smart_assist_task
+data:
+  task_type: generate_data
+  instructions: "Announce 'Dinner is ready' on assist_satellite.kitchen using satellite_announce"
+```
+
+For multiple targets, instruct the task to use `satellite_entity_ids` and set `batch=true`.
+
 ### Structured Output (`task.structure`)
 
 `ai_task.generate_data` supports schema-constrained structured output for automation-safe data contracts.

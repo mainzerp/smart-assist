@@ -75,6 +75,7 @@ def create_tool_registry(
     from .alarm_tools import AlarmTool
     from .music_assistant_tools import MusicAssistantTool
     from .notification_tools import SendTool
+    from .satellite_tools import SatelliteAnnounceTool
     
     registry = ToolRegistry(hass)
     registered_tools: list[str] = []
@@ -162,6 +163,11 @@ def create_tool_registry(
     # Allows sending links, messages to mobile devices via HA Companion App
     registry.register(SendTool(hass))
     registered_tools.append("send")
+
+    # Direct Assist satellite announce (if service exists)
+    if hass.services.has_service("assist_satellite", "announce"):
+        registry.register(SatelliteAnnounceTool(hass))
+        registered_tools.append("satellite_announce")
     
     # Memory tool (if memory is enabled and memory manager is available)
     memory_enabled = _get_config(entry, CONF_ENABLE_MEMORY, DEFAULT_ENABLE_MEMORY, subentry_data)
@@ -230,6 +236,7 @@ from .timer_tools import TimerTool
 from .alarm_tools import AlarmTool
 from .music_assistant_tools import MusicAssistantTool
 from .notification_tools import SendTool
+from .satellite_tools import SatelliteAnnounceTool
 from .memory_tools import MemoryTool
 
 __all__ = [
@@ -249,6 +256,7 @@ __all__ = [
     "TimerTool",
     # Alarm
     "AlarmTool",
+    "SatelliteAnnounceTool",
     # Music
     "MusicAssistantTool",
     # Scene/Automation
