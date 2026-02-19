@@ -146,6 +146,103 @@ def _extract_pseudo_await_response_message(content: str) -> str | None:
     return None
 
 
+def _is_missing_query_web_search_error(message: str) -> bool:
+    """Return True when tool message indicates a missing-query web search validation failure."""
+    normalized = (message or "").strip().lower()
+    return "missing query text" in normalized
+
+
+async def _finalize_web_search_answer_without_tools(
+    entity: SmartAssistConversationEntity,
+    user_text: str,
+    working_messages: list[ChatMessage],
+) -> str:
+    """Force a final no-tool answer from already collected web-search evidence."""
+    web_evidence: list[str] = []
+    for msg in reversed(working_messages):
+        if msg.role != MessageRole.TOOL:
+            continue
+        if msg.name not in {"local_web_search", "web_search"}:
+            continue
+        if not msg.content or msg.content.lower().startswith("error:"):
+            continue
+        web_evidence.append(msg.content[:1200])
+        if len(web_evidence) >= 2:
+            break
+
+    if not web_evidence:
+        try:
+            response = await entity._llm_client.chat(
+                messages=[
+                    ChatMessage(
+                        role=MessageRole.SYSTEM,
+                        content=(
+                            "Reply in the same language as the user with one concise sentence asking the user to retry the request. "
+                            "Do not call tools."
+                        ),
+                    ),
+                    ChatMessage(role=MessageRole.USER, content=user_text or "Please retry."),
+                ],
+                tools=None,
+            )
+            content = (response.content or "").strip()
+            if content:
+                return content
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("[USER-REQUEST] Localized retry fallback synthesis failed: %s", err)
+        return "Please ask again."
+
+    web_evidence.reverse()
+
+    try:
+        response = await entity._llm_client.chat(
+            messages=[
+                ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=(
+                        "Answer the user in the same language as the user question using only the provided web-search evidence. "
+                        "Do not call tools. If evidence is inconclusive, clearly say so in one concise sentence."
+                    ),
+                ),
+                ChatMessage(
+                    role=MessageRole.USER,
+                    content=(
+                        f"User question: {user_text}\n\n"
+                        f"Web evidence:\n\n{chr(10).join(web_evidence)}"
+                    ),
+                ),
+            ],
+            tools=None,
+        )
+        content = (response.content or "").strip()
+        if content:
+            return content
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("[USER-REQUEST] Final no-tool web-answer synthesis failed: %s", err)
+
+    try:
+        response = await entity._llm_client.chat(
+            messages=[
+                ChatMessage(
+                    role=MessageRole.SYSTEM,
+                    content=(
+                        "Reply in the same language as the user with one concise sentence asking the user to retry with slightly different wording. "
+                        "Do not call tools."
+                    ),
+                ),
+                ChatMessage(role=MessageRole.USER, content=user_text or "Please retry."),
+            ],
+            tools=None,
+        )
+        content = (response.content or "").strip()
+        if content:
+            return content
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("[USER-REQUEST] Localized fallback synthesis failed: %s", err)
+
+    return "Please ask again."
+
+
 async def _classify_pending_confirmation_intent(
     entity: SmartAssistConversationEntity,
     user_text: str,
@@ -453,7 +550,8 @@ async def call_llm_streaming_with_tools(
     malformed_recovery_retries = 0
     missing_tool_route_retries = 0
     textual_await_response_retries = 0
-    provider_tool_validation_retries = 0
+    web_search_missing_query_iterations = 0
+    has_successful_web_search = False
 
     tool_max_retries = int(entity._get_config(CONF_TOOL_MAX_RETRIES, DEFAULT_TOOL_MAX_RETRIES))
     tool_latency_budget_ms = int(
@@ -560,37 +658,7 @@ async def call_llm_streaming_with_tools(
                     messages=working_messages,
                     tools=tools,
                 )
-            except Exception as chat_err:
-                status_code = getattr(chat_err, "status_code", None)
-                provider_error_code = str(getattr(chat_err, "provider_error_code", "") or "").lower()
-                provider_error_message = str(
-                    getattr(chat_err, "provider_error_message", "") or str(chat_err)
-                ).lower()
-                is_tool_validation_failure = (
-                    status_code == 400
-                    and (
-                        provider_error_code == "tool_use_failed"
-                        or "tool call validation failed" in provider_error_message
-                    )
-                )
-
-                if is_tool_validation_failure and provider_tool_validation_retries < 1:
-                    provider_tool_validation_retries += 1
-                    _LOGGER.warning(
-                        "[USER-REQUEST] Provider rejected tool args (schema validation). Retrying once with strict schema-only tool-call instruction."
-                    )
-                    working_messages.append(
-                        ChatMessage(
-                            role=MessageRole.SYSTEM,
-                            content=(
-                                "Your previous tool call arguments violated the tool schema. "
-                                "Retry now with exactly one valid tool call using only declared parameters. "
-                                "Do not include unknown keys such as id or cursor, and do not omit required keys."
-                            ),
-                        )
-                    )
-                    continue
-
+            except Exception:
                 raise
             if response.content:
                 iteration_content = response.content
@@ -892,6 +960,9 @@ async def call_llm_streaming_with_tools(
             )
 
             # Add tool results to working messages
+            iteration_had_web_search = False
+            iteration_all_web_search_missing_query = True
+            iteration_had_successful_web_search = False
             for tool_call, result_or_err, record in tool_results:
                 all_tool_call_records.append(record)
                 if isinstance(result_or_err, Exception):
@@ -913,11 +984,38 @@ async def call_llm_streaming_with_tools(
                     )
                 )
 
+                if tool_call.name in {"local_web_search", "web_search"}:
+                    iteration_had_web_search = True
+                    if result_or_err.success:
+                        iteration_had_successful_web_search = True
+                        iteration_all_web_search_missing_query = False
+                    elif not _is_missing_query_web_search_error(result_or_err.message):
+                        iteration_all_web_search_missing_query = False
+
                 # Track entities from successful control operations for pronoun resolution
                 if conversation_id and result_or_err.success:
                     entity._track_entity_from_tool_call(
                         conversation_id, tool_call.name, tool_call.arguments
                     )
+
+            if iteration_had_successful_web_search:
+                has_successful_web_search = True
+
+            if iteration_had_web_search and iteration_all_web_search_missing_query:
+                web_search_missing_query_iterations += 1
+            else:
+                web_search_missing_query_iterations = 0
+
+            if has_successful_web_search and web_search_missing_query_iterations >= 2:
+                _LOGGER.warning(
+                    "[USER-REQUEST] Repeated local_web_search missing-query retries detected. Forcing final no-tool answer."
+                )
+                final_content = await _finalize_web_search_answer_without_tools(
+                    entity,
+                    latest_user_text,
+                    working_messages,
+                )
+                return final_content, await_response_called, iteration, all_tool_call_records
 
             # Reset consecutive followup counter after successful tool execution
             # This breaks the followup loop when user provides meaningful input
@@ -931,6 +1029,12 @@ async def call_llm_streaming_with_tools(
 
     # Max iterations reached
     _LOGGER.warning("Max tool iterations (%d) reached", max_iterations)
+    if not final_content.strip() and has_successful_web_search:
+        final_content = await _finalize_web_search_answer_without_tools(
+            entity,
+            latest_user_text,
+            working_messages,
+        )
     return final_content, await_response_called, iteration, all_tool_call_records
 
 

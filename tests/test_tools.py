@@ -1355,103 +1355,21 @@ class TestNotificationAndCalendarRuntimeMatching:
         ddgs_module.DDGS.assert_called_once_with(impersonate="random")
         client.text.assert_called_once_with("empty", max_results=3)
 
-    @pytest.mark.asyncio
-    async def test_web_search_accepts_compat_cursor_and_id_args(self) -> None:
-        """Tool should tolerate provider/model compatibility args without failing."""
-        from custom_components.smart_assist.tools.search_tools import WebSearchTool
-
-        hass = MagicMock()
-        hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
-
-        client = MagicMock()
-        client.text.return_value = [
-            {
-                "title": "Result",
-                "body": "Body",
-                "href": "https://example.com",
-            }
-        ]
-
-        ddgs_module = MagicMock()
-        ddgs_module.DDGS = MagicMock(return_value=client)
-
-        with patch.dict(sys.modules, {"ddgs": ddgs_module}):
-            tool = WebSearchTool(hass)
-            result = await tool.execute(
-                query="test",
-                max_results=2,
-                cursor="abc123",
-                id="req_1",
-            )
-
-        assert result.success is True
-        assert result.data["count"] == 1
-        client.text.assert_called_once_with("test", max_results=2)
-
-    @pytest.mark.asyncio
-    async def test_web_search_accepts_numeric_compat_cursor_and_id_args(self) -> None:
-        """Tool should tolerate numeric compatibility args emitted by provider/model."""
-        from custom_components.smart_assist.tools.search_tools import WebSearchTool
-
-        hass = MagicMock()
-        hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
-
-        client = MagicMock()
-        client.text.return_value = [
-            {
-                "title": "Result",
-                "body": "Body",
-                "href": "https://example.com",
-            }
-        ]
-
-        ddgs_module = MagicMock()
-        ddgs_module.DDGS = MagicMock(return_value=client)
-
-        with patch.dict(sys.modules, {"ddgs": ddgs_module}):
-            tool = WebSearchTool(hass)
-            result = await tool.execute(
-                query="test",
-                max_results=2,
-                cursor=123,
-                id=456,
-            )
-
-        assert result.success is True
-        assert result.data["count"] == 1
-        client.text.assert_called_once_with("test", max_results=2)
-
-    def test_web_search_schema_accepts_numeric_cursor_and_id(self) -> None:
-        """Schema should allow cursor/id as number for provider compatibility."""
+    def test_web_search_schema_is_strict_and_query_required(self) -> None:
+        """Schema should expose canonical name and strict query requirement."""
         from custom_components.smart_assist.tools.search_tools import WebSearchTool
 
         schema = WebSearchTool(MagicMock()).get_schema()
         assert schema["function"]["name"] == "local_web_search"
-        props = schema["function"]["parameters"]["properties"]
-
-        cursor_types = {variant.get("type") for variant in props["cursor"]["anyOf"]}
-        id_types = {variant.get("type") for variant in props["id"]["anyOf"]}
-
-        assert {"string", "number", "null"}.issubset(cursor_types)
-        assert {"string", "number", "null"}.issubset(id_types)
-
-    def test_web_search_schema_makes_query_tolerant(self) -> None:
-        """Schema should not hard-fail when query is omitted by model/provider generation."""
-        from custom_components.smart_assist.tools.search_tools import WebSearchTool
-
-        schema = WebSearchTool(MagicMock()).get_schema()
         params = schema["function"]["parameters"]
         props = params["properties"]
 
         required = params.get("required", [])
-        assert "query" not in required
-        query_types = {variant.get("type") for variant in props["query"]["anyOf"]}
-        assert {"string", "number", "null"}.issubset(query_types)
-
-        topn_types = {variant.get("type") for variant in props["topn"]["anyOf"]}
-        source_types = {variant.get("type") for variant in props["source"]["anyOf"]}
-        assert {"string", "number", "null"}.issubset(topn_types)
-        assert {"string", "number", "null"}.issubset(source_types)
+        assert "query" in required
+        assert "cursor" not in props
+        assert "id" not in props
+        assert "topn" not in props
+        assert "source" not in props
 
     @pytest.mark.asyncio
     async def test_web_search_missing_query_returns_clean_error(self) -> None:
@@ -1459,14 +1377,14 @@ class TestNotificationAndCalendarRuntimeMatching:
         from custom_components.smart_assist.tools.search_tools import WebSearchTool
 
         tool = WebSearchTool(MagicMock())
-        result = await tool.execute(query=None, cursor=123, id=456)
+        result = await tool.execute(query=None)
 
         assert result.success is False
         assert "missing query" in result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_web_search_accepts_topn_source_and_clamps_runtime_max_results(self) -> None:
-        """Provider compatibility args should be accepted while runtime remains capped to 5 results."""
+    async def test_web_search_clamps_runtime_max_results(self) -> None:
+        """Runtime should clamp max_results to 5."""
         from custom_components.smart_assist.tools.search_tools import WebSearchTool
 
         hass = MagicMock()
@@ -1489,8 +1407,6 @@ class TestNotificationAndCalendarRuntimeMatching:
             result = await tool.execute(
                 query="test",
                 max_results=10,
-                topn=10,
-                source="web",
             )
 
         assert result.success is True

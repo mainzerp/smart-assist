@@ -39,93 +39,20 @@ class WebSearchTool(BaseTool):
         ToolParameter(
             name="max_results",
             type="number",
-            description="Max results hint (runtime is safely clamped to 1-5)",
+            description="Max results (1-5)",
             required=False,
             minimum=1,
-            maximum=20,
-        ),
-        ToolParameter(
-            name="cursor",
-            type="string",
-            description="Optional pagination cursor. Ignored by this tool.",
-            required=False,
-        ),
-        ToolParameter(
-            name="id",
-            type="string",
-            description="Optional request identifier. Ignored by this tool.",
-            required=False,
-        ),
-        ToolParameter(
-            name="topn",
-            type="number",
-            description="Optional result count hint from provider/model. Mapped to max_results.",
-            required=False,
-            minimum=1,
-            maximum=20,
-        ),
-        ToolParameter(
-            name="source",
-            type="string",
-            description="Optional source hint from provider/model. Ignored by this tool.",
-            required=False,
+            maximum=5,
         ),
     ]
 
-    def get_schema(self) -> dict[str, Any]:
-        """Get OpenAI-compatible tool schema with compatibility arg tolerance."""
-        schema = super().get_schema()
-        parameters = schema.get("function", {}).get("parameters", {})
-        properties = schema.get("function", {}).get("parameters", {}).get("properties", {})
-
-        required = parameters.get("required", [])
-        if isinstance(required, list) and "query" in required:
-            parameters["required"] = [name for name in required if name != "query"]
-
-        query_prop = properties.get("query")
-        if isinstance(query_prop, dict):
-            query_prop["anyOf"] = [
-                {"type": "string"},
-                {"type": "number"},
-                {"type": "null"},
-            ]
-            query_prop["description"] = (
-                "Primary search query text. Strongly preferred; when missing, tool attempts safe fallback."
-            )
-
-        for compat_key in ("cursor", "id", "topn", "source"):
-            prop = properties.get(compat_key)
-            if not isinstance(prop, dict):
-                continue
-            prop["anyOf"] = [
-                {"type": "string"},
-                {"type": "number"},
-                {"type": "null"},
-            ]
-
-        return schema
-
     async def execute(
         self,
-        query: str | int | float | None = None,
+        query: str | None = None,
         max_results: int = 3,
-        cursor: str | int | float | None = None,
-        id: str | int | float | None = None,
-        topn: str | int | float | None = None,
-        source: str | int | float | None = None,
     ) -> ToolResult:
         """Execute the web_search tool."""
-        _ = (cursor, id, source)
-
-        resolved_query = ""
-        if isinstance(query, str):
-            resolved_query = query.strip()
-        elif query is not None:
-            resolved_query = str(query).strip()
-
-        if not resolved_query and isinstance(cursor, str):
-            resolved_query = cursor.strip()
-
+        resolved_query = (query or "").strip()
         if not resolved_query:
             return ToolResult(
                 success=False,
@@ -144,13 +71,6 @@ class WebSearchTool(BaseTool):
             parsed_max_results = int(max_results)
         except (TypeError, ValueError):
             parsed_max_results = 3
-
-        if (parsed_max_results <= 0 or parsed_max_results > 20) and topn is not None:
-            try:
-                parsed_max_results = int(float(topn))
-            except (TypeError, ValueError):
-                pass
-
         max_results = min(max(1, parsed_max_results), 5)
 
         try:

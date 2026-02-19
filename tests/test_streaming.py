@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 # Add custom_components to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -511,39 +511,72 @@ async def test_textual_await_response_output_retries_until_real_tool_call() -> N
 
 
 @pytest.mark.asyncio
-async def test_provider_tool_schema_failure_retries_with_strict_instruction() -> None:
+async def test_provider_chat_error_propagates_without_provider_specific_retry() -> None:
     err = LLMError("Provider request failed", status_code=400)
-    setattr(err, "provider_error_code", "tool_use_failed")
-    setattr(err, "provider_error_message", "tool call validation failed")
-
     entity = _FakeEntity(
         [
-            ChatResponse(content="", tool_calls=[ToolCall(id="w1", name="web_search", arguments={"query": "q"})]),
+            ChatResponse(content="", tool_calls=[ToolCall(id="w1", name="local_web_search", arguments={"query": "q"})]),
             err,
-            ChatResponse(content="", tool_calls=[ToolCall(id="w2", name="web_search", arguments={"query": "q2"})]),
-            ChatResponse(content="Antwort fertig.", tool_calls=[]),
         ]
     )
 
+    with pytest.raises(LLMError):
+        await call_llm_streaming_with_tools(
+            entity=entity,
+            messages=[ChatMessage(role=MessageRole.USER, content="Bitte such das im Web")],
+            tools=[],
+            cached_prefix_length=0,
+            chat_log=_FakeChatLog(),
+            conversation_id="conv1",
+        )
+
+
+@pytest.mark.asyncio
+async def test_repeated_local_web_search_missing_query_forces_final_answer() -> None:
+    entity = _FakeEntity(
+        [
+            ChatResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(id="w1", name="local_web_search", arguments={"query": "Das perfekte Dinner heute neu oder Wiederholung"})
+                ],
+            ),
+            ChatResponse(
+                content="",
+                tool_calls=[ToolCall(id="w2", name="local_web_search", arguments={"cursor": 2, "id": 2})],
+            ),
+            ChatResponse(
+                content="",
+                tool_calls=[ToolCall(id="w3", name="local_web_search", arguments={"cursor": 3, "id": 2})],
+            ),
+            ChatResponse(content="Laut den gefundenen Quellen ist es heute voraussichtlich eine Wiederholung.", tool_calls=[]),
+        ]
+    )
+
+    async def _execute_side_effect(name, arguments, **kwargs):
+        if name == "local_web_search" and "query" in arguments:
+            return ToolResult(success=True, message="Search results for 'test':\n- Treffer")
+        if name == "local_web_search":
+            return ToolResult(success=False, message="Search failed: missing query text.")
+        return ToolResult(success=True, message="OK")
+
+    entity._registry.execute = AsyncMock(side_effect=_execute_side_effect)
+
     content, await_response, iterations, records = await call_llm_streaming_with_tools(
         entity=entity,
-        messages=[ChatMessage(role=MessageRole.USER, content="Bitte such das im Web")],
+        messages=[
+            ChatMessage(
+                role=MessageRole.USER,
+                content="Ist die heutige Das perfekte Dinner Folge neu oder Wiederholung?",
+            )
+        ],
         tools=[],
         cached_prefix_length=0,
         chat_log=_FakeChatLog(),
         conversation_id="conv1",
     )
 
-    assert content == "Antwort fertig."
     assert await_response is False
-    assert iterations == 4
-    assert len(records) == 2
-
-    all_message_batches = [call.kwargs["messages"] for call in entity._llm_client.chat.await_args_list]
-    system_messages = [
-        msg.content
-        for batch in all_message_batches
-        for msg in batch
-        if msg.role == MessageRole.SYSTEM
-    ]
-    assert any("violated the tool schema" in message for message in system_messages)
+    assert iterations == 3
+    assert len(records) == 3
+    assert "wiederholung" in content.lower()

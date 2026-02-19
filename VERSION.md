@@ -4,9 +4,28 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.35 | 2026-02-19 |
+| Smart Assist | 1.23.36 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.36 (2026-02-19) - Prevent Empty Response on Repeated local_web_search Missing-Query Loops
+
+**Fixes and Improvements:**
+- Removed provider-specific retry handling from the streaming loop to keep tool execution provider-agnostic.
+- Simplified `local_web_search` back to a strict tool contract (`query` + `max_results`) without provider compatibility-only parameters.
+- Added a generic loop guard so repeated missing-query web-search retries no longer end in empty speech output.
+- Added regression coverage for repeated `local_web_search` missing-query loops and provider-agnostic chat-error propagation.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (120 passed)
+
+**Files modified:**
+- custom_components/smart_assist/streaming.py
+- custom_components/smart_assist/tools/search_tools.py
+- tests/test_streaming.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.35 (2026-02-19) - Migrate Web Tool Name to local_web_search with Backward Compatibility
 
