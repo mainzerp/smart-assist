@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.22 | 2026-02-19 |
+| Smart Assist | 1.23.23 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.23 (2026-02-19) - Strict Await-Response Tool Calls + Control Conflict Guard
+
+**Fixes & Improvements:**
+- Enforced strict `await_response` tool-call behavior in streaming loop: textual `await_response(...)` output is no longer accepted as final spoken content
+- Added deterministic retry prompt requiring one valid `await_response` tool call when textual pseudo-tool output appears
+- Added safe fallback response when pseudo-tool output repeats
+- Added control conflict guard to collapse contradictory `control` calls on the same target in one iteration (last call wins)
+- Hardened classifier JSON extraction for fenced JSON and mixed-text outputs
+
+**Validation:**
+- `pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_streaming.py`
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`
+
+**Files modified:**
+- custom_components/smart_assist/streaming.py
+- tests/test_streaming.py
+- VERSION.md
 
 ### v1.23.22 (2026-02-19) - Configurable Reasoning Effort (Groq/OpenRouter/Ollama)
 
