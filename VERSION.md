@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.29 | 2026-02-19 |
+| Smart Assist | 1.23.30 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.30 (2026-02-19) - Preserve Groq Error Metadata for Tool-Recovery Path
+
+**Fixes and Improvements:**
+- Fixed Groq exception propagation to preserve `status_code` and provider metadata (`provider_error_code`, `provider_error_message`) instead of re-wrapping and losing recovery-critical context.
+- Ensured provider-originated `GroqError` instances are re-raised as-is, allowing streaming-layer recovery logic for `tool_use_failed` schema errors to trigger.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (110 passed)
+
+**Files modified:**
+- custom_components/smart_assist/llm/groq_client.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.29 (2026-02-19) - Recovery for Provider Tool Schema Validation Failures
 

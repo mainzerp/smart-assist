@@ -251,6 +251,8 @@ class GroqClient(BaseLLMClient):
                         continue
 
         except Exception as err:
+            if isinstance(err, GroqError):
+                raise
             if not isinstance(err, LLMClientError):
                 self._metrics.failed_requests += 1
             _LOGGER.error("Groq streaming error: %s", err)
@@ -406,6 +408,8 @@ class GroqClient(BaseLLMClient):
                 )
 
         except Exception as err:
+            if isinstance(err, GroqError):
+                raise
             if not isinstance(err, LLMClientError):
                 self._metrics.failed_requests += 1
             _LOGGER.error("Groq chat error: %s", err)
