@@ -1310,6 +1310,39 @@ class TestNotificationAndCalendarRuntimeMatching:
         ddgs_module.DDGS.assert_called_once_with(impersonate="random")
         client.text.assert_called_once_with("empty", max_results=3)
 
+    @pytest.mark.asyncio
+    async def test_web_search_accepts_compat_cursor_and_id_args(self) -> None:
+        """Tool should tolerate provider/model compatibility args without failing."""
+        from custom_components.smart_assist.tools.search_tools import WebSearchTool
+
+        hass = MagicMock()
+        hass.async_add_executor_job = AsyncMock(side_effect=lambda func: func())
+
+        client = MagicMock()
+        client.text.return_value = [
+            {
+                "title": "Result",
+                "body": "Body",
+                "href": "https://example.com",
+            }
+        ]
+
+        ddgs_module = MagicMock()
+        ddgs_module.DDGS = MagicMock(return_value=client)
+
+        with patch.dict(sys.modules, {"ddgs": ddgs_module}):
+            tool = WebSearchTool(hass)
+            result = await tool.execute(
+                query="test",
+                max_results=2,
+                cursor="abc123",
+                id="req_1",
+            )
+
+        assert result.success is True
+        assert result.data["count"] == 1
+        client.text.assert_called_once_with("test", max_results=2)
+
     def test_calendar_similarity_penalizes_reordered_strings(self) -> None:
         """Reordered character strings should not score too close to exact order."""
         from custom_components.smart_assist.tools.calendar_tools import CreateCalendarEventTool

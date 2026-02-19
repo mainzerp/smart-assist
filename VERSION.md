@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.30 | 2026-02-19 |
+| Smart Assist | 1.23.31 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.31 (2026-02-19) - Web Search Schema Tolerance for Model Compatibility Args
+
+**Fixes and Improvements:**
+- Extended `web_search` tool schema to tolerate optional compatibility fields (`cursor`, `id`) that some model generations emit.
+- Updated `web_search.execute(...)` signature to accept and ignore these fields safely while keeping normal query behavior unchanged.
+- Added regression coverage for compatibility-argument handling.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (111 passed)
+
+**Files modified:**
+- custom_components/smart_assist/tools/search_tools.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.30 (2026-02-19) - Preserve Groq Error Metadata for Tool-Recovery Path
 

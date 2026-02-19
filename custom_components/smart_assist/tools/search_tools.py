@@ -44,14 +44,29 @@ class WebSearchTool(BaseTool):
             minimum=1,
             maximum=5,
         ),
+        ToolParameter(
+            name="cursor",
+            type="string",
+            description="Optional pagination cursor. Ignored by this tool.",
+            required=False,
+        ),
+        ToolParameter(
+            name="id",
+            type="string",
+            description="Optional request identifier. Ignored by this tool.",
+            required=False,
+        ),
     ]
 
     async def execute(
         self,
         query: str,
         max_results: int = 3,
+        cursor: str | None = None,
+        id: str | None = None,
     ) -> ToolResult:
         """Execute the web_search tool."""
+        _ = (cursor, id)
         try:
             from ddgs import DDGS
         except ImportError:
