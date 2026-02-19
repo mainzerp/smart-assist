@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.23 | 2026-02-19 |
+| Smart Assist | 1.23.24 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.24 (2026-02-19) - get_entities Fuzzy Name Fallback
+
+**Fixes & Improvements:**
+- Added bounded fuzzy fallback for `get_entities(name_filter=...)` when exact substring matching returns no entities
+- Kept `control` strict on exact `entity_id` values (no fuzzy control execution)
+- Added tests covering fuzzy fallback and exact-match precedence
+
+**Validation:**
+- `pytest -p pytest_asyncio.plugin --noconftest -o asyncio_mode=auto tests/test_tools.py`
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`
+
+**Files modified:**
+- custom_components/smart_assist/tools/entity_tools.py
+- tests/test_tools.py
+- VERSION.md
 
 ### v1.23.23 (2026-02-19) - Strict Await-Response Tool Calls + Control Conflict Guard
 
