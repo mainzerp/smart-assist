@@ -4,9 +4,23 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.36 | 2026-02-19 |
+| Smart Assist | 1.23.37 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.37 (2026-02-19) - Increase Max Tool Iterations to 10
+
+**Fixes and Improvements:**
+- Increased conversation tool-loop safety cap from 5 to 10 iterations to allow more recovery room in complex multi-tool chains.
+- Clarified runtime behavior: this is an upper bound only; requests still end early when no further tool calls are needed.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (117 passed)
+
+**Files modified:**
+- custom_components/smart_assist/const.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.36 (2026-02-19) - Prevent Empty Response on Repeated local_web_search Missing-Query Loops
 
