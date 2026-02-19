@@ -284,6 +284,33 @@ class TestToolRegistry:
         assert result.success is True
         assert "news=True" in result.message
 
+    @pytest.mark.asyncio
+    async def test_shared_executor_applies_web_search_latency_floor(self) -> None:
+        """Shared executor should enforce safer minimum latency budget for web_search."""
+        from custom_components.smart_assist.llm.models import ToolCall
+        from custom_components.smart_assist.tool_executor import execute_tool_calls
+
+        hass = MagicMock()
+        registry = ToolRegistry(hass)
+
+        mock_tool = MagicMock()
+        mock_tool.name = "web_search"
+        mock_tool.execute = AsyncMock(return_value=ToolResult(success=True, message="ok"))
+        registry.register(mock_tool)
+
+        tool_call = ToolCall(id="tc1", name="web_search", arguments={"query": "test"})
+        results = await execute_tool_calls(
+            tool_calls=[tool_call],
+            tool_registry=registry,
+            max_retries=1,
+            latency_budget_ms=1500,
+        )
+
+        assert len(results) == 1
+        _, result_or_exc, record = results[0]
+        assert isinstance(result_or_exc, ToolResult)
+        assert record.latency_budget_ms == 3000
+
 
 class TestBaseTool:
     """Test BaseTool abstract class."""

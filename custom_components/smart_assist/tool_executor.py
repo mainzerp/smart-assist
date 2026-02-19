@@ -18,6 +18,8 @@ from .tools.base import ToolRegistry, ToolResult
 
 _LOGGER = logging.getLogger(__name__)
 
+WEB_SEARCH_MIN_LATENCY_BUDGET_MS = 3000
+
 
 async def execute_tool_calls(
     tool_calls: list[ToolCall],
@@ -46,13 +48,16 @@ async def execute_tool_calls(
     async def _execute_single(tool_call: ToolCall) -> tuple[ToolCall, ToolResult | Exception, ToolCallRecord]:
         """Execute a single tool call and return result with tracking record."""
         started = time.monotonic()
+        effective_latency_budget_ms = latency_budget_ms
+        if tool_call.name == "web_search":
+            effective_latency_budget_ms = max(latency_budget_ms, WEB_SEARCH_MIN_LATENCY_BUDGET_MS)
         try:
             try:
                 result = await tool_registry.execute(
                     tool_call.name,
                     tool_call.arguments,
                     max_retries=max_retries,
-                    latency_budget_ms=latency_budget_ms,
+                    latency_budget_ms=effective_latency_budget_ms,
                 )
             except TypeError:
                 # Fallback for registries that don't support retry/latency params
@@ -78,9 +83,9 @@ async def execute_tool_calls(
                 timed_out=bool(result_data.get("timed_out", False)),
                 retries_used=int(result_data.get("retries_used", 0)),
                 latency_budget_ms=(
-                    int(result_data.get("latency_budget_ms", latency_budget_ms))
+                    int(result_data.get("latency_budget_ms", effective_latency_budget_ms))
                     if isinstance(result_data.get("latency_budget_ms"), (int, float))
-                    else latency_budget_ms
+                    else effective_latency_budget_ms
                 ),
             )
             return tool_call, result, record
@@ -99,7 +104,7 @@ async def execute_tool_calls(
                 # Conservative semantics for hard failures without ToolResult payload:
                 # retries_used is unknown here, so we record 0 instead of inferring.
                 retries_used=0,
-                latency_budget_ms=latency_budget_ms,
+                latency_budget_ms=effective_latency_budget_ms,
             )
             return tool_call, err, record
 

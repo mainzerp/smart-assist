@@ -4,9 +4,27 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.27 | 2026-02-19 |
+| Smart Assist | 1.23.28 | 2026-02-19 |
 
 ## Version History
+
+### v1.23.28 (2026-02-19) - Web Search Timeout Hardening + Groq Error Observability
+
+**Fixes and Improvements:**
+- Added a minimum per-call latency budget floor for `web_search` in shared tool execution (`3000ms`) to reduce avoidable first-attempt timeouts when global tool budget is configured too low.
+- Kept existing global tool budget behavior for all other tools unchanged.
+- Improved Groq non-streaming chat error observability by logging status and truncated provider response body before user-facing sanitization.
+- Added regression coverage for `web_search` latency budget flooring.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1`
+
+**Files modified:**
+- custom_components/smart_assist/tool_executor.py
+- custom_components/smart_assist/llm/groq_client.py
+- tests/test_tools.py
+- custom_components/smart_assist/manifest.json
+- VERSION.md
 
 ### v1.23.27 (2026-02-19) - DDGS Constructor Compatibility for Web Search
 

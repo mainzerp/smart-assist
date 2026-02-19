@@ -305,6 +305,11 @@ class GroqClient(BaseLLMClient):
             async with await self._execute_with_retry(session, payload) as response:
                 if response.status != 200:
                     error_text = await response.text()
+                    _LOGGER.error(
+                        "Groq API error (non-stream): status=%s, body=%s",
+                        response.status,
+                        (error_text or "")[:300],
+                    )
                     self._metrics.failed_requests += 1
                     raise GroqError(
                         sanitize_user_facing_error(
