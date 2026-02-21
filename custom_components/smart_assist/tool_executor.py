@@ -77,6 +77,7 @@ async def execute_tool_calls(
                 name=tool_call.name,
                 success=bool(result.success),
                 execution_time_ms=execution_time_ms,
+                arguments=tool_call.arguments if isinstance(tool_call.arguments, dict) else {},
                 arguments_summary=RequestHistoryStore.truncate(
                     str(tool_call.arguments), request_history_max_length
                 ),
@@ -97,6 +98,7 @@ async def execute_tool_calls(
                 name=tool_call.name,
                 success=False,
                 execution_time_ms=execution_time_ms,
+                arguments=tool_call.arguments if isinstance(tool_call.arguments, dict) else {},
                 arguments_summary=RequestHistoryStore.truncate(
                     str(tool_call.arguments), request_history_max_length
                 ),

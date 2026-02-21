@@ -835,6 +835,101 @@ class SmartAssistConversationEntity(ConversationEntity):
             for r in tool_call_records
         )
 
+    @staticmethod
+    def _extract_entity_ids_from_tool_arguments(arguments: dict[str, Any]) -> list[str]:
+        """Extract entity ids from known control-tool argument shapes."""
+        entity_ids: list[str] = []
+
+        single_entity_id = arguments.get("entity_id")
+        if isinstance(single_entity_id, str) and single_entity_id:
+            entity_ids.append(single_entity_id)
+
+        multiple_entity_ids = arguments.get("entity_ids")
+        if isinstance(multiple_entity_ids, list):
+            for candidate in multiple_entity_ids:
+                if isinstance(candidate, str) and candidate:
+                    entity_ids.append(candidate)
+
+        target = arguments.get("target")
+        if isinstance(target, dict):
+            target_entity_id = target.get("entity_id")
+            if isinstance(target_entity_id, str) and target_entity_id:
+                entity_ids.append(target_entity_id)
+            elif isinstance(target_entity_id, list):
+                for candidate in target_entity_id:
+                    if isinstance(candidate, str) and candidate:
+                        entity_ids.append(candidate)
+
+        deduplicated: list[str] = []
+        seen: set[str] = set()
+        for entity_id in entity_ids:
+            if entity_id in seen:
+                continue
+            seen.add(entity_id)
+            deduplicated.append(entity_id)
+        return deduplicated
+
+    def _set_intent_response_tool_results(
+        self,
+        intent_response: intent.IntentResponse,
+        tool_call_records: list[ToolCallRecord] | None,
+    ) -> None:
+        """Populate intent targets/success/failed from executed control tool calls."""
+        if not tool_call_records:
+            return
+
+        target_cls = getattr(intent, "IntentResponseTarget", None)
+        if target_cls is None:
+            return
+
+        target_type_enum = getattr(intent, "IntentResponseTargetType", None)
+        entity_target_type = (
+            getattr(target_type_enum, "ENTITY", None)
+            if target_type_enum is not None
+            else None
+        )
+
+        all_targets: list[Any] = []
+        success_targets: list[Any] = []
+        failed_targets: list[Any] = []
+
+        for record in tool_call_records:
+            if getattr(record, "name", "") != "control":
+                continue
+            record_arguments = getattr(record, "arguments", None)
+            if not isinstance(record_arguments, dict):
+                continue
+            entity_ids = self._extract_entity_ids_from_tool_arguments(record_arguments)
+            for entity_id in entity_ids:
+                try:
+                    target = target_cls(
+                        id=entity_id,
+                        name=entity_id,
+                        type=entity_target_type,
+                    )
+                except TypeError:
+                    target = target_cls(id=entity_id, name=entity_id)
+                all_targets.append(target)
+                if record.success:
+                    success_targets.append(target)
+                else:
+                    failed_targets.append(target)
+
+        if not all_targets:
+            return
+
+        if hasattr(intent_response, "async_set_targets"):
+            intent_response.async_set_targets(all_targets)
+
+        if hasattr(intent_response, "async_set_results"):
+            try:
+                intent_response.async_set_results(
+                    success_results=success_targets,
+                    failed_results=failed_targets,
+                )
+            except TypeError:
+                intent_response.async_set_results(success_targets, failed_targets)
+
     def _update_last_tts_engine_context(self, user_input: ConversationInput, satellite_id: str | None) -> None:
         """Remember best-effort TTS engine entity id for this conversation agent."""
         candidate = self._extract_tts_engine_candidate_from_input(user_input)
@@ -969,6 +1064,7 @@ class SmartAssistConversationEntity(ConversationEntity):
         """Build a ConversationResult from the chat log."""
         intent_response = intent.IntentResponse(language=user_input.language)
         intent_response.async_set_speech(response_text)
+        self._set_intent_response_tool_results(intent_response, tool_call_records)
         
         # Record conversation stats for user
         if self._memory_enabled and self._memory_manager and user_id != "default":

@@ -34,6 +34,7 @@ class ToolCallRecord:
     name: str
     success: bool
     execution_time_ms: float
+    arguments: dict[str, Any] = field(default_factory=dict)
     arguments_summary: str = ""
     timed_out: bool = False
     retries_used: int = 0

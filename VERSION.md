@@ -4,9 +4,25 @@
 
 | Component    | Version | Date       |
 | ------------ | ------- | ---------- |
-| Smart Assist | 1.23.38 | 2026-02-19 |
+| Smart Assist | 1.23.39 | 2026-02-21 |
 
 ## Version History
+
+### v1.23.39 (2026-02-21) - Conversation Intent Result Mapping for Control Tool Calls
+
+**Fixes and Improvements:**
+- Added structured tool-call argument capture in execution records so control target entity ids are available during response assembly.
+- Mapped executed `control` tool calls to Home Assistant intent response targets and success/failed results in conversation output.
+- Ensured Assist pipeline `intent_output.data` can reflect acted-on entities instead of empty `targets/success/failed` arrays.
+
+**Validation:**
+- `powershell -ExecutionPolicy Bypass -File tests/run_windows_quickcheck.ps1` (117 passed)
+
+**Files modified:**
+- custom_components/smart_assist/context/request_history.py
+- custom_components/smart_assist/tool_executor.py
+- custom_components/smart_assist/conversation.py
+- VERSION.md
 
 ### v1.23.38 (2026-02-19) - UI-Configurable Tool Max Iterations
 
